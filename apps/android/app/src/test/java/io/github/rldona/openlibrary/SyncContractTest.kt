@@ -25,6 +25,7 @@ class SyncContractTest {
         assertTrue(s.copies.any { it.status == "retired" && it.retiredReason != null })
         assertTrue(s.readings.any { it.status == "read" && it.rating == 4.5 })
         assertTrue(s.wishes.any { it.status == "acquired" && it.acquiredCopyId != null })
+        assertTrue(s.quotes.any { it.page == 12 && it.copyId != null })
     }
 
     @Test

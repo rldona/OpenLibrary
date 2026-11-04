@@ -164,6 +164,20 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Asset' }
         '502': { $ref: '#/components/responses/Problem' }
+  /stats:
+    get:
+      operationId: getStats
+      description: |
+        Collection, reading, acquisitions, rankings and wishlist figures (definitions in
+        packages/contracts/src/stats.ts). Android computes the same on its local copy; fixtures/stats.json
+        is the server's result for fixtures/snapshot.json, so both are checked against each other.
+      responses:
+        '200':
+          description: Statistics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Stats' }
+        '401': { $ref: '#/components/responses/Problem' }
   /assets/{id}:
     get:
       operationId: getAsset
@@ -405,19 +419,33 @@ components:
         notes: { type: string }
         status: { type: string, enum: [open, acquired, discarded] }
         acquiredCopyId: { type: [string, 'null'], description: The copy created by "I bought it". }
+    SyncQuote:
+      type: object
+      additionalProperties: false
+      required: [id, version, createdAt, updatedAt, workId, copyId, text, page, note]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        workId: { type: string }
+        copyId: { type: [string, 'null'] }
+        text: { type: string }
+        page: { type: [integer, 'null'] }
+        note: { type: string }
     SyncTombstone:
       type: object
       additionalProperties: false
       required: [entity, id, version, deletedAt]
       properties:
-        entity: { type: string, enum: [work, edition, copy, location, reading, wish] }
+        entity: { type: string, enum: [work, edition, copy, location, reading, wish, quote] }
         id: { type: string }
         version: { type: integer }
         deletedAt: { type: string }
     SyncSnapshot:
       type: object
       additionalProperties: false
-      required: [epoch, cursor, serverTime, works, editions, copies, locations, readings, wishes]
+      required: [epoch, cursor, serverTime, works, editions, copies, locations, readings, wishes, quotes]
       properties:
         epoch: { type: string }
         cursor: { type: integer, description: Pass it as `since` in the next pull. }
@@ -428,11 +456,25 @@ components:
         locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
         readings: { type: array, items: { $ref: '#/components/schemas/SyncReading' } }
         wishes: { type: array, items: { $ref: '#/components/schemas/SyncWish' } }
+        quotes: { type: array, items: { $ref: '#/components/schemas/SyncQuote' } }
     SyncPullPage:
       type: object
       additionalProperties: false
       required:
-        [epoch, cursor, hasMore, serverTime, works, editions, copies, locations, readings, wishes, deleted]
+        [
+          epoch,
+          cursor,
+          hasMore,
+          serverTime,
+          works,
+          editions,
+          copies,
+          locations,
+          readings,
+          wishes,
+          quotes,
+          deleted,
+        ]
       properties:
         epoch: { type: string }
         cursor: { type: integer }
@@ -444,6 +486,7 @@ components:
         locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
         readings: { type: array, items: { $ref: '#/components/schemas/SyncReading' } }
         wishes: { type: array, items: { $ref: '#/components/schemas/SyncWish' } }
+        quotes: { type: array, items: { $ref: '#/components/schemas/SyncQuote' } }
         deleted: { type: array, items: { $ref: '#/components/schemas/SyncTombstone' } }
     SyncPushRequest:
       type: object
@@ -460,8 +503,9 @@ components:
             `copy.create` → `copy` (as POST /copies); `location.create` → `location` (as POST /locations);
             `reading.create` → `reading` (as POST /reading-sessions: `copyId`, `status`, dates, rating, notes);
             `wish.create` → `wish` (as POST /wishlist: `title`, `authors`, `isbn13`, `priority`, `notes`…);
+            `quote.create` → `quote` (as POST /quotes: `workId`, `text`, `page`, `note`, `copyId`); `quote.delete` → `id`;
             `work.update` | `edition.update` | `copy.update` | `location.update` | `reading.update` |
-            `wish.update` → `id` and
+            `wish.update` | `quote.update` → `id` and
             `patch` ({ baseVersion, fields }, only the fields the user changed).
           items:
             type: object
@@ -477,12 +521,15 @@ components:
                     location.create,
                     reading.create,
                     wish.create,
+                    quote.create,
+                    quote.delete,
                     work.update,
                     edition.update,
                     copy.update,
                     location.update,
                     reading.update,
                     wish.update,
+                    quote.update,
                   ]
     SyncOpResult:
       type: object
@@ -567,3 +614,80 @@ components:
         width: { type: integer }
         height: { type: integer }
         bytes: { type: integer }
+    CountBy:
+      type: object
+      additionalProperties: false
+      required: [key, count]
+      properties:
+        key: { type: string }
+        count: { type: integer }
+    Stats:
+      type: object
+      additionalProperties: false
+      required: [collection, reading, acquiredByYear, authors, subjects, languages, wishlistOpen]
+      properties:
+        collection:
+          type: object
+          additionalProperties: false
+          required:
+            [
+              works,
+              editions,
+              copies,
+              retiredCopies,
+              copiesWithoutLocation,
+              provisionalEditions,
+              locations,
+              value,
+            ]
+          properties:
+            works: { type: integer }
+            editions: { type: integer }
+            copies: { type: integer }
+            retiredCopies: { type: integer }
+            copiesWithoutLocation: { type: integer }
+            provisionalEditions: { type: integer }
+            locations: { type: integer }
+            value:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [currency, cents]
+                properties:
+                  currency: { type: string }
+                  cents: { type: integer }
+        reading:
+          type: object
+          additionalProperties: false
+          required: [read, reading, pending, finishedSessions, abandonedSessions, averageRating, byYear]
+          properties:
+            read: { type: integer }
+            reading: { type: integer }
+            pending: { type: integer }
+            finishedSessions: { type: integer }
+            abandonedSessions: { type: integer }
+            averageRating: { type: [number, 'null'] }
+            byYear:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [year, works, pages]
+                properties:
+                  year: { type: integer }
+                  works: { type: integer }
+                  pages: { type: integer }
+        acquiredByYear:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [year, copies]
+            properties:
+              year: { type: integer }
+              copies: { type: integer }
+        authors: { type: array, items: { $ref: '#/components/schemas/CountBy' } }
+        subjects: { type: array, items: { $ref: '#/components/schemas/CountBy' } }
+        languages: { type: array, items: { $ref: '#/components/schemas/CountBy' } }
+        wishlistOpen: { type: integer }

@@ -138,6 +138,15 @@ export const WishFields = z.object({
 });
 export type WishFields = z.infer<typeof WishFields>;
 
+/** A quote from a work, optionally from the copy you read it in; deleting is allowed (it is your note). */
+export const QuoteFields = z.object({
+  text: text(5000).min(1, 'validation.quoteRequired'),
+  page: z.number().int().min(1).max(100_000).nullish().default(null),
+  note: text(5000).default(''),
+  copyId: Id.nullish().default(null),
+});
+export type QuoteFields = z.infer<typeof QuoteFields>;
+
 // ---------- Creation ----------
 /** Full creation in one operation: new or existing work + edition + first copy. */
 export const BookCreate = z
@@ -162,6 +171,9 @@ export type ReadingCreate = z.input<typeof ReadingCreate>;
 
 export const WishCreate = WishFields.extend({ id: Id.optional() });
 export type WishCreate = z.input<typeof WishCreate>;
+
+export const QuoteCreate = QuoteFields.extend({ id: Id.optional(), workId: Id });
+export type QuoteCreate = z.input<typeof QuoteCreate>;
 
 export const LocationCreate = z.object({
   id: Id.optional(),
@@ -207,6 +219,8 @@ export const LocationPatch = patchOf(
 export const ReadingPatch = patchOf(ReadingFields);
 export type ReadingPatch = z.input<typeof ReadingPatch>;
 export const WishPatch = patchOf(WishFields);
+export const QuotePatch = patchOf(QuoteFields);
+export type QuotePatch = z.input<typeof QuotePatch>;
 export type WishPatch = z.input<typeof WishPatch>;
 export type WorkPatch = z.input<typeof WorkPatch>;
 export type EditionPatch = z.input<typeof EditionPatch>;
@@ -241,6 +255,7 @@ export type LocationTree = { items: LocationDTO[]; unassigned: number };
 
 export type ReadingDTO = Versioned & ReadingFields & { copyId: string };
 export type WishDTO = Versioned & WishFields;
+export type QuoteDTO = Versioned & QuoteFields & { workId: string };
 export type WishList = { items: WishDTO[] };
 
 export type WorkDetail = {
@@ -250,6 +265,8 @@ export type WorkDetail = {
   readings: ReadingDTO[];
   /** Derived (BR13): reading if a session is active, read if any finished, otherwise pending. */
   readingStatus: 'pending' | 'reading' | 'read';
+  /** Quotes from the work, in page order (those without a page last). */
+  quotes: QuoteDTO[];
 };
 
 /** BR13, shared by the server and the web (Android ports it). */

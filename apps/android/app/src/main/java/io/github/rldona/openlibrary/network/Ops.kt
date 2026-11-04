@@ -96,6 +96,16 @@ data class NewWish(
 )
 
 @Serializable
+data class NewQuote(
+    val id: String,
+    val workId: String,
+    val text: String,
+    val page: Int? = null,
+    val note: String = "",
+    val copyId: String? = null,
+)
+
+@Serializable
 sealed interface Op {
     val opId: String
 
@@ -113,6 +123,12 @@ sealed interface Op {
 
     @Serializable @SerialName("wish.create")
     data class WishCreate(override val opId: String, val wish: NewWish) : Op
+
+    @Serializable @SerialName("quote.create")
+    data class QuoteCreate(override val opId: String, val quote: NewQuote) : Op
+
+    @Serializable @SerialName("quote.delete")
+    data class QuoteDelete(override val opId: String, val id: String) : Op
 
     sealed interface Update : Op {
         val id: String
@@ -136,6 +152,9 @@ sealed interface Op {
 
     @Serializable @SerialName("wish.update")
     data class WishUpdate(override val opId: String, override val id: String, override val patch: Patch) : Update
+
+    @Serializable @SerialName("quote.update")
+    data class QuoteUpdate(override val opId: String, override val id: String, override val patch: Patch) : Update
 }
 
 /** Same op, new id and base version: how "keep mine" resolves a conflict. */
@@ -147,4 +166,5 @@ fun Op.Update.rebased(opId: String, baseVersion: Int, fields: JsonObject): Op.Up
         is Op.LocationUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
         is Op.ReadingUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
         is Op.WishUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
+        is Op.QuoteUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
     }

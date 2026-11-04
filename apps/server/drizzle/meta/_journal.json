@@ -43,6 +43,13 @@
       "when": 1793822886475,
       "tag": "0005_wishlist",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793824025432,
+      "tag": "0006_quotes",
+      "breakpoints": true
     }
   ]
 }

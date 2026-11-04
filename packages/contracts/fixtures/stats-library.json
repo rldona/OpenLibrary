@@ -1,0 +1,86 @@
+{
+  "collection": {
+    "works": 3,
+    "editions": 3,
+    "copies": 4,
+    "retiredCopies": 1,
+    "copiesWithoutLocation": 3,
+    "provisionalEditions": 0,
+    "locations": 1,
+    "value": [
+      {
+        "currency": "EUR",
+        "cents": 2350
+      },
+      {
+        "currency": "USD",
+        "cents": 1299
+      }
+    ]
+  },
+  "reading": {
+    "read": 1,
+    "reading": 1,
+    "pending": 1,
+    "finishedSessions": 3,
+    "abandonedSessions": 1,
+    "averageRating": 4.25,
+    "byYear": [
+      {
+        "year": 2025,
+        "works": 2,
+        "pages": 200
+      },
+      {
+        "year": 2023,
+        "works": 1,
+        "pages": 200
+      }
+    ]
+  },
+  "acquiredByYear": [
+    {
+      "year": 2024,
+      "copies": 3
+    },
+    {
+      "year": 2023,
+      "copies": 1
+    },
+    {
+      "year": 2020,
+      "copies": 1
+    }
+  ],
+  "authors": [
+    {
+      "key": "Unamuno",
+      "count": 2
+    },
+    {
+      "key": "Frank Herbert",
+      "count": 1
+    }
+  ],
+  "subjects": [
+    {
+      "key": "Novela",
+      "count": 3
+    },
+    {
+      "key": "Ciencia ficción",
+      "count": 1
+    }
+  ],
+  "languages": [
+    {
+      "key": "es",
+      "count": 2
+    },
+    {
+      "key": "en",
+      "count": 1
+    }
+  ],
+  "wishlistOpen": 1
+}

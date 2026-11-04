@@ -18,6 +18,7 @@ import {
   copies,
   editions,
   locations,
+  quotes,
   readingSessions,
   wishlistItems,
   works,
@@ -25,7 +26,7 @@ import {
 import { badRequest, HttpError, notFound } from '../errors.js';
 
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0] | Db;
-export type EntityName = 'work' | 'edition' | 'copy' | 'location' | 'reading' | 'wish';
+export type EntityName = 'work' | 'edition' | 'copy' | 'location' | 'reading' | 'wish' | 'quote';
 
 export const TABLES = {
   work: works,
@@ -34,6 +35,7 @@ export const TABLES = {
   location: locations,
   reading: readingSessions,
   wish: wishlistItems,
+  quote: quotes,
 } as const;
 type AnyTable = (typeof TABLES)[EntityName];
 

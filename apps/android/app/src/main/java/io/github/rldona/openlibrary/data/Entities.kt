@@ -130,6 +130,21 @@ data class WishEntity(
     val updatedAt: String,
 )
 
+/** A passage kept from a work (F4). */
+@Serializable
+@Entity(tableName = "quotes", indices = [Index("workId")])
+data class QuoteEntity(
+    @PrimaryKey val id: String,
+    val version: Int,
+    val workId: String,
+    val copyId: String?,
+    val text: String,
+    val page: Int?,
+    val note: String,
+    val createdAt: String,
+    val updatedAt: String,
+)
+
 /** Full-text index, one row per edition: folded title, authors, ISBN, publisher, subjects and locations. */
 @Fts4(notIndexed = ["editionId"])
 @Entity(tableName = "book_fts")
@@ -177,5 +192,5 @@ data class SyncStateEntity(
     @ColumnInfo(defaultValue = "0") val format: Int = SYNC_FORMAT,
 )
 
-/** 1: catalog (F2); 2: + reading sessions and wishes (F4). Bump it whenever a synced entity type is added. */
-const val SYNC_FORMAT = 2
+/** 1: catalog (F2); 2: + reading sessions and wishes; 3: + quotes (F4). Bump it whenever a synced entity type is added. */
+const val SYNC_FORMAT = 3

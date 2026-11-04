@@ -14,6 +14,7 @@ export const keys = {
   locations: ['locations'] as const,
   work: (id: string) => ['work', id] as const,
   wishlist: ['wishlist'] as const,
+  stats: ['stats'] as const,
 };
 
 export const useLocations = () => useQuery({ queryKey: keys.locations, queryFn: api.locations });
@@ -45,6 +46,7 @@ export function invalidateCatalog(qc: QueryClient, work?: WorkDetail) {
   void qc.invalidateQueries({ queryKey: keys.facets });
   void qc.invalidateQueries({ queryKey: keys.locations });
   void qc.invalidateQueries({ queryKey: keys.wishlist });
+  void qc.invalidateQueries({ queryKey: keys.stats });
 }
 export const useInvalidate = () => {
   const qc = useQueryClient();

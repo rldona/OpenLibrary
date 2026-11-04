@@ -23,6 +23,8 @@ import {
   ReadingPatch,
   WishCreate,
   WishPatch,
+  QuoteCreate,
+  QuotePatch,
   WorkPatch,
   type Condition,
   type ConflictProblem,
@@ -31,7 +33,7 @@ import {
   type RetireReason,
 } from './catalog.js';
 
-export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location', 'reading', 'wish'] as const;
+export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location', 'reading', 'wish', 'quote'] as const;
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
 
 type SyncMeta = { id: string; version: number; createdAt: string; updatedAt: string };
@@ -104,6 +106,14 @@ export type SyncWish = SyncMeta & {
   acquiredCopyId: string | null;
 };
 
+export type SyncQuote = SyncMeta & {
+  workId: string;
+  copyId: string | null;
+  text: string;
+  page: number | null;
+  note: string;
+};
+
 export type SyncTombstone = { entity: SyncEntity; id: string; version: number; deletedAt: string };
 
 /** Entities grouped by type: simple to consume from Kotlin (no polymorphic records). */
@@ -114,6 +124,7 @@ export type SyncRecords = {
   locations: SyncLocation[];
   readings: SyncReading[];
   wishes: SyncWish[];
+  quotes: SyncQuote[];
 };
 
 export type SyncSnapshot = SyncRecords & {
@@ -165,12 +176,15 @@ export const SyncOp = z.discriminatedUnion('type', [
   z.object({ opId: Id, type: z.literal('location.create'), location: LocationCreate }),
   z.object({ opId: Id, type: z.literal('reading.create'), reading: ReadingCreate }),
   z.object({ opId: Id, type: z.literal('wish.create'), wish: WishCreate }),
+  z.object({ opId: Id, type: z.literal('quote.create'), quote: QuoteCreate }),
+  z.object({ opId: Id, type: z.literal('quote.delete'), id: Id }),
   update('work.update', WorkPatch),
   update('edition.update', EditionPatch),
   update('copy.update', CopyPatch),
   update('location.update', LocationPatch),
   update('reading.update', ReadingPatch),
   update('wish.update', WishPatch),
+  update('quote.update', QuotePatch),
 ]);
 export type SyncOp = z.input<typeof SyncOp>;
 

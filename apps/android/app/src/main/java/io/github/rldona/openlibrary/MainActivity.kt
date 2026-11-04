@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
@@ -49,6 +50,8 @@ import io.github.rldona.openlibrary.ui.cover.CoverViewerScreen
 import io.github.rldona.openlibrary.ui.review.ReviewScreen
 import io.github.rldona.openlibrary.ui.review.ReviewViewModel
 import io.github.rldona.openlibrary.ui.detail.DetailScreen
+import io.github.rldona.openlibrary.ui.stats.StatsScreen
+import io.github.rldona.openlibrary.ui.stats.StatsViewModel
 import io.github.rldona.openlibrary.ui.wishlist.WishlistScreen
 import io.github.rldona.openlibrary.ui.wishlist.WishlistViewModel
 import io.github.rldona.openlibrary.ui.detail.DetailViewModel
@@ -73,6 +76,7 @@ import kotlinx.serialization.Serializable
 @Serializable object SettingsRoute
 @Serializable data class AddBookRoute(val wishId: String? = null)
 @Serializable object WishlistRoute
+@Serializable object StatsRoute
 @Serializable data class EditBookRoute(val workId: String, val editionId: String)
 /** Full-screen camera: `mode` is "isbn" or "cover"; `tabs` lets the user switch between them. */
 @Serializable data class CaptureRoute(val mode: String, val tabs: Boolean)
@@ -98,7 +102,7 @@ private fun App(c: AppContainer, connected: Boolean) {
     val context = LocalContext.current
     val entry by nav.currentBackStackEntryAsState()
     val dest = entry?.destination
-    val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "WishlistRoute", "SettingsRoute").any { r.contains(it) } } == true
+    val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "WishlistRoute", "StatsRoute", "SettingsRoute").any { r.contains(it) } } == true
     // Camera and cover viewer use the whole screen, without app bars.
     val fullScreen = dest?.route?.let { r -> "CaptureRoute" in r || "CoverRoute" in r } == true
     val inDetail = !inTabs && !fullScreen && dest?.route?.contains("SetupRoute") == false
@@ -187,6 +191,10 @@ private fun App(c: AppContainer, connected: Boolean) {
                     nav.navigate(DetailRoute(workId)) { popUpTo<AddBookRoute> { inclusive = true } }
                 }
             }
+            composable<StatsRoute> {
+                val vm = viewModel<StatsViewModel>(factory = viewModelFactory { initializer { StatsViewModel(c) } })
+                StatsScreen(vm)
+            }
             composable<WishlistRoute> {
                 val vm = viewModel<WishlistViewModel>(factory = viewModelFactory { initializer { WishlistViewModel(c) } })
                 WishlistScreen(vm) { wishId -> nav.navigate(AddBookRoute(wishId)) }
@@ -264,6 +272,7 @@ private fun Tabs(nav: NavHostController) {
             Triple(LibraryRoute(), R.string.nav_library, Icons.AutoMirrored.Filled.LibraryBooks) to "LibraryRoute",
             Triple(LocationsRoute, R.string.nav_locations, Icons.Default.Place) to "LocationsRoute",
             Triple(WishlistRoute, R.string.nav_wishlist, Icons.Default.Favorite) to "WishlistRoute",
+            Triple(StatsRoute, R.string.nav_stats, Icons.Default.BarChart) to "StatsRoute",
             Triple(SettingsRoute, R.string.nav_settings, Icons.Default.Settings) to "SettingsRoute",
         ).forEach { (item, name) ->
             val (target, label, icon) = item

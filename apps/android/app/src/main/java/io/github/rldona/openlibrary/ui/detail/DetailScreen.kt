@@ -35,6 +35,7 @@ import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.LocationEntity
+import io.github.rldona.openlibrary.data.QuoteEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.sync.pathOf
@@ -57,9 +58,10 @@ data class DetailState(
     val copies: List<CopyEntity> = emptyList(),
     val locations: Map<String, LocationEntity> = emptyMap(),
     val readings: List<ReadingEntity> = emptyList(),
+    val quotes: List<QuoteEntity> = emptyList(),
 )
 
-class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel() {
+class DetailViewModel(private val c: AppContainer, private val workId: String) : ViewModel() {
     val covers = c.covers
     val state: StateFlow<DetailState> =
         combine(
@@ -69,6 +71,7 @@ class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel()
             c.db.catalog().locations(),
             c.db.catalog().readingsOfWork(workId),
         ) { w, e, cp, l, r -> DetailState(w, e, cp, l.associateBy { it.id }, r) }
+            .combine(c.db.catalog().quotesOfWork(workId)) { st, q -> st.copy(quotes = q) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState())
 
     /** Sends only what changed, so another device's edits to other fields are merged, not overwritten. */
@@ -94,6 +97,26 @@ class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel()
             when (action) {
                 is ReadingAction.Start -> c.writes.startReading(action.copyId, action.status)
                 is ReadingAction.Edit -> c.writes.editReading(action.reading, JsonObject(action.fields.mapValues { (_, v) -> toJson(v) }))
+            }
+        }
+
+    fun quote(action: QuoteAction) =
+        viewModelScope.launch {
+            when (action) {
+                is QuoteAction.Add -> action.draft.let { c.writes.addQuote(workId, it.text, it.page, it.note, it.copyId) }
+                is QuoteAction.Delete -> c.writes.deleteQuote(action.quote)
+                is QuoteAction.Edit -> {
+                    val q = action.quote
+                    val d = action.draft
+                    // Only what changed, so another device's edits to other fields are merged.
+                    val f = buildMap<String, Any?> {
+                        if (d.text != q.text) put("text", d.text)
+                        if (d.page != q.page) put("page", d.page)
+                        if (d.note != q.note) put("note", d.note)
+                        if (d.copyId != q.copyId) put("copyId", d.copyId)
+                    }
+                    if (f.isNotEmpty()) c.writes.editQuote(q, JsonObject(f.mapValues { (_, v) -> toJson(v) }))
+                }
             }
         }
 
@@ -154,6 +177,7 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
             }
         }
         ReadingCard(s.readings, s.copies, vm::reading)
+        QuotesCard(s.quotes, s.copies, vm::quote)
         work.description?.let {
             Text(stringResource(R.string.book_synopsis), style = MaterialTheme.typography.titleSmall)
             Text(it, style = MaterialTheme.typography.bodyMedium)

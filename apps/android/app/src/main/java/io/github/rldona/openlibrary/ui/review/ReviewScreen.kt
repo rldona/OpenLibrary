@@ -126,6 +126,8 @@ private fun whatLabel(type: String): Int =
         "edition" -> R.string.review_what_edition
         "copy" -> R.string.review_what_copy
         "reading" -> R.string.reading_title
+        "quote" -> R.string.quotes_title
+        "wish" -> R.string.nav_wishlist
         else -> R.string.review_what_location
     }
 
@@ -152,6 +154,10 @@ private fun fieldLabel(field: String): Int =
         "name" -> R.string.locations_name
         "kind" -> R.string.locations_kind
         "rating" -> R.string.reading_rating
+        "text" -> R.string.quotes_text
+        "page" -> R.string.quotes_page
+        "note" -> R.string.quotes_note
+        "priority" -> R.string.wish_priority
         "startedOn" -> R.string.reading_started
         "finishedOn" -> R.string.reading_finished
         "status", "retiredReason" -> R.string.copyForm_reason

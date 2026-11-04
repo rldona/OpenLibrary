@@ -11,7 +11,7 @@ import type { Config } from './config.js';
 import { getMeta, type Db } from './db/client.js';
 import { forbidden, HttpError } from './errors.js';
 import { tr } from './i18n.js';
-import { authRoutes, installSessionHook, SESSION_COOKIE } from './auth/routes.js';
+import { authRoutes, installSessionHook, requireAuth, SESSION_COOKIE } from './auth/routes.js';
 import { AuthService, type Clock } from './auth/service.js';
 import { CatalogService } from './catalog/service.js';
 import { catalogRoutes } from './catalog/routes.js';
@@ -20,6 +20,7 @@ import { assetAndLookupRoutes } from './assets/routes.js';
 import { LookupService } from './lookup/service.js';
 import { SyncService } from './sync/service.js';
 import { syncRoutes } from './sync/routes.js';
+import { StatsService } from './stats/service.js';
 import type { Fetch } from './lookup/providers.js';
 
 declare module 'fastify' {
@@ -178,6 +179,11 @@ export async function buildApp(deps: {
       await api.register(catalogRoutes, { catalog });
       await api.register(assetAndLookupRoutes, { assets, lookup });
       await api.register(syncRoutes, { sync });
+      const stats = new StatsService(db);
+      api.get('/stats', async (req) => {
+        requireAuth(req);
+        return stats.stats();
+      });
     },
     { prefix: API_PREFIX },
   );

@@ -54,6 +54,7 @@ class SyncRepositoryTest {
             locations = listOf(location("l1", "Casa"), location("l2", "Salón", parentId = "l1")),
             readings = emptyList(),
             wishes = emptyList(),
+            quotes = emptyList(),
         )
 
     private fun json(body: Any, code: Int = 200): MockResponse {
@@ -69,7 +70,7 @@ class SyncRepositoryTest {
     private fun image() = MockResponse.Builder().code(200).body(Buffer().write(byteArrayOf(1, 2, 3))).build()
 
     private fun page(cursor: Long, hasMore: Boolean, works: List<SyncWork> = emptyList(), deleted: List<SyncTombstone> = emptyList()) =
-        SyncPullPage("epoch-1", cursor, hasMore, T, works, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), deleted)
+        SyncPullPage("epoch-1", cursor, hasMore, T, works, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), deleted)
 
     @Before
     fun setUp() {

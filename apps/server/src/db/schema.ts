@@ -197,6 +197,22 @@ export const wishlistItems = sqliteTable(
   (t) => [index('wishlist_isbn_idx').on(t.isbn13)],
 );
 
+/** Quotes (F4): passages you keep from a work, optionally from a specific copy. */
+export const quotes = sqliteTable(
+  'quotes',
+  {
+    ...syncCols,
+    workId: text('work_id')
+      .notNull()
+      .references(() => works.id),
+    copyId: text('copy_id'),
+    text: text('text').notNull(),
+    page: integer('page'),
+    note: text('note').notNull().default(''),
+  },
+  (t) => [index('quotes_work_idx').on(t.workId)],
+);
+
 /** Covers and other images, addressed by the SHA-256 of the original file. */
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(),
@@ -216,7 +232,9 @@ export const changeLog = sqliteTable(
   'change_log',
   {
     seq: integer('seq').primaryKey({ autoIncrement: true }),
-    entity: text('entity', { enum: ['work', 'edition', 'copy', 'location', 'reading', 'wish'] }).notNull(),
+    entity: text('entity', {
+      enum: ['work', 'edition', 'copy', 'location', 'reading', 'wish', 'quote'],
+    }).notNull(),
     entityId: text('entity_id').notNull(),
     op: text('op', { enum: ['create', 'update', 'delete'] }).notNull(),
     version: integer('version').notNull(),

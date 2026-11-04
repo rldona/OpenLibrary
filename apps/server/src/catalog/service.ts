@@ -6,6 +6,7 @@ import {
   workReadingStatus,
   type ReadingDTO,
   type WishDTO,
+  type QuoteDTO,
   type WishList,
   type CopyDTO,
   type EditionDTO,
@@ -19,7 +20,16 @@ import {
 } from '@openlibrary/contracts';
 import type * as C from '@openlibrary/contracts';
 import { getMeta, setMeta, type Db } from '../db/client.js';
-import { assets, copies, editions, locations, readingSessions, wishlistItems, works } from '../db/schema.js';
+import {
+  assets,
+  copies,
+  editions,
+  locations,
+  quotes,
+  readingSessions,
+  wishlistItems,
+  works,
+} from '../db/schema.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
 import type { Clock } from '../auth/service.js';
 import { patchEntity, recordChange, softDelete, type Tx } from './changes.js';
@@ -31,6 +41,7 @@ type CopyRow = typeof copies.$inferSelect;
 type LocationRow = typeof locations.$inferSelect;
 type ReadingRow = typeof readingSessions.$inferSelect;
 type WishRow = typeof wishlistItems.$inferSelect;
+type QuoteRow = typeof quotes.$inferSelect;
 type Out<T extends z.ZodType> = z.output<T>;
 
 const workDerived = (w: { title: string; authors: string[] }) => ({
@@ -41,6 +52,7 @@ const workDerived = (w: { title: string; authors: string[] }) => ({
 const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): WorkDTO => w;
 const toReading = ({ deletedAt: _d, ...r }: ReadingRow): ReadingDTO => r;
 const toWish = ({ deletedAt: _d, ...w }: WishRow): WishDTO => w;
+const toQuote = ({ deletedAt: _d, ...q }: QuoteRow): QuoteDTO => q;
 const PRIORITY = { high: 0, normal: 1, low: 2 } as const;
 
 /** BR11: entering "reading" or "read" without the matching date stamps today. */
@@ -231,8 +243,16 @@ export class CatalogService {
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
           .map(toReading)
       : [];
+    const qs = tx
+      .select()
+      .from(quotes)
+      .where(and(eq(quotes.workId, id), isNull(quotes.deletedAt)))
+      .all()
+      .sort((a, b) => (a.page ?? Infinity) - (b.page ?? Infinity) || a.createdAt.localeCompare(b.createdAt))
+      .map(toQuote);
     return {
       work: toWork(w),
+      quotes: qs,
       readings,
       readingStatus: workReadingStatus(readings),
       editions: eds.map((e) => ({
@@ -631,6 +651,52 @@ export class CatalogService {
   private workOfCopy(tx: Tx, editionId: string): string {
     return tx.select({ workId: editions.workId }).from(editions).where(eq(editions.id, editionId)).get()!
       .workId;
+  }
+
+  // ======================= Quotes =======================
+  createQuote(input: Out<typeof C.QuoteCreate>, sid: string | null = null): WorkDetail {
+    return this.db.transaction((tx) => {
+      const w = tx.select().from(works).where(eq(works.id, input.workId)).get();
+      if (!w || w.deletedAt) throw badRequest('errors.workNotFound');
+      this.ensureCopyOfWork(tx, input.copyId, input.workId);
+      const now = this.ts();
+      const { id: maybeId, ...fields } = input;
+      const id = maybeId ?? uuidv7();
+      if (tx.select({ id: quotes.id }).from(quotes).where(eq(quotes.id, id)).get()) {
+        throw new HttpError(409, 'already-exists', 'errors.alreadyExists.quote');
+      }
+      tx.insert(quotes)
+        .values({ id, version: 1, createdAt: now, updatedAt: now, ...fields })
+        .run();
+      recordChange(tx, 'quote', id, 'create', 1, fields, now, sid);
+      return this.getWork(input.workId, tx);
+    });
+  }
+
+  patchQuote(id: string, p: Out<typeof C.QuotePatch>, sid: string | null = null): WorkDetail {
+    return this.db.transaction((tx) => {
+      const q = tx.select().from(quotes).where(eq(quotes.id, id)).get();
+      if (!q || q.deletedAt) throw notFound();
+      this.ensureCopyOfWork(tx, p.fields.copyId, q.workId);
+      patchEntity<QuoteRow>(tx, 'quote', id, p.baseVersion, p.fields, { now: this.ts(), sessionId: sid });
+      return this.getWork(q.workId, tx);
+    });
+  }
+
+  deleteQuote(id: string, sid: string | null = null): WorkDetail {
+    return this.db.transaction((tx) => {
+      const q = tx.select().from(quotes).where(eq(quotes.id, id)).get();
+      if (!q || q.deletedAt) throw notFound();
+      softDelete(tx, 'quote', id, this.ts(), sid);
+      return this.getWork(q.workId, tx);
+    });
+  }
+
+  private ensureCopyOfWork(tx: Tx, copyId: string | null | undefined, workId: string) {
+    if (!copyId) return;
+    const c = tx.select().from(copies).where(eq(copies.id, copyId)).get();
+    if (!c || c.deletedAt || this.workOfCopy(tx, c.editionId) !== workId)
+      throw badRequest('errors.copyNotFound');
   }
 
   // ======================= Wishlist =======================

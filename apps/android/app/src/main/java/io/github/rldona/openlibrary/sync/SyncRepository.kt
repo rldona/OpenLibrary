@@ -21,6 +21,8 @@ import io.github.rldona.openlibrary.network.SyncEdition
 import io.github.rldona.openlibrary.network.SyncLocation
 import io.github.rldona.openlibrary.network.SyncReading
 import io.github.rldona.openlibrary.network.SyncWish
+import io.github.rldona.openlibrary.network.SyncQuote
+import io.github.rldona.openlibrary.data.QuoteEntity
 import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.network.SyncWork
@@ -102,12 +104,14 @@ class SyncRepository(
             dao.clearLocations()
             dao.clearReadings()
             dao.clearWishes()
+            dao.clearQuotes()
             dao.upsertWorks(s.works.map { it.toEntity() })
             dao.upsertEditions(s.editions.map { it.toEntity() })
             dao.upsertCopies(s.copies.map { it.toEntity() })
             dao.upsertLocations(s.locations.map { it.toEntity() })
             dao.upsertReadings(s.readings.map { it.toEntity() })
             dao.upsertWishes(s.wishes.map { it.toEntity() })
+            dao.upsertQuotes(s.quotes.map { it.toEntity() })
             dao.setState(SyncStateEntity(epoch = s.epoch, cursor = s.cursor, lastSyncAt = dao.state()?.lastSyncAt, format = SYNC_FORMAT))
             reapplyPending()
             rebuildSearchIndex()
@@ -184,6 +188,7 @@ class SyncRepository(
                 dao.upsertLocations(page.locations.map { it.toEntity() })
                 dao.upsertReadings(page.readings.map { it.toEntity() })
                 dao.upsertWishes(page.wishes.map { it.toEntity() })
+                dao.upsertQuotes(page.quotes.map { it.toEntity() })
                 val gone = page.deleted.groupBy({ it.entity }, { it.id })
                 gone["work"]?.let { dao.deleteWorks(it) }
                 gone["edition"]?.let { dao.deleteEditions(it) }
@@ -191,8 +196,9 @@ class SyncRepository(
                 gone["location"]?.let { dao.deleteLocations(it) }
                 gone["reading"]?.let { dao.deleteReadings(it) }
                 gone["wish"]?.let { dao.deleteWishes(it) }
+                gone["quote"]?.let { dao.deleteQuotes(it) }
                 dao.setState(start.copy(cursor = page.cursor))
-                val changed = page.works.size + page.editions.size + page.copies.size + page.locations.size + page.readings.size + page.wishes.size
+                val changed = page.works.size + page.editions.size + page.copies.size + page.locations.size + page.readings.size + page.wishes.size + page.quotes.size
                 if (changed + page.deleted.size > 0) {
                     reapplyPending()
                     rebuildSearchIndex()
@@ -229,6 +235,7 @@ class SyncRepository(
                 dao.clearLocations()
                 dao.clearReadings()
                 dao.clearWishes()
+                dao.clearQuotes()
                 dao.clearFts()
                 dao.clearState()
                 db.outbox().clear()
@@ -293,6 +300,8 @@ private fun SyncReading.toEntity() =
 
 private fun SyncWish.toEntity() =
     WishEntity(id, version, title, authors, isbn13, workId, priority, notes, status, acquiredCopyId, createdAt, updatedAt)
+
+private fun SyncQuote.toEntity() = QuoteEntity(id, version, workId, copyId, text, page, note, createdAt, updatedAt)
 
 private fun SyncLocation.toEntity() =
     LocationEntity(id, version, parentId, name, kind, sortOrder, createdAt, updatedAt)

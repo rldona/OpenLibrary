@@ -82,4 +82,5 @@ export * from './isbn.js';
 export * from './ids.js';
 export * from './catalog.js';
 export * from './sync.js';
+export * from './stats.js';
 export * from './i18n.js';

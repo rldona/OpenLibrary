@@ -1,0 +1,42 @@
+{
+  "collection": {
+    "works": 1,
+    "editions": 1,
+    "copies": 1,
+    "retiredCopies": 1,
+    "copiesWithoutLocation": 1,
+    "provisionalEditions": 0,
+    "locations": 1,
+    "value": []
+  },
+  "reading": {
+    "read": 0,
+    "reading": 0,
+    "pending": 1,
+    "finishedSessions": 1,
+    "abandonedSessions": 0,
+    "averageRating": 4.5,
+    "byYear": [
+      {
+        "year": 2026,
+        "works": 1,
+        "pages": 320
+      }
+    ]
+  },
+  "acquiredByYear": [
+    {
+      "year": 2020,
+      "copies": 1
+    }
+  ],
+  "authors": [],
+  "subjects": [],
+  "languages": [
+    {
+      "key": "",
+      "count": 1
+    }
+  ],
+  "wishlistOpen": 1
+}

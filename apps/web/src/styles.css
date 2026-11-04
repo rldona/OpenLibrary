@@ -1321,3 +1321,69 @@ legend {
 .panel .seg {
   align-self: flex-start;
 }
+
+/* ---------- quotes ---------- */
+.quote {
+  margin: 0 0 12px;
+  padding: 8px 0 8px 14px;
+  border-left: 3px solid var(--accent);
+}
+.quote p {
+  margin: 0 0 4px;
+  font-family: var(--serif);
+  font-size: 15px;
+}
+.quote footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ---------- statistics ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+.stats .panel h3 {
+  margin: 0 0 10px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+}
+.tile b {
+  font-size: 22px;
+}
+.tile span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: 9em 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar {
+  height: 10px;
+  min-width: 2px;
+  border-radius: 5px;
+  background: var(--accent);
+}

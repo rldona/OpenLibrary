@@ -6,6 +6,7 @@ import { fmtDate, fmtPrice, langName } from '../lib/format';
 import { useInvalidate, useLocations, useWork, shortPath } from '../lib/queries';
 import { closeBook, openBook, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
+import { QuotesSection } from './QuotesSection';
 import { ReadingSection } from './ReadingSection';
 
 export type DrawerActions = {
@@ -138,6 +139,7 @@ export function BookDrawer(actions: DrawerActions) {
             )}
 
             <ReadingSection key={data.work.id} data={data} preferredCopy={active[0]} />
+            <QuotesSection key={`q-${data.work.id}`} data={data} />
 
             <section className="sec">
               <h3>{t('drawer.edition')}</h3>

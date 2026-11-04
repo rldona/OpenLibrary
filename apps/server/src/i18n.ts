@@ -54,6 +54,7 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.location': 'That location already exists.',
     'errors.alreadyExists.reading': 'That reading session already exists.',
     'errors.alreadyExists.wish': 'That wish already exists.',
+    'errors.alreadyExists.quote': 'That quote already exists.',
     'errors.copyNotFound': 'The given copy does not exist.',
     'errors.conflict.work':
       'Another device changed {fields} of this book while you were editing it. Nothing was overwritten.',
@@ -67,6 +68,8 @@ const SERVER: Record<Lang, Dict> = {
       'Another device changed {fields} of this reading while you were editing it. Nothing was overwritten.',
     'errors.conflict.wish':
       'Another device changed {fields} of this wish while you were editing it. Nothing was overwritten.',
+    'errors.conflict.quote':
+      'Another device changed {fields} of this quote while you were editing it. Nothing was overwritten.',
     // images
     'errors.imageNotFound': 'That image does not exist.',
     'errors.imageEmpty': 'The image is empty.',
@@ -130,6 +133,7 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.location': 'Esa ubicación ya existe.',
     'errors.alreadyExists.reading': 'Esa lectura ya existe.',
     'errors.alreadyExists.wish': 'Ese deseo ya existe.',
+    'errors.alreadyExists.quote': 'Esa cita ya existe.',
     'errors.copyNotFound': 'El ejemplar indicado no existe.',
     'errors.conflict.work':
       'Otro dispositivo cambió {fields} de este libro mientras lo editabas. No se ha sobrescrito nada.',
@@ -143,6 +147,8 @@ const SERVER: Record<Lang, Dict> = {
       'Otro dispositivo cambió {fields} de esta lectura mientras la editabas. No se ha sobrescrito nada.',
     'errors.conflict.wish':
       'Otro dispositivo cambió {fields} de este deseo mientras lo editabas. No se ha sobrescrito nada.',
+    'errors.conflict.quote':
+      'Otro dispositivo cambió {fields} de esta cita mientras la editabas. No se ha sobrescrito nada.',
     'errors.imageNotFound': 'Esa imagen no existe.',
     'errors.imageEmpty': 'La imagen está vacía.',
     'errors.imageInvalid': 'El archivo no es una imagen válida (usa JPEG, PNG o WebP).',

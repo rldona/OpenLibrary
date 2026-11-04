@@ -25,6 +25,7 @@ const FIXTURE_SCHEMAS = {
   'push.json': 'SyncPushResponse',
   'lookup.json': 'LookupResult',
   'asset.json': 'Asset',
+  'stats.json': 'Stats',
 } as const;
 
 const writeFixtures = (files: Record<string, unknown>) => {
@@ -89,6 +90,14 @@ describe('openapi.yaml', () => {
       notes: 'Nivola',
     });
     await web.post('/reading-sessions', { copyId: copy.id, status: 'reading' });
+    // A quote from a page of a copy, and one without page that is deleted after the snapshot (tombstone).
+    await web.post('/quotes', {
+      workId: book.body.work.id,
+      text: 'Mi vida es una niebla.',
+      page: 12,
+      copyId: copy.id,
+    });
+    const doomed = await web.post('/quotes', { workId: book.body.work.id, text: 'Borrar' });
     // An open wish and one already bought (linked to its copy).
     await web.post('/wishlist', {
       title: 'San Manuel Bueno, mártir',
@@ -116,10 +125,14 @@ describe('openapi.yaml', () => {
 
     const snap = await call('/sync/snapshot', { token });
     expectSchema('SyncSnapshot', snap.body);
+    // Statistics of exactly the snapshot's data: the Android app must compute the same from it.
+    const stats = await call('/stats', { token });
+    expectSchema('Stats', stats.body);
     expect((snap.body.copies as unknown[]).length).toBe(2);
 
     await web.patch(`/works/${book.body.work.id}`, { baseVersion: 1, fields: { subtitle: 'Nivola' } });
     await web.del(`/editions/${other.body.editions[0].id}`);
+    await web.del(`/quotes/${doomed.body.quotes.find((q: { text: string }) => q.text === 'Borrar').id}`);
     const page = await call(`/sync/pull?since=${snap.body.cursor}&epoch=${snap.body.epoch}`, { token });
     expectSchema('SyncPullPage', page.body);
     expect((page.body.deleted as unknown[]).length).toBeGreaterThan(0);
@@ -156,7 +169,12 @@ describe('openapi.yaml', () => {
       'rejected',
     ]);
 
-    writeFixtures({ 'snapshot.json': snap.body, 'pull.json': page.body, 'push.json': pushed.body });
+    writeFixtures({
+      'snapshot.json': snap.body,
+      'stats.json': stats.body,
+      'pull.json': page.body,
+      'push.json': pushed.body,
+    });
 
     bumpEpoch(db);
     const stale = await call(`/sync/pull?since=0&epoch=${snap.body.epoch}`, { token });

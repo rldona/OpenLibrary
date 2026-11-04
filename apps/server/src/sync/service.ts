@@ -16,6 +16,7 @@ import type {
   SyncPullPage,
   SyncReading,
   SyncWish,
+  SyncQuote,
   SyncRecords,
   SyncSnapshot,
   SyncTombstone,
@@ -30,6 +31,7 @@ import {
   copies,
   editions,
   locations,
+  quotes,
   readingSessions,
   wishlistItems,
   works,
@@ -46,6 +48,7 @@ type CopyRow = typeof copies.$inferSelect;
 type LocationRow = typeof locations.$inferSelect;
 type ReadingRow = typeof readingSessions.$inferSelect;
 type WishRow = typeof wishlistItems.$inferSelect;
+type QuoteRow = typeof quotes.$inferSelect;
 
 const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): SyncWork => w;
 const toEdition = ({ deletedAt: _d, ...e }: EditionRow): SyncEdition => e;
@@ -53,6 +56,7 @@ const toCopy = ({ deletedAt: _d, ...c }: CopyRow): SyncCopy => c as SyncCopy;
 const toLocation = ({ deletedAt: _d, ...l }: LocationRow): SyncLocation => l;
 const toReading = ({ deletedAt: _d, ...r }: ReadingRow): SyncReading => r;
 const toWish = ({ deletedAt: _d, ...w }: WishRow): SyncWish => w;
+const toQuote = ({ deletedAt: _d, ...q }: QuoteRow): SyncQuote => q;
 
 const KEYS = {
   work: 'works',
@@ -61,6 +65,7 @@ const KEYS = {
   location: 'locations',
   reading: 'readings',
   wish: 'wishes',
+  quote: 'quotes',
 } as const;
 
 const resyncNeeded = (code: string, key: string) => new HttpError(409, code, key);
@@ -119,6 +124,7 @@ export class SyncService {
         .orderBy(wishlistItems.id)
         .all()
         .map(toWish),
+      quotes: tx.select().from(quotes).where(isNull(quotes.deletedAt)).orderBy(quotes.id).all().map(toQuote),
     }));
   }
 
@@ -150,6 +156,7 @@ export class SyncService {
         locations: [],
         readings: [],
         wishes: [],
+        quotes: [],
       };
       const deleted: SyncTombstone[] = [];
       for (const entity of Object.keys(KEYS) as SyncEntity[]) {
@@ -175,7 +182,8 @@ export class SyncService {
           else if (entity === 'copy') records.copies.push(toCopy(row as CopyRow));
           else if (entity === 'location') records.locations.push(toLocation(row as LocationRow));
           else if (entity === 'reading') records.readings.push(toReading(row as ReadingRow));
-          else records.wishes.push(toWish(row as WishRow));
+          else if (entity === 'wish') records.wishes.push(toWish(row as WishRow));
+          else records.quotes.push(toQuote(row as QuoteRow));
         }
       }
 
@@ -267,6 +275,15 @@ export class SyncService {
         break;
       case 'wish.update':
         c.patchWish(op.id, op.patch, sid);
+        break;
+      case 'quote.create':
+        c.createQuote(op.quote, sid);
+        break;
+      case 'quote.update':
+        c.patchQuote(op.id, op.patch, sid);
+        break;
+      case 'quote.delete':
+        c.deleteQuote(op.id, sid);
         break;
     }
   }

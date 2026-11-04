@@ -86,6 +86,12 @@ interface CatalogDao {
 
     @Query("SELECT * FROM wishes WHERE id = :id") suspend fun wishById(id: String): WishEntity?
 
+    /** In page order, quotes without a page last (as the web shows them). */
+    @Query("SELECT * FROM quotes WHERE workId = :workId ORDER BY page IS NULL, page, createdAt")
+    fun quotesOfWork(workId: String): Flow<List<QuoteEntity>>
+
+    @Query("SELECT * FROM quotes WHERE id = :id") suspend fun quoteById(id: String): QuoteEntity?
+
     /** BR15: the open wish a scanned ISBN fulfils. */
     @Query("SELECT * FROM wishes WHERE status = 'open' AND isbn13 = :isbn13 LIMIT 1")
     suspend fun openWishByIsbn(isbn13: String): WishEntity?
@@ -112,6 +118,7 @@ interface SyncDao {
     @Upsert suspend fun upsertLocations(rows: List<LocationEntity>)
     @Upsert suspend fun upsertReadings(rows: List<ReadingEntity>)
     @Upsert suspend fun upsertWishes(rows: List<WishEntity>)
+    @Upsert suspend fun upsertQuotes(rows: List<QuoteEntity>)
     @Upsert suspend fun setState(state: SyncStateEntity)
 
     @Query("DELETE FROM works WHERE id IN (:ids)") suspend fun deleteWorks(ids: List<String>)
@@ -120,6 +127,7 @@ interface SyncDao {
     @Query("DELETE FROM locations WHERE id IN (:ids)") suspend fun deleteLocations(ids: List<String>)
     @Query("DELETE FROM readings WHERE id IN (:ids)") suspend fun deleteReadings(ids: List<String>)
     @Query("DELETE FROM wishes WHERE id IN (:ids)") suspend fun deleteWishes(ids: List<String>)
+    @Query("DELETE FROM quotes WHERE id IN (:ids)") suspend fun deleteQuotes(ids: List<String>)
 
     @Query("DELETE FROM works") suspend fun clearWorks()
     @Query("DELETE FROM editions") suspend fun clearEditions()
@@ -127,6 +135,7 @@ interface SyncDao {
     @Query("DELETE FROM locations") suspend fun clearLocations()
     @Query("DELETE FROM readings") suspend fun clearReadings()
     @Query("DELETE FROM wishes") suspend fun clearWishes()
+    @Query("DELETE FROM quotes") suspend fun clearQuotes()
     @Query("DELETE FROM sync_state") suspend fun clearState()
 
     @Query("SELECT * FROM sync_state WHERE id = 0") suspend fun state(): SyncStateEntity?
@@ -150,6 +159,11 @@ interface SyncDao {
     suspend fun activePlacements(): List<Placement>
 
     @Query("SELECT * FROM locations") suspend fun allLocations(): List<LocationEntity>
+    @Query("SELECT * FROM works") suspend fun allWorks(): List<WorkEntity>
+    @Query("SELECT * FROM editions") suspend fun allEditions(): List<EditionEntity>
+    @Query("SELECT * FROM copies") suspend fun allCopies(): List<CopyEntity>
+    @Query("SELECT * FROM readings") suspend fun allReadings(): List<ReadingEntity>
+    @Query("SELECT * FROM wishes") suspend fun allWishes(): List<WishEntity>
 
     @Query("DELETE FROM book_fts") suspend fun clearFts()
     @androidx.room.Insert suspend fun insertFts(rows: List<BookFts>)

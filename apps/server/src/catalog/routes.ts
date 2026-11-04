@@ -12,6 +12,8 @@ import {
   ReadingPatch,
   WishCreate,
   WishPatch,
+  QuoteCreate,
+  QuotePatch,
   WorkPatch,
 } from '@openlibrary/contracts';
 import { parse } from '../errors.js';
@@ -60,6 +62,16 @@ export async function catalogRoutes(app: FastifyInstance, opts: { catalog: Catal
   app.patch('/reading-sessions/:id', async (req) =>
     catalog.patchReading(idParam(req), parse(ReadingPatch, req.body, req.lang), sid(req)),
   );
+
+  // ---------- Quotes ----------
+  app.post('/quotes', async (req, reply) => {
+    reply.code(201);
+    return catalog.createQuote(parse(QuoteCreate, req.body, req.lang), sid(req));
+  });
+  app.patch('/quotes/:id', async (req) =>
+    catalog.patchQuote(idParam(req), parse(QuotePatch, req.body, req.lang), sid(req)),
+  );
+  app.delete('/quotes/:id', async (req) => catalog.deleteQuote(idParam(req), sid(req)));
 
   // ---------- Wishlist ----------
   app.get('/wishlist', async () => catalog.wishlist());

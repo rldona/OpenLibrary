@@ -67,6 +67,7 @@ class OfflineWritesTest {
             locations = listOf(location("l1", "Casa")),
             readings = emptyList(),
             wishes = emptyList(),
+            quotes = emptyList(),
         )
 
     private fun json(text: String, code: Int = 200) =
@@ -75,7 +76,7 @@ class OfflineWritesTest {
     private fun json(s: SyncSnapshot) = json(ApiJson.encodeToString(SyncSnapshot.serializer(), s))
 
     private fun emptyPage(epoch: String = "epoch-1", cursor: Long = 10) =
-        json(ApiJson.encodeToString(SyncPullPage.serializer(), SyncPullPage(epoch, cursor, false, T, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())))
+        json(ApiJson.encodeToString(SyncPullPage.serializer(), SyncPullPage(epoch, cursor, false, T, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())))
 
     /** The push response, echoing every op id of the request with the given status. */
     private fun pushed(vararg results: String) =
@@ -262,6 +263,18 @@ class OfflineWritesTest {
         assertEquals(listOf("wish.create", "book.create", "wish.update"), db.outbox().allPending().map { it.type })
         // A wish is not part of the library (BR14): only the bought book is.
         assertEquals(listOf("e1", "e2"), db.catalog().library("", true, emptyList()).first().map { it.editionId }.sorted())
+    }
+
+    @Test
+    fun quotesAreAddedEditedAndDeletedOffline() = runBlocking {
+        writes.addQuote("w1", "  Una cita  ", 12, "", null)
+        val q = db.catalog().quotesOfWork("w1").first().single()
+        assertEquals("Una cita", q.text)
+        writes.editQuote(q, buildJsonObject { put("page", 13) })
+        assertEquals(13, db.catalog().quotesOfWork("w1").first().single().page)
+        writes.deleteQuote(db.catalog().quotesOfWork("w1").first().single())
+        assertTrue(db.catalog().quotesOfWork("w1").first().isEmpty())
+        assertEquals(listOf("quote.create", "quote.update", "quote.delete"), db.outbox().allPending().map { it.type })
     }
 
     @Test

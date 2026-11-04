@@ -10,6 +10,7 @@ import { Library } from './pages/Library';
 import { Locations } from './pages/Locations';
 import { Settings } from './pages/Settings';
 import { Wishlist } from './pages/Wishlist';
+import { Stats } from './pages/Stats';
 import { BookDrawer } from './pages/BookDrawer';
 import { BookForm } from './pages/BookForm';
 import { CopyForm, type CopyMode } from './pages/CopyForm';
@@ -70,9 +71,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     ? 'locations'
     : path.startsWith('/wishlist')
       ? 'wishlist'
-      : path.startsWith('/settings')
-        ? 'settings'
-        : 'library';
+      : path.startsWith('/stats')
+        ? 'stats'
+        : path.startsWith('/settings')
+          ? 'settings'
+          : 'library';
 
   // If the session expires, any 401 goes back to the login screen.
   const qc = useQueryClient();
@@ -172,6 +175,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           {view === 'library' && <Library onAdd={addBook} />}
           {view === 'locations' && <Locations />}
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
+          {view === 'stats' && <Stats />}
           {view === 'settings' && <Settings onLogout={onLogout} />}
         </section>
       </main>

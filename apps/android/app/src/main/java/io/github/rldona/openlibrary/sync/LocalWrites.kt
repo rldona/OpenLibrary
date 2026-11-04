@@ -11,6 +11,7 @@ import io.github.rldona.openlibrary.data.OutboxEntity
 import io.github.rldona.openlibrary.data.PendingUploadEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.WishEntity
+import io.github.rldona.openlibrary.data.QuoteEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.network.FieldConflict
 import io.github.rldona.openlibrary.network.NewBook
@@ -18,6 +19,7 @@ import io.github.rldona.openlibrary.network.NewCopy
 import io.github.rldona.openlibrary.network.NewLocation
 import io.github.rldona.openlibrary.network.NewReading
 import io.github.rldona.openlibrary.network.NewWish
+import io.github.rldona.openlibrary.network.NewQuote
 import io.github.rldona.openlibrary.network.Op
 import io.github.rldona.openlibrary.network.OpJson
 import io.github.rldona.openlibrary.network.Patch
@@ -101,6 +103,15 @@ class LocalWrites(
     /** BR14: the wish is kept as history, linked to the copy that fulfilled it. Queue it after that copy's op. */
     suspend fun acquireWish(wish: WishEntity, copyId: String) =
         editWish(wish, buildJsonObject { put("status", "acquired"); put("acquiredCopyId", copyId) })
+
+    // ---------------- Quotes ----------------
+    suspend fun addQuote(workId: String, text: String, page: Int?, note: String, copyId: String?) =
+        enqueue(Op.QuoteCreate(uuidv7(), NewQuote(uuidv7(), workId, text.trim(), page, note.trim(), copyId)))
+
+    suspend fun editQuote(quote: QuoteEntity, fields: JsonObject) =
+        enqueue(Op.QuoteUpdate(uuidv7(), quote.id, Patch(baseOf(quote.version), fields)))
+
+    suspend fun deleteQuote(quote: QuoteEntity) = enqueue(Op.QuoteDelete(uuidv7(), quote.id))
 
     // ---------------- Conflicts and rejections ----------------
     /** Re-sends my values on top of the server's current version. `edited` replaces some of them (combine). */
@@ -195,6 +206,14 @@ class LocalWrites(
                         d.upsertReadings(listOf(ReadingEntity(r.id, 0, r.copyId, r.status, dates.first, dates.second, r.rating, r.notes, ts, ts)))
                     }
                 }
+                is Op.QuoteCreate -> {
+                    val q = op.quote
+                    if (c.quoteById(q.id) == null) {
+                        d.upsertQuotes(listOf(QuoteEntity(q.id, 0, q.workId, q.copyId, q.text, q.page, q.note, ts, ts)))
+                    }
+                }
+                is Op.QuoteUpdate -> c.quoteById(op.id)?.let { d.upsertQuotes(listOf(patched(it, op.patch.fields, QuoteEntity.serializer()))) }
+                is Op.QuoteDelete -> d.deleteQuotes(listOf(op.id))
                 is Op.WishCreate -> {
                     val w = op.wish
                     if (c.wishById(w.id) == null) {
@@ -258,6 +277,9 @@ private fun Op.typeName(): String =
         is Op.ReadingUpdate -> "reading.update"
         is Op.WishCreate -> "wish.create"
         is Op.WishUpdate -> "wish.update"
+        is Op.QuoteCreate -> "quote.create"
+        is Op.QuoteUpdate -> "quote.update"
+        is Op.QuoteDelete -> "quote.delete"
     }
 
 private fun Op.entityId(): String =
@@ -267,5 +289,7 @@ private fun Op.entityId(): String =
         is Op.LocationCreate -> location.id
         is Op.ReadingCreate -> reading.id
         is Op.WishCreate -> wish.id
+        is Op.QuoteCreate -> quote.id
+        is Op.QuoteDelete -> id
         is Op.Update -> id
     }
