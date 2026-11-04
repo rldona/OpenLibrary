@@ -3,6 +3,7 @@
 #   sudo restore.sh            → latest backup
 #   sudo restore.sh 4f2a9c1e   → a specific snapshot ("restic snapshots" lists them)
 # The current state is NOT deleted: it is set aside as library.db.before-restore-<date>.
+# shellcheck source=deploy/scripts/common.sh
 source "$(dirname "$(readlink -f "$0")")/common.sh"
 : "${RESTIC_REPOSITORY:?Set RESTIC_REPOSITORY in /etc/openlibrary/backup.env}"
 : "${RESTIC_PASSWORD_FILE:?Set RESTIC_PASSWORD_FILE in /etc/openlibrary/backup.env}"

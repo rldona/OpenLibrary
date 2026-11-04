@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Shortcut for the admin CLI inside the container:
 #   ol set-password | ol status | ol check | ol demo-data es | ol backup /data/backups/x.db
+# shellcheck source=deploy/scripts/common.sh
 source "$(dirname "$(readlink -f "$0")")/common.sh"
 TTY=(-T); [ -t 0 ] && TTY=()
 exec "${COMPOSE[@]}" exec "${TTY[@]}" app node dist/cli.js "$@"

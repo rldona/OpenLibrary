@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Backup: consistent (hot) database snapshot + covers → restic.
 # Requires RESTIC_REPOSITORY and RESTIC_PASSWORD_FILE in /etc/openlibrary/backup.env.
+# shellcheck source=deploy/scripts/common.sh
 source "$(dirname "$(readlink -f "$0")")/common.sh"
 : "${RESTIC_REPOSITORY:?Set RESTIC_REPOSITORY in /etc/openlibrary/backup.env}"
 : "${RESTIC_PASSWORD_FILE:?Set RESTIC_PASSWORD_FILE in /etc/openlibrary/backup.env}"
