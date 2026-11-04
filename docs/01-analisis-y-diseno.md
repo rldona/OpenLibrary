@@ -104,6 +104,8 @@ Subject                      id, name                      WorkSubject(work_id, 
 Asset                        id = sha256, mime, width, height, bytes, origin (provider|photo|import)
 ```
 
+> **Simplificación aplicada en F1:** autores y géneros se guardan como listas JSON en la obra (`works.authors`, `works.subjects`) en lugar de tablas `Person`/`Subject`. Cada lista es un campo atómico para la fusión por campo de la sincronización y basta para búsqueda, filtros y estadísticas. Si más adelante hace falta (fichas de autor, traductores), se normaliza sin cambiar la API.
+
 **Por qué así**
 - *Obra ↔ Edición ↔ Ejemplar* sigue FRBR simplificado (Obra/Manifestación/Ítem); se omite "Expresión" (traducción) para no complicar: la traducción es un atributo de la edición (`language`, traductor como contributor con rol `translator` a nivel de edición — evolución).
 - La lectura cuelga del **ejemplar** (A2); la obra y la edición derivan su estado.
@@ -359,7 +361,7 @@ Paso de A a B o C: aproximadamente **una tarde de trabajo de despliegue**. No ca
 | Fase | Contenido | Criterios de aceptación verificables |
 |------|-----------|--------------------------------------|
 | **F0 · Cimientos** (1 sem) | Monorepo, CI (lint, test, build), esquema BD + migraciones, auth (login, dispositivos), Docker Compose + `tailscale serve`, scripts de copia/restauración **(implementada 4 nov 2026)** | `docker compose up` en Ubuntu sirve `/api/v1/health` por HTTPS en la tailnet; login con contraseña; sin acceso desde fuera de la tailnet; backup genera snapshot restic verificable |
-| **F1 · Catálogo en web** (2 sem) | CRUD obra/edición/ejemplar/ubicación, alta manual, lookup ISBN (proxy), portadas, búsqueda FTS + filtros + orden, ficha, árbol de ubicaciones | Alta manual sin ISBN ✔; ISBN → propuesta editable ✔; 2 ejemplares de una edición sin duplicar edición ✔; filtrar por "Salón › Estantería" incluye baldas hijas ✔; búsqueda < 150 ms con 10 000 ejemplares sintéticos |
+| **F1 · Catálogo en web** (2 sem) | CRUD obra/edición/ejemplar/ubicación, alta manual, lookup ISBN (proxy), portadas, búsqueda FTS + filtros + orden, ficha, árbol de ubicaciones **(implementada 4 nov 2026)** | Alta manual sin ISBN ✔; ISBN → propuesta editable ✔; 2 ejemplares de una edición sin duplicar edición ✔; filtrar por "Salón › Estantería" incluye baldas hijas ✔; búsqueda < 150 ms con 10 000 ejemplares sintéticos |
 | **F2 · Android lectura + sync pull** (2 sem) | Room + FTS, snapshot + pull incremental, caché de portadas, listado/búsqueda/ficha/ubicaciones offline, estado de sync | Con el PC apagado se consulta y busca toda la biblioteca y sus portadas ✔; cambio hecho en web aparece en Android tras sincronizar ✔ |
 | **F3 · Android captura + escritura offline** (3 sem) | Escáner, alta provisional, fotos de portada, edición de ejemplares/lectura/notas, outbox + push idempotente, conflictos | Flujo CU01 completo ✔; cambios en modo avión persisten tras matar la app y reiniciar el móvil ✔; reenviar el mismo lote 3 veces no duplica ✔; editar el mismo campo en web y Android genera conflicto visible ✔ |
 | **F4 · Lectura, deseos, estadísticas** (1,5 sem) | Sesiones de lectura y relecturas, citas, lista de deseos → adquisición, estadísticas (obras vs ejemplares) | "Lo he comprado" crea ejemplar sin duplicar obra ✔; stats coinciden con consultas SQL de referencia ✔ |

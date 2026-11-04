@@ -23,6 +23,7 @@ Requisitos: Node 24.
 ```bash
 npm install
 npm run cli -w @openlibrary/server -- set-password   # crea la contraseña en ./apps/server/.data
+npm run cli -w @openlibrary/server -- demo-data      # opcional: ubicaciones y 12 libros de ejemplo
 npm run dev:server                                   # API en http://localhost:8080
 npm run dev:web                                      # web en http://localhost:5173 (reenvía /api al servidor)
 ```

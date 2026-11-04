@@ -116,6 +116,7 @@ El estado actual no se borra: queda apartado como `library.db.antes-de-restaurar
 
 | Tarea | Comando |
 |-------|---------|
+| Probar con datos de ejemplo (biblioteca vacía) | `ol demo-data` |
 | Ver estado | `ol status` · `docker compose -f /opt/openlibrary/deploy/docker-compose.yml ps` |
 | Ver logs | `docker compose -f /opt/openlibrary/deploy/docker-compose.yml logs -f --tail=100` |
 | Cambiar contraseña (si la olvidas) | `ol set-password` (cierra todas las sesiones) |

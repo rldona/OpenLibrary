@@ -30,6 +30,7 @@ export type Config = {
   port: number;
   dataDir: string;
   dbPath: string;
+  assetsDir: string;
   publicUrl: URL;
   allowedOrigins: Set<string>;
   secureCookies: boolean;
@@ -58,6 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: e.PORT,
     dataDir,
     dbPath: path.join(dataDir, 'library.db'),
+    assetsDir: path.join(dataDir, 'assets'),
     publicUrl,
     allowedOrigins: new Set([publicUrl.origin, ...extra]),
     secureCookies: publicUrl.protocol === 'https:',

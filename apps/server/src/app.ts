@@ -11,6 +11,12 @@ import { getMeta, type Db } from './db/client.js';
 import { forbidden, HttpError, TITLES } from './errors.js';
 import { authRoutes, installSessionHook, SESSION_COOKIE } from './auth/routes.js';
 import { AuthService, type Clock } from './auth/service.js';
+import { CatalogService } from './catalog/service.js';
+import { catalogRoutes } from './catalog/routes.js';
+import { AssetService } from './assets/service.js';
+import { assetAndLookupRoutes } from './assets/routes.js';
+import { LookupService } from './lookup/service.js';
+import type { Fetch } from './lookup/providers.js';
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -37,9 +43,18 @@ function checkCsrf(req: FastifyRequest, config: Config): void {
   if (req.cookies[SESSION_COOKIE]) throw forbidden('Falta la cabecera Origin.');
 }
 
-export async function buildApp(deps: { config: Config; db: Db; now?: Clock }): Promise<FastifyInstance> {
+export async function buildApp(deps: {
+  config: Config;
+  db: Db;
+  now?: Clock;
+  /** Inyectable en pruebas para no depender de Internet. */
+  fetch?: Fetch;
+}): Promise<FastifyInstance> {
   const { config, db } = deps;
   const auth = new AuthService(db, config.sessionTtlMs, deps.now);
+  const catalog = new CatalogService(db, deps.now);
+  const assets = new AssetService(db, config.assetsDir, deps.fetch);
+  const lookup = new LookupService(db, catalog, deps.fetch, deps.now);
 
   const app = Fastify({
     trustProxy: config.trustProxy,
@@ -58,7 +73,17 @@ export async function buildApp(deps: { config: Config; db: Db; now?: Clock }): P
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
+        // Vista previa de portadas propuestas por los proveedores (al guardar se copian al servidor).
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://covers.openlibrary.org',
+          'https://archive.org',
+          'https://*.archive.org',
+          'https://books.google.com',
+          'https://*.googleusercontent.com',
+        ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
         connectSrc: ["'self'"],
@@ -113,6 +138,8 @@ export async function buildApp(deps: { config: Config; db: Db; now?: Clock }): P
         return body;
       });
       await api.register(authRoutes, { auth, config });
+      await api.register(catalogRoutes, { catalog });
+      await api.register(assetAndLookupRoutes, { assets, lookup });
     },
     { prefix: API_PREFIX },
   );

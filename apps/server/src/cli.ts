@@ -5,6 +5,7 @@
  *   check                   comprueba la integridad de la base de datos
  *   after-restore           tras restaurar una copia: verifica y cambia el epoch (los clientes resincronizan)
  *   status                  resumen del estado
+ *   demo-data               carga ubicaciones y libros de ejemplo (solo con la biblioteca vacía)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +13,8 @@ import readline from 'node:readline';
 import { loadConfig } from './config.js';
 import { bumpEpoch, getMeta, openDb, type Db } from './db/client.js';
 import { AuthService } from './auth/service.js';
+import { CatalogService } from './catalog/service.js';
+import { loadDemo } from './demo.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -112,8 +115,20 @@ async function main(): Promise<number> {
       );
       return 0;
     }
+    case 'demo-data': {
+      try {
+        const r = loadDemo(new CatalogService(db));
+        console.log(`Datos de ejemplo cargados: ${r.locations} ubicaciones y ${r.books} libros.`);
+        return 0;
+      } catch (e) {
+        console.error((e as Error).message);
+        return 1;
+      }
+    }
     default:
-      console.log('Comandos: set-password | backup <archivo.db> | check | after-restore | status');
+      console.log(
+        'Comandos: set-password | backup <archivo.db> | check | after-restore | status | demo-data',
+      );
       return cmd ? 1 : 0;
   }
 }

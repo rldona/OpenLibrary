@@ -1,25 +1,22 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { PASSWORD_MIN_LENGTH, type Device, type HealthResponse } from '@openlibrary/contracts';
-import { api, ApiError } from './api';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts';
+import { api, ApiError, errorText } from './api';
+import { Icon } from './components/ui';
+import { navigate, setParams, useLocation } from './lib/router';
+import { useLocations } from './lib/queries';
+import { Library } from './pages/Library';
+import { Locations } from './pages/Locations';
+import { Settings } from './pages/Settings';
+import { BookDrawer } from './pages/BookDrawer';
+import { BookForm } from './pages/BookForm';
+import { CopyForm, type CopyMode } from './pages/CopyForm';
 
 type State = { phase: 'loading' } | { phase: 'anon' } | { phase: 'in' } | { phase: 'down'; message: string };
 
-const fmt = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
-
-function errorText(e: unknown): string {
-  if (e instanceof ApiError) {
-    if (e.status === 429 && e.problem.retryAfterSeconds) {
-      const s = e.problem.retryAfterSeconds;
-      return `Demasiados intentos. Vuelve a probar en ${s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`}.`;
-    }
-    return e.message;
-  }
-  return 'No se puede contactar con el servidor.';
-}
-
 export function App() {
   const [state, setState] = useState<State>({ phase: 'loading' });
+  const qc = useQueryClient();
 
   const refresh = useCallback(async () => {
     try {
@@ -30,33 +27,181 @@ export function App() {
       else setState({ phase: 'down', message: errorText(e) });
     }
   }, []);
-
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return (
-    <div className="shell">
-      <header className="brand">
-        <span className="logo" aria-hidden>
-          <svg viewBox="0 0 32 32">
-            <path d="M7 9h6a3 3 0 0 1 3 3v12a2.5 2.5 0 0 0-2.5-2.5H7zM25 9h-6a3 3 0 0 0-3 3v12a2.5 2.5 0 0 1 2.5-2.5H25z" />
-          </svg>
-        </span>
-        OpenLibrary
-      </header>
-      {state.phase === 'loading' && <p className="muted center">Cargando…</p>}
-      {state.phase === 'down' && (
-        <div className="card">
+  const logout = useCallback(() => {
+    qc.clear();
+    setState({ phase: 'anon' });
+  }, [qc]);
+
+  if (state.phase === 'loading') return <p className="muted center pad">Cargando…</p>;
+  if (state.phase === 'down')
+    return (
+      <div className="center-card">
+        <div className="panel narrow">
           <h1>Servidor no disponible</h1>
           <p className="muted">{state.message}</p>
           <button className="btn" onClick={() => void refresh()}>
             Reintentar
           </button>
         </div>
+      </div>
+    );
+  if (state.phase === 'anon') return <Login onDone={() => setState({ phase: 'in' })} />;
+  return <Shell onLogout={logout} />;
+}
+
+type Dialog =
+  { kind: 'book'; mode: Parameters<typeof BookForm>[0]['mode'] } | { kind: 'copy'; mode: CopyMode } | null;
+
+function Shell({ onLogout }: { onLogout: () => void }) {
+  const { path, params } = useLocation();
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const locs = useLocations();
+  const view = path.startsWith('/ubicaciones')
+    ? 'locations'
+    : path.startsWith('/ajustes')
+      ? 'settings'
+      : 'library';
+
+  // Si la sesión caduca, cualquier 401 devuelve al login.
+  const qc = useQueryClient();
+  useEffect(
+    () =>
+      qc.getQueryCache().subscribe((ev) => {
+        const err = ev.query.state.error;
+        if (err instanceof ApiError && err.status === 401) onLogout();
+      }),
+    [qc, onLogout],
+  );
+
+  const addBook = () => setDialog({ kind: 'book', mode: { kind: 'add' } });
+  const actions = {
+    editBook: (work: WorkDTO, edition: EditionDTO) =>
+      setDialog({ kind: 'book', mode: { kind: 'edit', work, edition } }),
+    newEdition: (work: WorkDTO) => setDialog({ kind: 'book', mode: { kind: 'edition', work } }),
+    addCopy: (editionId: string, title: string) =>
+      setDialog({ kind: 'copy', mode: { kind: 'add', editionId, title } }),
+    editCopy: (copy: CopyDTO) => setDialog({ kind: 'copy', mode: { kind: 'edit', copy } }),
+    retireCopy: (copy: CopyDTO) => setDialog({ kind: 'copy', mode: { kind: 'retire', copy } }),
+  };
+
+  async function logout() {
+    await api.logout().catch(() => undefined);
+    onLogout();
+  }
+
+  const nav = (to: string, v: string, icon: string, label: string, n?: number) => (
+    <a
+      href={to}
+      className={`nav ${view === v ? 'on' : ''}`}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(to);
+      }}
+    >
+      <Icon name={icon} />
+      <span>{label}</span>
+      {n !== undefined && <span className="n">{n}</span>}
+    </a>
+  );
+
+  return (
+    <div className="app">
+      <aside className="side">
+        <div className="brand">
+          <span className="logo" aria-hidden>
+            <Icon name="book" size={18} />
+          </span>
+          OpenLibrary
+        </div>
+        {nav('/', 'library', 'book', 'Biblioteca')}
+        {nav('/ubicaciones', 'locations', 'tree', 'Ubicaciones', locs.data?.items.length)}
+        <div className="sep" />
+        {nav('/ajustes', 'settings', 'gear', 'Ajustes')}
+        <button className="nav" onClick={() => void logout()}>
+          <Icon name="logout" />
+          <span>Cerrar sesión</span>
+        </button>
+        <div className="foot">Próximamente: lectura, deseos, estadísticas e importación.</div>
+      </aside>
+      <main>
+        <header className="top">
+          <SearchBox
+            value={params.get('q') ?? ''}
+            onSearch={(q) =>
+              view === 'library'
+                ? setParams({ q }, { replace: true })
+                : navigate(q ? `/?q=${encodeURIComponent(q)}` : '/')
+            }
+          />
+          <button className="btn primary" onClick={addBook}>
+            <Icon name="plus" size={16} />
+            <span className="hide-sm">Añadir libro</span>
+          </button>
+        </header>
+        <section className="view">
+          {view === 'library' && <Library onAdd={addBook} />}
+          {view === 'locations' && <Locations />}
+          {view === 'settings' && <Settings onLogout={onLogout} />}
+        </section>
+      </main>
+      <BookDrawer {...actions} />
+      {dialog?.kind === 'book' && (
+        <BookForm
+          mode={dialog.mode}
+          onClose={() => setDialog(null)}
+          onAddCopy={(id) =>
+            setDialog({
+              kind: 'copy',
+              mode: { kind: 'add', editionId: id, title: 'la edición que ya tienes' },
+            })
+          }
+        />
       )}
-      {state.phase === 'anon' && <Login onDone={() => setState({ phase: 'in' })} />}
-      {state.phase === 'in' && <Home onLogout={() => setState({ phase: 'anon' })} />}
+      {dialog?.kind === 'copy' && <CopyForm mode={dialog.mode} onClose={() => setDialog(null)} />}
+    </div>
+  );
+}
+
+/** Búsqueda con espera de 250 ms para no lanzar una petición por tecla. Atajo: «/». */
+function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) => void }) {
+  const [text, setText] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  const timer = useRef<number>(undefined);
+  // La URL manda (atrás/adelante, «Limpiar filtros»), salvo mientras escribes en el buscador.
+  useEffect(() => {
+    if (document.activeElement !== ref.current) setText(value);
+  }, [value]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        ref.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return (
+    <div className="search">
+      <Icon name="search" size={17} />
+      <input
+        ref={ref}
+        type="search"
+        value={text}
+        placeholder="Busca por título, autor, ISBN, editorial, género o ubicación…"
+        aria-label="Buscar en la biblioteca"
+        onChange={(e) => {
+          setText(e.target.value);
+          clearTimeout(timer.current);
+          const q = e.target.value.trim();
+          timer.current = window.setTimeout(() => onSearch(q), 250);
+        }}
+      />
+      <kbd>/</kbd>
     </div>
   );
 }
@@ -82,188 +227,36 @@ function Login({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <form className="card narrow" onSubmit={submit}>
-      <h1>Tu biblioteca</h1>
-      <p className="muted">Biblioteca privada. Introduce tu contraseña para continuar.</p>
-      <label>
-        Contraseña
-        <input
-          type="password"
-          autoComplete="current-password"
-          autoFocus
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </label>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button className="btn primary" disabled={busy || !password}>
-        {busy ? 'Entrando…' : 'Entrar'}
-      </button>
-    </form>
-  );
-}
-
-function Home({ onLogout }: { onLogout: () => void }) {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const [h, d] = await Promise.all([api.health(), api.devices()]);
-      setHealth(h);
-      setDevices(d.items);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) onLogout();
-      else setError(errorText(e));
-    }
-  }, [onLogout]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function revoke(d: Device) {
-    if (!confirm(`¿Revocar el acceso de «${d.name}»? Tendrá que volver a iniciar sesión.`)) return;
-    await api.revoke(d.id);
-    if (d.current) onLogout();
-    else void load();
-  }
-
-  async function logout() {
-    await api.logout().catch(() => undefined);
-    onLogout();
-  }
-
-  return (
-    <main className="stack">
-      <div className="card">
-        <div className="row">
-          <h1>Todo listo</h1>
-          <button className="btn" onClick={() => void logout()}>
-            Cerrar sesión
-          </button>
+    <div className="center-card">
+      <form className="panel narrow" onSubmit={submit}>
+        <div className="brand">
+          <span className="logo" aria-hidden>
+            <Icon name="book" size={18} />
+          </span>
+          OpenLibrary
         </div>
-        <p className="muted">
-          La base del servidor funciona. El catálogo (obras, ediciones, ejemplares y ubicaciones) llega en la
-          siguiente fase.
-        </p>
-        {health && (
-          <dl className="kv">
-            <div>
-              <dt>Estado</dt>
-              <dd>
-                <span className="dot" /> En línea
-              </dd>
-            </div>
-            <div>
-              <dt>Versión</dt>
-              <dd>{health.version}</dd>
-            </div>
-            <div>
-              <dt>Hora del servidor</dt>
-              <dd>{fmt(health.time)}</dd>
-            </div>
-            <div>
-              <dt>Epoch de datos</dt>
-              <dd className="mono">{health.epoch.slice(0, 8)}</dd>
-            </div>
-          </dl>
-        )}
-        {error && <p className="error">{error}</p>}
-      </div>
-
-      <div className="card">
-        <h2>Sesiones y dispositivos</h2>
-        <p className="muted">
-          Cada navegador y cada móvil tienen su propio acceso. Si pierdes el teléfono, revócalo aquí.
-        </p>
-        <ul className="list">
-          {devices.map((d) => (
-            <li key={d.id}>
-              <div>
-                <b>{d.name}</b> {d.current && <span className="tag">esta sesión</span>}
-                <div className="muted small">
-                  {d.kind === 'device' ? `Dispositivo ${d.platform}` : 'Navegador'} · creado{' '}
-                  {fmt(d.createdAt)} · último uso {fmt(d.lastSeenAt)}
-                </div>
-              </div>
-              <button className="btn ghost danger" onClick={() => void revoke(d)}>
-                Revocar
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <ChangePassword />
-    </main>
-  );
-}
-
-function ChangePassword() {
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [repeat, setRepeat] = useState('');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (next !== repeat) return setMsg({ ok: false, text: 'Las contraseñas nuevas no coinciden.' });
-    try {
-      await api.changePassword({ current, next });
-      setMsg({ ok: true, text: 'Contraseña cambiada. Se han cerrado las demás sesiones y dispositivos.' });
-      setCurrent('');
-      setNext('');
-      setRepeat('');
-    } catch (err) {
-      setMsg({ ok: false, text: errorText(err) });
-    }
-  }
-
-  return (
-    <form className="card" onSubmit={submit}>
-      <h2>Cambiar contraseña</h2>
-      <div className="grid">
+        <h1>Tu biblioteca</h1>
+        <p className="muted">Biblioteca privada. Introduce tu contraseña para continuar.</p>
         <label>
-          Actual
+          Contraseña
           <input
             type="password"
             autoComplete="current-password"
+            autoFocus
             required
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <label>
-          Nueva (mín. {PASSWORD_MIN_LENGTH})
-          <input
-            type="password"
-            autoComplete="new-password"
-            minLength={PASSWORD_MIN_LENGTH}
-            required
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-          />
-        </label>
-        <label>
-          Repítela
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            value={repeat}
-            onChange={(e) => setRepeat(e.target.value)}
-          />
-        </label>
-      </div>
-      {msg && <p className={msg.ok ? 'ok' : 'error'}>{msg.text}</p>}
-      <button className="btn">Cambiar contraseña</button>
-    </form>
+        {error && (
+          <p className="err" role="alert">
+            {error}
+          </p>
+        )}
+        <button className="btn primary block" disabled={busy || !password}>
+          {busy ? 'Entrando…' : 'Entrar'}
+        </button>
+      </form>
+    </div>
   );
 }
