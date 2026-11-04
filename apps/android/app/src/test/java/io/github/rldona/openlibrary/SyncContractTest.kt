@@ -23,6 +23,8 @@ class SyncContractTest {
         val s = strict.decodeFromString<SyncSnapshot>(fixture("snapshot.json"))
         assertTrue(s.works.isNotEmpty() && s.editions.isNotEmpty() && s.copies.isNotEmpty() && s.locations.isNotEmpty())
         assertTrue(s.copies.any { it.status == "retired" && it.retiredReason != null })
+        assertTrue(s.readings.any { it.status == "read" && it.rating == 4.5 })
+        assertTrue(s.wishes.any { it.status == "acquired" && it.acquiredCopyId != null })
     }
 
     @Test

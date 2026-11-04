@@ -1,8 +1,8 @@
 {
-  "epoch": "6683a473-a8f9-4d77-8fcc-a45ed2b0439b",
+  "epoch": "e7ef774a-6388-43a7-9a5e-c974ef8ce03b",
   "works": [
     {
-      "id": "01a1a774-c674-704c-a578-752f908bdc9e",
+      "id": "01a1a82d-b69e-7026-8a57-f727cd4d9a44",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -20,27 +20,29 @@
   "editions": [],
   "copies": [],
   "locations": [],
+  "readings": [],
+  "wishes": [],
   "deleted": [
     {
       "entity": "work",
-      "id": "01a1a774-c67f-7eb6-bdf8-d613badaa490",
+      "id": "01a1a82d-b6ac-7654-abab-badee76ddfec",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "edition",
-      "id": "01a1a774-c67f-77cc-8496-c9c35386809f",
+      "id": "01a1a82d-b6ad-7681-a041-c141e0f8e99a",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "copy",
-      "id": "01a1a774-c680-7979-a88d-e31a593e4618",
+      "id": "01a1a82d-b6ad-7239-90b3-9e9104735e95",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     }
   ],
-  "cursor": 12,
+  "cursor": 16,
   "hasMore": false,
   "serverTime": "2026-11-04T10:00:00.000Z"
 }

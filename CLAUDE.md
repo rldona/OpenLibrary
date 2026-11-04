@@ -38,5 +38,7 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 - F0 foundations ✔, F1 web catalog ✔, bilingual UI ✔ (2026-11-04).
 - Deployed on the Ubuntu PC (2026-11-04): `https://openlibrary.<tailnet>.ts.net`, runbook followed.
 - F2 ✔ (2026-11-04): `/sync/snapshot` + `/sync/pull`, `openapi.yaml`, Android app (browse, search, details, locations, offline).
-- F3 ✔ (2026-11-04): `POST /sync/push` (idempotent ops, `applied_ops`), Android outbox + local writes, add book (scan, ISBN lookup, provisional, cover photo), edit/move/retire copies, conflicts screen. Next: F4 — reading, wishlist, statistics.
+- F3 ✔ (2026-11-04): `POST /sync/push` (idempotent ops, `applied_ops`), Android outbox + local writes, add book (scan, ISBN lookup, provisional, cover photo), edit/move/retire copies, conflicts screen.
+- F4 in progress: reading sessions ✔ and wishlist ✔ (sync entities `reading`, `wish`; web + Android). Next: quotes + statistics.
+- Adding a synced entity type: server table + `TABLES` + sync snapshot/pull/push, `openapi.yaml` + fixtures, Kotlin DTO/Room entity, and bump `SYNC_FORMAT` in the Android app so old copies re-download.
 - The Docker image builds and runs healthy on the Ubuntu PC (2026-11-04). The lockfile must resolve from registry.npmjs.org (never a work registry).

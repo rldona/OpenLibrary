@@ -143,6 +143,8 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 **Wishlist**
 - BR14. A wish never counts as collection. On acquisition: a copy is created (plus edition/work if missing) and the wish becomes `acquired`.
 - BR15. Scanning an ISBN that is on the wishlist shows a notice and links it.
+- *As implemented (F4):* a wish holds its own title, authors and optional ISBN (no `edition_id`; `work_id` is an optional link). "I bought it" is two operations in order — create the book (or just a copy when you already own that edition) and then mark the wish acquired — so it works offline like any other change. Android also offers "Add to wishlist" from the add-book form (scanning in a bookshop).
+- *Sync format (Android):* the phone records which entity types its local copy was downloaded with; an app update that syncs new types takes a snapshot, because an older app skipped those records while its cursor moved on.
 
 ---
 
@@ -276,7 +278,9 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | POST / GET | `/assets` · `/assets/fetch` · `/assets/{sha256}?size=thumb\|full` | upload / fetch provider cover / download | F1 ✔ |
 | GET | `/sync/snapshot` · `/sync/pull?since=&epoch=&limit=` | full snapshot; state-based incremental pull (§6) | F2 ✔ |
 | POST | `/sync/push` | batch of offline ops, idempotent by `opId` (§6) | F3 ✔ |
-| … | `/reading-sessions`, `/quotes`, `/wishlist`, `/stats` | reading, wishlist, statistics | F4 |
+| POST / PATCH | `/reading-sessions`, `/reading-sessions/{id}` | start, finish, abandon, re-read, rate (BR11–BR13); `WorkDetail` carries `readings` and the derived `readingStatus`; synced as entity `reading` | F4 ✔ |
+| GET / POST / PATCH | `/wishlist`, `/wishlist/{id}` | wishes (BR14); "I bought it" = create the book or copy, then `status: acquired` + `acquiredCopyId`; synced as entity `wish` | F4 ✔ |
+| … | `/quotes`, `/stats` | quotes, statistics | F4 |
 | … | `/export/csv` · `/export/full` (zip) · `/import` (dry-run + report) · `/admin/backups` | portability and backups | F5 |
 
 **Lookup response**
@@ -375,7 +379,7 @@ Going from A to B or C: roughly **an afternoon of deployment work**. The API, sy
 | **F1 · Web catalog** (2 wk) | CRUD work/edition/copy/location, manual entry, ISBN lookup (proxy), covers, FTS search + filters + sorting, details view, location tree **(done 2026-11-04)**; bilingual UI EN/ES | Manual entry without ISBN ✔; ISBN → editable proposal ✔; 2 copies of one edition without duplicating it ✔; filtering by "Living room › Bookcase" includes child shelves ✔; search < 150 ms with 10,000 synthetic copies ✔ (4–46 ms) |
 | **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES **(done 2026-11-04)** | With the PC off, the whole library and its covers can be browsed and searched ✔ (checked on a Galaxy S26 Ultra; covers by unit test); a change made on the web appears on Android after syncing ✔ |
 | **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts **(done 2026-11-04; reading status moves to F4)** | Full UC01 flow ✔ (lookup, owned-edition warning, provisional offline entry, provider cover; camera scan and photo pending a check on the phone); changes made offline survive killing the app and rebooting ✔ (emulator); resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
-| **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, quotes, wishlist → acquisition, statistics (works vs copies) | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ |
+| **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, wishlist → acquisition **(both done 2026-11-04: web + Android, synced)**, quotes, statistics (works vs copies) | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ |
 | **F5 · Portability and hardening** (1.5 wk) | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |
 
 Indicative total: **~11 weeks** part-time. Every phase ends with something usable.

@@ -1,5 +1,11 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { LocationDTO, LocationTree, WorkDetail } from '@openlibrary/contracts';
+import {
+  normalizeIsbn,
+  type LocationDTO,
+  type LocationTree,
+  type WishDTO,
+  type WorkDetail,
+} from '@openlibrary/contracts';
 import { api } from '../api';
 
 export const keys = {
@@ -7,10 +13,28 @@ export const keys = {
   facets: ['facets'] as const,
   locations: ['locations'] as const,
   work: (id: string) => ['work', id] as const,
+  wishlist: ['wishlist'] as const,
 };
 
 export const useLocations = () => useQuery({ queryKey: keys.locations, queryFn: api.locations });
 export const useFacets = () => useQuery({ queryKey: keys.facets, queryFn: api.facets });
+export const useWishlist = () => useQuery({ queryKey: keys.wishlist, queryFn: api.wishlist });
+
+/** BR15: the open wish a new book fulfils, by explicit id ("I bought it") or by its ISBN. */
+export function matchingWish(
+  wishes: WishDTO[] | undefined,
+  wishId: string | undefined,
+  isbn: string,
+): WishDTO | undefined {
+  const open = wishes?.filter((w) => w.status === 'open') ?? [];
+  if (wishId) return open.find((w) => w.id === wishId);
+  const n = normalizeIsbn(isbn);
+  return n.ok ? open.find((w) => w.isbn13 === n.isbn13) : undefined;
+}
+
+/** Marks a wish as bought, linked to the copy that fulfilled it (the wish is kept as history). */
+export const acquireWish = (w: WishDTO, copyId: string) =>
+  api.patchWish(w.id, { baseVersion: w.version, fields: { status: 'acquired', acquiredCopyId: copyId } });
 export const useWork = (id: string | null) =>
   useQuery({ queryKey: keys.work(id ?? ''), queryFn: () => api.work(id!), enabled: !!id });
 
@@ -20,6 +44,7 @@ export function invalidateCatalog(qc: QueryClient, work?: WorkDetail) {
   void qc.invalidateQueries({ queryKey: keys.library });
   void qc.invalidateQueries({ queryKey: keys.facets });
   void qc.invalidateQueries({ queryKey: keys.locations });
+  void qc.invalidateQueries({ queryKey: keys.wishlist });
 }
 export const useInvalidate = () => {
   const qc = useQueryClient();

@@ -1,16 +1,16 @@
 {
-  "epoch": "6683a473-a8f9-4d77-8fcc-a45ed2b0439b",
+  "epoch": "e7ef774a-6388-43a7-9a5e-c974ef8ce03b",
   "results": [
     {
-      "opId": "01a1a774-c6cc-7d44-8e0b-2b263e500487",
+      "opId": "01a1a82d-b71d-709a-98c1-97d99eb515f5",
       "status": "applied"
     },
     {
-      "opId": "01a1a774-c6cc-7d44-8e0b-2b263e500487",
+      "opId": "01a1a82d-b71d-709a-98c1-97d99eb515f5",
       "status": "duplicate"
     },
     {
-      "opId": "01a1a774-c6cc-7d0d-abd7-3a4f51b1933e",
+      "opId": "01a1a82d-b71d-7bb5-bb54-69940c1a7867",
       "status": "conflict",
       "code": "conflict",
       "message": "Another device changed subtitle of this book while you were editing it. Nothing was overwritten.",
@@ -24,7 +24,7 @@
       "currentVersion": 2
     },
     {
-      "opId": "01a1a774-c6cc-74d0-b642-0ee192184f48",
+      "opId": "01a1a82d-b71d-7533-905c-e044744b4064",
       "status": "rejected",
       "code": "bad-request",
       "message": "The given edition does not exist."

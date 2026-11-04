@@ -156,6 +156,47 @@ export const locations = sqliteTable(
   (t) => [index('locations_parent_idx').on(t.parentId)],
 );
 
+/** Reading sessions (F4): one per time a copy is read; the work's status is derived from them. */
+export const readingSessions = sqliteTable(
+  'reading_sessions',
+  {
+    ...syncCols,
+    copyId: text('copy_id')
+      .notNull()
+      .references(() => copies.id),
+    status: text('status', { enum: ['pending', 'reading', 'read', 'abandoned'] }).notNull(),
+    startedOn: text('started_on'),
+    finishedOn: text('finished_on'),
+    rating: real('rating'),
+    notes: text('notes').notNull().default(''),
+  },
+  (t) => [index('reading_sessions_copy_idx').on(t.copyId)],
+);
+
+/** Wishlist (F4): books you want; never part of the collection (BR14). */
+export const wishlistItems = sqliteTable(
+  'wishlist_items',
+  {
+    ...syncCols,
+    title: text('title').notNull(),
+    authors: text('authors', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'`),
+    isbn13: text('isbn13'),
+    workId: text('work_id'),
+    priority: text('priority', { enum: ['low', 'normal', 'high'] })
+      .notNull()
+      .default('normal'),
+    notes: text('notes').notNull().default(''),
+    status: text('status', { enum: ['open', 'acquired', 'discarded'] })
+      .notNull()
+      .default('open'),
+    acquiredCopyId: text('acquired_copy_id'),
+  },
+  (t) => [index('wishlist_isbn_idx').on(t.isbn13)],
+);
+
 /** Covers and other images, addressed by the SHA-256 of the original file. */
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(),
@@ -175,7 +216,7 @@ export const changeLog = sqliteTable(
   'change_log',
   {
     seq: integer('seq').primaryKey({ autoIncrement: true }),
-    entity: text('entity', { enum: ['work', 'edition', 'copy', 'location'] }).notNull(),
+    entity: text('entity', { enum: ['work', 'edition', 'copy', 'location', 'reading', 'wish'] }).notNull(),
     entityId: text('entity_id').notNull(),
     op: text('op', { enum: ['create', 'update', 'delete'] }).notNull(),
     version: integer('version').notNull(),

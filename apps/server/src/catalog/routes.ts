@@ -8,6 +8,10 @@ import {
   LibraryQuery,
   LocationCreate,
   LocationPatch,
+  ReadingCreate,
+  ReadingPatch,
+  WishCreate,
+  WishPatch,
   WorkPatch,
 } from '@openlibrary/contracts';
 import { parse } from '../errors.js';
@@ -46,6 +50,25 @@ export async function catalogRoutes(app: FastifyInstance, opts: { catalog: Catal
   });
   app.patch('/copies/:id', async (req) =>
     catalog.patchCopy(idParam(req), parse(CopyPatch, req.body, req.lang), sid(req)),
+  );
+
+  // ---------- Reading ----------
+  app.post('/reading-sessions', async (req, reply) => {
+    reply.code(201);
+    return catalog.createReading(parse(ReadingCreate, req.body, req.lang), sid(req));
+  });
+  app.patch('/reading-sessions/:id', async (req) =>
+    catalog.patchReading(idParam(req), parse(ReadingPatch, req.body, req.lang), sid(req)),
+  );
+
+  // ---------- Wishlist ----------
+  app.get('/wishlist', async () => catalog.wishlist());
+  app.post('/wishlist', async (req, reply) => {
+    reply.code(201);
+    return catalog.createWish(parse(WishCreate, req.body, req.lang), sid(req));
+  });
+  app.patch('/wishlist/:id', async (req) =>
+    catalog.patchWish(idParam(req), parse(WishPatch, req.body, req.lang), sid(req)),
   );
 
   // ---------- Locations ----------

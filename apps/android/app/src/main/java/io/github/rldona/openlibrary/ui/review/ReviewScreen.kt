@@ -125,6 +125,7 @@ private fun whatLabel(type: String): Int =
         "work", "book" -> R.string.review_what_work
         "edition" -> R.string.review_what_edition
         "copy" -> R.string.review_what_copy
+        "reading" -> R.string.reading_title
         else -> R.string.review_what_location
     }
 
@@ -150,6 +151,9 @@ private fun fieldLabel(field: String): Int =
         "notes" -> R.string.copy_notes
         "name" -> R.string.locations_name
         "kind" -> R.string.locations_kind
+        "rating" -> R.string.reading_rating
+        "startedOn" -> R.string.reading_started
+        "finishedOn" -> R.string.reading_finished
         "status", "retiredReason" -> R.string.copyForm_reason
         else -> R.string.drawer_dataSource
     }

@@ -57,6 +57,11 @@ export type RetireReason = z.infer<typeof RetireReason>;
 
 export const MetadataStatus = z.enum(['complete', 'provisional']);
 
+/** Reading of one copy (design §4, BR11–BR13). "pending" is also what a work without sessions is. */
+export const READING_STATUSES = ['pending', 'reading', 'read', 'abandoned'] as const;
+export const ReadingStatus = z.enum(READING_STATUSES);
+export type ReadingStatus = z.infer<typeof ReadingStatus>;
+
 // ---------- Editable fields ----------
 export const WorkFields = z.object({
   title: text(500).min(1, 'validation.titleRequired'),
@@ -101,6 +106,38 @@ export const CopyFields = z.object({
 });
 export type CopyFields = z.infer<typeof CopyFields>;
 
+/**
+ * A reading session. Moving to `reading` without a start date sets it to today; moving to `read`
+ * without an end date sets that one (BR11). Rating goes from 0.5 to 5 in half points.
+ */
+export const ReadingFields = z.object({
+  status: ReadingStatus,
+  startedOn: IsoDate.nullish().default(null),
+  finishedOn: IsoDate.nullish().default(null),
+  rating: z.number().min(0.5).max(5).multipleOf(0.5).nullish().default(null),
+  notes: text(5000).default(''),
+});
+export type ReadingFields = z.infer<typeof ReadingFields>;
+
+/**
+ * A wish (design §4, BR14–BR15): never part of the collection. "I bought it" creates the copy (and the
+ * edition/work if missing) and then sets `status: acquired` with `acquiredCopyId`; the wish is kept.
+ */
+export const WISH_PRIORITIES = ['low', 'normal', 'high'] as const;
+export const WISH_STATUSES = ['open', 'acquired', 'discarded'] as const;
+export const WishFields = z.object({
+  title: text(500).min(1, 'validation.titleRequired'),
+  authors: nameList.default([]),
+  isbn13: IsbnField.default(null),
+  /** Optional link to something you already own (another edition of a work, for instance). */
+  workId: Id.nullish().default(null),
+  priority: z.enum(WISH_PRIORITIES).default('normal'),
+  notes: text(5000).default(''),
+  status: z.enum(WISH_STATUSES).default('open'),
+  acquiredCopyId: Id.nullish().default(null),
+});
+export type WishFields = z.infer<typeof WishFields>;
+
 // ---------- Creation ----------
 /** Full creation in one operation: new or existing work + edition + first copy. */
 export const BookCreate = z
@@ -119,6 +156,12 @@ export type BookCreate = z.input<typeof BookCreate>;
 
 export const CopyCreate = CopyFields.extend({ id: Id.optional(), editionId: Id });
 export type CopyCreate = z.input<typeof CopyCreate>;
+
+export const ReadingCreate = ReadingFields.extend({ id: Id.optional(), copyId: Id });
+export type ReadingCreate = z.input<typeof ReadingCreate>;
+
+export const WishCreate = WishFields.extend({ id: Id.optional() });
+export type WishCreate = z.input<typeof WishCreate>;
 
 export const LocationCreate = z.object({
   id: Id.optional(),
@@ -161,6 +204,10 @@ export const LocationPatch = patchOf(
     sortOrder: z.number().int(),
   }),
 );
+export const ReadingPatch = patchOf(ReadingFields);
+export type ReadingPatch = z.input<typeof ReadingPatch>;
+export const WishPatch = patchOf(WishFields);
+export type WishPatch = z.input<typeof WishPatch>;
 export type WorkPatch = z.input<typeof WorkPatch>;
 export type EditionPatch = z.input<typeof EditionPatch>;
 export type CopyPatch = z.input<typeof CopyPatch>;
@@ -192,10 +239,25 @@ export type LocationDTO = Versioned & {
 };
 export type LocationTree = { items: LocationDTO[]; unassigned: number };
 
+export type ReadingDTO = Versioned & ReadingFields & { copyId: string };
+export type WishDTO = Versioned & WishFields;
+export type WishList = { items: WishDTO[] };
+
 export type WorkDetail = {
   work: WorkDTO;
   editions: (EditionDTO & { copies: CopyDTO[] })[];
+  /** Every reading session of any copy of the work, oldest first. */
+  readings: ReadingDTO[];
+  /** Derived (BR13): reading if a session is active, read if any finished, otherwise pending. */
+  readingStatus: 'pending' | 'reading' | 'read';
 };
+
+/** BR13, shared by the server and the web (Android ports it). */
+export function workReadingStatus(sessions: { status: ReadingStatus }[]): WorkDetail['readingStatus'] {
+  if (sessions.some((s) => s.status === 'reading')) return 'reading';
+  if (sessions.some((s) => s.status === 'read')) return 'read';
+  return 'pending';
+}
 
 export const LIBRARY_SORTS = ['title', 'author', 'acquired', 'location', 'added'] as const;
 export const LibraryQuery = z.object({

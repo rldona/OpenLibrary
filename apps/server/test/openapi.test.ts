@@ -80,6 +80,27 @@ describe('openapi.yaml', () => {
       fields: { status: 'retired', retiredReason: 'gifted' },
     });
     const other = await web.post('/books', { work: { title: 'Paz en la guerra' }, edition: {}, copy: {} });
+    // A finished reading with rating and one in progress, so the fixtures carry both shapes.
+    await web.post('/reading-sessions', {
+      copyId: copy.id,
+      status: 'read',
+      startedOn: '2024-01-02',
+      rating: 4.5,
+      notes: 'Nivola',
+    });
+    await web.post('/reading-sessions', { copyId: copy.id, status: 'reading' });
+    // An open wish and one already bought (linked to its copy).
+    await web.post('/wishlist', {
+      title: 'San Manuel Bueno, mártir',
+      authors: ['Miguel de Unamuno'],
+      priority: 'high',
+    });
+    await web.post('/wishlist', {
+      title: 'Niebla',
+      isbn13: '9788437604947',
+      status: 'acquired',
+      acquiredCopyId: copy.id,
+    });
 
     expectSchema('HealthResponse', (await call('/health')).body);
 

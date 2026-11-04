@@ -1,10 +1,10 @@
 {
-  "epoch": "6683a473-a8f9-4d77-8fcc-a45ed2b0439b",
-  "cursor": 8,
+  "epoch": "e7ef774a-6388-43a7-9a5e-c974ef8ce03b",
+  "cursor": 12,
   "serverTime": "2026-11-04T10:00:00.000Z",
   "works": [
     {
-      "id": "01a1a774-c674-704c-a578-752f908bdc9e",
+      "id": "01a1a82d-b69e-7026-8a57-f727cd4d9a44",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -19,7 +19,7 @@
       "seriesIndex": 1
     },
     {
-      "id": "01a1a774-c67f-7eb6-bdf8-d613badaa490",
+      "id": "01a1a82d-b6ac-7654-abab-badee76ddfec",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -36,11 +36,11 @@
   ],
   "editions": [
     {
-      "id": "01a1a774-c675-7fb3-a254-6be3d8b62884",
+      "id": "01a1a82d-b69f-7424-8845-07d18d8c5bd9",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1a774-c674-704c-a578-752f908bdc9e",
+      "workId": "01a1a82d-b69e-7026-8a57-f727cd4d9a44",
       "title": null,
       "subtitle": null,
       "publisher": "Cátedra",
@@ -54,11 +54,11 @@
       "metadataSource": null
     },
     {
-      "id": "01a1a774-c67f-77cc-8496-c9c35386809f",
+      "id": "01a1a82d-b6ad-7681-a041-c141e0f8e99a",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1a774-c67f-7eb6-bdf8-d613badaa490",
+      "workId": "01a1a82d-b6ac-7654-abab-badee76ddfec",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -74,13 +74,13 @@
   ],
   "copies": [
     {
-      "id": "01a1a774-c675-79ed-b6a4-b71502685446",
+      "id": "01a1a82d-b6a0-75b2-a505-45695f70bbc8",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1a774-c675-7fb3-a254-6be3d8b62884",
+      "editionId": "01a1a82d-b69f-7424-8845-07d18d8c5bd9",
       "code": "EJ-0001",
-      "locationId": "01a1a774-c66a-77b2-9f08-bde9fb564471",
+      "locationId": "01a1a82d-b692-7cf3-95f8-9fb7ba1d151f",
       "condition": "good",
       "acquiredOn": "2020-05-01",
       "priceCents": 1200,
@@ -91,11 +91,11 @@
       "retiredOn": "2026-11-04"
     },
     {
-      "id": "01a1a774-c680-7979-a88d-e31a593e4618",
+      "id": "01a1a82d-b6ad-7239-90b3-9e9104735e95",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1a774-c67f-77cc-8496-c9c35386809f",
+      "editionId": "01a1a82d-b6ad-7681-a041-c141e0f8e99a",
       "code": "EJ-0002",
       "locationId": null,
       "condition": "good",
@@ -110,7 +110,7 @@
   ],
   "locations": [
     {
-      "id": "01a1a774-c66a-77b2-9f08-bde9fb564471",
+      "id": "01a1a82d-b692-7cf3-95f8-9fb7ba1d151f",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -118,6 +118,62 @@
       "name": "Casa",
       "kind": "home",
       "sortOrder": 0
+    }
+  ],
+  "readings": [
+    {
+      "id": "01a1a82d-b6b2-76a8-95a9-ff49f45d2383",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "copyId": "01a1a82d-b6a0-75b2-a505-45695f70bbc8",
+      "status": "read",
+      "startedOn": "2024-01-02",
+      "finishedOn": "2026-11-04",
+      "rating": 4.5,
+      "notes": "Nivola"
+    },
+    {
+      "id": "01a1a82d-b6b5-7ecc-828f-0fe90e309810",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "copyId": "01a1a82d-b6a0-75b2-a505-45695f70bbc8",
+      "status": "reading",
+      "startedOn": "2026-11-04",
+      "finishedOn": null,
+      "rating": null,
+      "notes": ""
+    }
+  ],
+  "wishes": [
+    {
+      "id": "01a1a82d-b6c2-735f-b042-de3b4ea5744d",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "title": "San Manuel Bueno, mártir",
+      "authors": ["Miguel de Unamuno"],
+      "isbn13": null,
+      "workId": null,
+      "priority": "high",
+      "notes": "",
+      "status": "open",
+      "acquiredCopyId": null
+    },
+    {
+      "id": "01a1a82d-b6c4-7089-9c61-6c6d3864584d",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "title": "Niebla",
+      "authors": [],
+      "isbn13": "9788437604947",
+      "workId": null,
+      "priority": "normal",
+      "notes": "",
+      "status": "acquired",
+      "acquiredCopyId": "01a1a82d-b6a0-75b2-a505-45695f70bbc8"
     }
   ]
 }

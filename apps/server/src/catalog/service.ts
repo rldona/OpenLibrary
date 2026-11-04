@@ -3,6 +3,10 @@ import type { z } from 'zod';
 import {
   isbn13to10,
   uuidv7,
+  workReadingStatus,
+  type ReadingDTO,
+  type WishDTO,
+  type WishList,
   type CopyDTO,
   type EditionDTO,
   type LibraryFacets,
@@ -15,7 +19,7 @@ import {
 } from '@openlibrary/contracts';
 import type * as C from '@openlibrary/contracts';
 import { getMeta, setMeta, type Db } from '../db/client.js';
-import { assets, copies, editions, locations, works } from '../db/schema.js';
+import { assets, copies, editions, locations, readingSessions, wishlistItems, works } from '../db/schema.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
 import type { Clock } from '../auth/service.js';
 import { patchEntity, recordChange, softDelete, type Tx } from './changes.js';
@@ -25,6 +29,8 @@ type WorkRow = typeof works.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
 type CopyRow = typeof copies.$inferSelect;
 type LocationRow = typeof locations.$inferSelect;
+type ReadingRow = typeof readingSessions.$inferSelect;
+type WishRow = typeof wishlistItems.$inferSelect;
 type Out<T extends z.ZodType> = z.output<T>;
 
 const workDerived = (w: { title: string; authors: string[] }) => ({
@@ -33,6 +39,22 @@ const workDerived = (w: { title: string; authors: string[] }) => ({
 });
 
 const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): WorkDTO => w;
+const toReading = ({ deletedAt: _d, ...r }: ReadingRow): ReadingDTO => r;
+const toWish = ({ deletedAt: _d, ...w }: WishRow): WishDTO => w;
+const PRIORITY = { high: 0, normal: 1, low: 2 } as const;
+
+/** BR11: entering "reading" or "read" without the matching date stamps today. */
+function readingDates(
+  status: string | undefined,
+  current: { startedOn: string | null; finishedOn: string | null },
+  today: string,
+) {
+  const out: { startedOn?: string; finishedOn?: string } = {};
+  if (status === 'reading' && !current.startedOn) out.startedOn = today;
+  if (status === 'read' && !current.finishedOn) out.finishedOn = today;
+  return out;
+}
+
 const toEdition = ({ deletedAt: _d, ...e }: EditionRow): EditionDTO => ({
   ...e,
   isbn10: e.isbn13 ? isbn13to10(e.isbn13) : null,
@@ -192,8 +214,27 @@ export class CatalogService {
           )
           .all()
       : [];
+    const readings = cs.length
+      ? tx
+          .select()
+          .from(readingSessions)
+          .where(
+            and(
+              inArray(
+                readingSessions.copyId,
+                cs.map((c) => c.id),
+              ),
+              isNull(readingSessions.deletedAt),
+            ),
+          )
+          .all()
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+          .map(toReading)
+      : [];
     return {
       work: toWork(w),
+      readings,
+      readingStatus: workReadingStatus(readings),
       editions: eds.map((e) => ({
         ...toEdition(e),
         copies: cs
@@ -547,6 +588,106 @@ export class CatalogService {
       this.reindex(tx, [id]);
       return { workDeleted: !rest.length };
     });
+  }
+
+  // ======================= Reading =======================
+  /** Starts a session (or records one already finished) on a copy, which may be retired (BR08). */
+  createReading(input: Out<typeof C.ReadingCreate>, sid: string | null = null): WorkDetail {
+    return this.db.transaction((tx) => {
+      const c = tx.select().from(copies).where(eq(copies.id, input.copyId)).get();
+      if (!c || c.deletedAt) throw badRequest('errors.copyNotFound');
+      const now = this.ts();
+      const { id: maybeId, ...given } = input;
+      const id = maybeId ?? uuidv7();
+      if (
+        tx.select({ id: readingSessions.id }).from(readingSessions).where(eq(readingSessions.id, id)).get()
+      ) {
+        throw new HttpError(409, 'already-exists', 'errors.alreadyExists.reading');
+      }
+      const fields = { ...given, ...readingDates(given.status, given, now.slice(0, 10)) };
+      tx.insert(readingSessions)
+        .values({ id, version: 1, createdAt: now, updatedAt: now, ...fields })
+        .run();
+      recordChange(tx, 'reading', id, 'create', 1, fields, now, sid);
+      return this.getWork(this.workOfCopy(tx, c.editionId), tx);
+    });
+  }
+
+  patchReading(id: string, p: Out<typeof C.ReadingPatch>, sid: string | null = null): WorkDetail {
+    return this.db.transaction((tx) => {
+      const r = tx.select().from(readingSessions).where(eq(readingSessions.id, id)).get();
+      if (!r || r.deletedAt) throw notFound();
+      const merged = {
+        startedOn: p.fields.startedOn ?? r.startedOn,
+        finishedOn: p.fields.finishedOn ?? r.finishedOn,
+      };
+      const fields = { ...readingDates(p.fields.status, merged, this.ts().slice(0, 10)), ...p.fields };
+      patchEntity<ReadingRow>(tx, 'reading', id, p.baseVersion, fields, { now: this.ts(), sessionId: sid });
+      const c = tx.select().from(copies).where(eq(copies.id, r.copyId)).get()!;
+      return this.getWork(this.workOfCopy(tx, c.editionId), tx);
+    });
+  }
+
+  private workOfCopy(tx: Tx, editionId: string): string {
+    return tx.select({ workId: editions.workId }).from(editions).where(eq(editions.id, editionId)).get()!
+      .workId;
+  }
+
+  // ======================= Wishlist =======================
+  /** Open wishes first, by priority and then newest; acquired and discarded ones after (history). */
+  wishlist(): WishList {
+    const items = this.db
+      .select()
+      .from(wishlistItems)
+      .where(isNull(wishlistItems.deletedAt))
+      .all()
+      .sort(
+        (a, b) =>
+          Number(a.status !== 'open') - Number(b.status !== 'open') ||
+          PRIORITY[a.priority] - PRIORITY[b.priority] ||
+          b.createdAt.localeCompare(a.createdAt),
+      )
+      .map(toWish);
+    return { items };
+  }
+
+  createWish(input: Out<typeof C.WishCreate>, sid: string | null = null): WishDTO {
+    return this.db.transaction((tx) => {
+      this.ensureWishLinks(tx, input);
+      const now = this.ts();
+      const { id: maybeId, ...fields } = input;
+      const id = maybeId ?? uuidv7();
+      if (tx.select({ id: wishlistItems.id }).from(wishlistItems).where(eq(wishlistItems.id, id)).get()) {
+        throw new HttpError(409, 'already-exists', 'errors.alreadyExists.wish');
+      }
+      tx.insert(wishlistItems)
+        .values({ id, version: 1, createdAt: now, updatedAt: now, ...fields })
+        .run();
+      recordChange(tx, 'wish', id, 'create', 1, fields, now, sid);
+      return toWish(tx.select().from(wishlistItems).where(eq(wishlistItems.id, id)).get()!);
+    });
+  }
+
+  patchWish(id: string, p: Out<typeof C.WishPatch>, sid: string | null = null): WishDTO {
+    return this.db.transaction((tx) => {
+      this.ensureWishLinks(tx, p.fields);
+      const { row } = patchEntity<WishRow>(tx, 'wish', id, p.baseVersion, p.fields, {
+        now: this.ts(),
+        sessionId: sid,
+      });
+      return toWish(row);
+    });
+  }
+
+  private ensureWishLinks(tx: Tx, f: { workId?: string | null; acquiredCopyId?: string | null }) {
+    if (f.workId) {
+      const w = tx.select().from(works).where(eq(works.id, f.workId)).get();
+      if (!w || w.deletedAt) throw badRequest('errors.workNotFound');
+    }
+    if (f.acquiredCopyId) {
+      const c = tx.select().from(copies).where(eq(copies.id, f.acquiredCopyId)).get();
+      if (!c || c.deletedAt) throw badRequest('errors.copyNotFound');
+    }
   }
 
   // ======================= Locations =======================

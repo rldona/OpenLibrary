@@ -14,6 +14,8 @@ import type {
   SyncEntity,
   SyncLocation,
   SyncPullPage,
+  SyncReading,
+  SyncWish,
   SyncRecords,
   SyncSnapshot,
   SyncTombstone,
@@ -22,7 +24,16 @@ import type {
 import type { z } from 'zod';
 import type * as C from '@openlibrary/contracts';
 import { getMeta, type Db } from '../db/client.js';
-import { appliedOps, changeLog, copies, editions, locations, works } from '../db/schema.js';
+import {
+  appliedOps,
+  changeLog,
+  copies,
+  editions,
+  locations,
+  readingSessions,
+  wishlistItems,
+  works,
+} from '../db/schema.js';
 import { HttpError, parse } from '../errors.js';
 import { tr } from '../i18n.js';
 import type { Clock } from '../auth/service.js';
@@ -33,13 +44,24 @@ type WorkRow = typeof works.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
 type CopyRow = typeof copies.$inferSelect;
 type LocationRow = typeof locations.$inferSelect;
+type ReadingRow = typeof readingSessions.$inferSelect;
+type WishRow = typeof wishlistItems.$inferSelect;
 
 const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): SyncWork => w;
 const toEdition = ({ deletedAt: _d, ...e }: EditionRow): SyncEdition => e;
 const toCopy = ({ deletedAt: _d, ...c }: CopyRow): SyncCopy => c as SyncCopy;
 const toLocation = ({ deletedAt: _d, ...l }: LocationRow): SyncLocation => l;
+const toReading = ({ deletedAt: _d, ...r }: ReadingRow): SyncReading => r;
+const toWish = ({ deletedAt: _d, ...w }: WishRow): SyncWish => w;
 
-const KEYS = { work: 'works', edition: 'editions', copy: 'copies', location: 'locations' } as const;
+const KEYS = {
+  work: 'works',
+  edition: 'editions',
+  copy: 'copies',
+  location: 'locations',
+  reading: 'readings',
+  wish: 'wishes',
+} as const;
 
 const resyncNeeded = (code: string, key: string) => new HttpError(409, code, key);
 
@@ -83,6 +105,20 @@ export class SyncService {
         .orderBy(locations.id)
         .all()
         .map(toLocation),
+      readings: tx
+        .select()
+        .from(readingSessions)
+        .where(isNull(readingSessions.deletedAt))
+        .orderBy(readingSessions.id)
+        .all()
+        .map(toReading),
+      wishes: tx
+        .select()
+        .from(wishlistItems)
+        .where(isNull(wishlistItems.deletedAt))
+        .orderBy(wishlistItems.id)
+        .all()
+        .map(toWish),
     }));
   }
 
@@ -107,7 +143,14 @@ export class SyncService {
       const hasMore = latest.length > q.limit;
       const page = latest.slice(0, q.limit);
 
-      const records: SyncRecords = { works: [], editions: [], copies: [], locations: [] };
+      const records: SyncRecords = {
+        works: [],
+        editions: [],
+        copies: [],
+        locations: [],
+        readings: [],
+        wishes: [],
+      };
       const deleted: SyncTombstone[] = [];
       for (const entity of Object.keys(KEYS) as SyncEntity[]) {
         const ids = page.filter((c) => c.entity === entity).map((c) => c.entityId);
@@ -120,16 +163,19 @@ export class SyncService {
           ]),
         );
         for (const id of ids) {
-          const row = rows.get(id) as (WorkRow & EditionRow & CopyRow & LocationRow) | undefined;
+          const row = rows.get(id) as { version: number; deletedAt: string | null } | undefined;
           if (!row) continue;
           if (row.deletedAt) {
             deleted.push({ entity, id, version: row.version, deletedAt: row.deletedAt });
             continue;
           }
-          if (entity === 'work') records.works.push(toWork(row));
-          else if (entity === 'edition') records.editions.push(toEdition(row));
-          else if (entity === 'copy') records.copies.push(toCopy(row));
-          else records.locations.push(toLocation(row));
+          // `row` comes from TABLES[entity], so each cast matches the branch it is in.
+          if (entity === 'work') records.works.push(toWork(row as WorkRow));
+          else if (entity === 'edition') records.editions.push(toEdition(row as EditionRow));
+          else if (entity === 'copy') records.copies.push(toCopy(row as CopyRow));
+          else if (entity === 'location') records.locations.push(toLocation(row as LocationRow));
+          else if (entity === 'reading') records.readings.push(toReading(row as ReadingRow));
+          else records.wishes.push(toWish(row as WishRow));
         }
       }
 
@@ -209,6 +255,18 @@ export class SyncService {
         break;
       case 'location.update':
         c.patchLocation(op.id, op.patch, sid);
+        break;
+      case 'reading.create':
+        c.createReading(op.reading, sid);
+        break;
+      case 'reading.update':
+        c.patchReading(op.id, op.patch, sid);
+        break;
+      case 'wish.create':
+        c.createWish(op.wish, sid);
+        break;
+      case 'wish.update':
+        c.patchWish(op.id, op.patch, sid);
         break;
     }
   }

@@ -65,6 +65,8 @@ class OfflineWritesTest {
             editions = listOf(edition("e1", "w1")),
             copies = listOf(copy("c1", "e1", "l1")),
             locations = listOf(location("l1", "Casa")),
+            readings = emptyList(),
+            wishes = emptyList(),
         )
 
     private fun json(text: String, code: Int = 200) =
@@ -73,7 +75,7 @@ class OfflineWritesTest {
     private fun json(s: SyncSnapshot) = json(ApiJson.encodeToString(SyncSnapshot.serializer(), s))
 
     private fun emptyPage(epoch: String = "epoch-1", cursor: Long = 10) =
-        json(ApiJson.encodeToString(SyncPullPage.serializer(), SyncPullPage(epoch, cursor, false, T, emptyList(), emptyList(), emptyList(), emptyList(), emptyList())))
+        json(ApiJson.encodeToString(SyncPullPage.serializer(), SyncPullPage(epoch, cursor, false, T, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())))
 
     /** The push response, echoing every op id of the request with the given status. */
     private fun pushed(vararg results: String) =
@@ -222,6 +224,44 @@ class OfflineWritesTest {
         assertFalse("workId" in book) // absent, not null: the server's schema makes it optional
         assertEquals(photoId, book["edition"]!!.jsonObject["coverAssetId"]!!.jsonPrimitive.content)
         assertTrue(db.outbox().uploads().isEmpty())
+    }
+
+    @Test
+    fun readingOfflineFollowsTheSameRulesAsTheServer() = runBlocking {
+        val today = java.time.LocalDate.now().toString()
+        writes.startReading("c1", "reading")
+        var r = db.catalog().readingsOfWork("w1").first().single()
+        assertEquals(today, r.startedOn)
+        assertEquals("reading", io.github.rldona.openlibrary.data.workReadingStatus(listOf(r)))
+
+        writes.editReading(r, buildJsonObject { put("status", "read"); put("rating", 4.5) })
+        r = db.catalog().readingsOfWork("w1").first().single()
+        assertEquals(today, r.finishedOn)
+        assertEquals(4.5, r.rating!!, 0.0)
+
+        val ops = db.outbox().allPending().map { LocalWrites.decode(it.payload) }
+        assertTrue(ops[0] is Op.ReadingCreate && ops[1] is Op.ReadingUpdate)
+        // Created offline (version 0): the update is based on version 1, what the create will produce.
+        assertEquals(1, (ops[1] as Op.ReadingUpdate).patch.baseVersion)
+    }
+
+    @Test
+    fun iBoughtItAddsTheBookAndThenMarksTheWishAcquired() = runBlocking {
+        writes.addWish("Misericordia", listOf("Galdós"), "9788437604800")
+        val wish = db.catalog().openWishByIsbn("9788437604800")!!
+        writes.addBook(
+            NewBook(work = NewWork("w2", "Misericordia"), edition = NewEdition("e2", isbn13 = "9788437604800"), copy = NewCopy("c2")),
+        )
+        writes.acquireWish(wish, "c2")
+
+        val stored = db.catalog().wishById(wish.id)!!
+        assertEquals("acquired", stored.status)
+        assertEquals("c2", stored.acquiredCopyId)
+        assertEquals(null, db.catalog().openWishByIsbn("9788437604800"))
+        // Order matters: the wish points at a copy the book op creates.
+        assertEquals(listOf("wish.create", "book.create", "wish.update"), db.outbox().allPending().map { it.type })
+        // A wish is not part of the library (BR14): only the bought book is.
+        assertEquals(listOf("e1", "e2"), db.catalog().library("", true, emptyList()).first().map { it.editionId }.sorted())
     }
 
     @Test

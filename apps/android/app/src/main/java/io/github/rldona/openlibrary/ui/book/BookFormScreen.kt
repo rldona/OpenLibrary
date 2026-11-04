@@ -41,6 +41,7 @@ import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.core.uuidv7
 import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.OwnedEdition
+import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.network.MetadataProposal
 import io.github.rldona.openlibrary.network.NewBook
@@ -72,8 +73,13 @@ sealed interface LookupNotice {
     data class Owned(val edition: OwnedEdition) : LookupNotice
 }
 
-/** Add a book (workId/editionId null) or edit an existing work + edition. */
-class BookFormViewModel(private val c: AppContainer, private val workId: String?, private val editionId: String?) : ViewModel() {
+/** Add a book (workId/editionId null; `wishId` for "I bought it") or edit an existing work + edition. */
+class BookFormViewModel(
+    private val c: AppContainer,
+    private val workId: String?,
+    private val editionId: String?,
+    private val wishId: String? = null,
+) : ViewModel() {
     val editing = workId != null
     var isbn by mutableStateOf("")
     var title by mutableStateOf("")
@@ -97,6 +103,10 @@ class BookFormViewModel(private val c: AppContainer, private val workId: String?
         private set
     var titleMissing by mutableStateOf(false)
         private set
+    /** BR15: the wish this book fulfils (from "I bought it", or found by its ISBN); bought on save. */
+    var wish by mutableStateOf<WishEntity?>(null)
+        private set
+    val fromWish = wishId != null
 
     val locations = c.db.catalog().locations()
     val covers = c.covers
@@ -104,6 +114,13 @@ class BookFormViewModel(private val c: AppContainer, private val workId: String?
     private var edition: EditionEntity? = null
 
     init {
+        if (wishId != null) viewModelScope.launch {
+            val w = c.db.catalog().wishById(wishId) ?: return@launch
+            wish = w
+            title = w.title
+            authors = w.authors.joinToString("; ")
+            w.isbn13?.let { isbn = it; lookup() }
+        }
         if (workId != null && editionId != null) viewModelScope.launch {
             work = c.db.catalog().workById(workId)
             edition = c.db.catalog().editionById(editionId)
@@ -132,6 +149,7 @@ class BookFormViewModel(private val c: AppContainer, private val workId: String?
         busy = true
         viewModelScope.launch {
             try {
+                if (!editing && wish == null) wish = c.db.catalog().openWishByIsbn(r.isbn13)
                 c.db.catalog().byIsbn(r.isbn13)?.let { if (!editing) { notice = LookupNotice.Owned(it); return@launch } }
                 val s = c.sessions.session.first() ?: return@launch
                 val result = withTimeout(8_000) { c.api(s.serverUrl, s.token).lookup(r.isbn13) }
@@ -208,7 +226,35 @@ class BookFormViewModel(private val c: AppContainer, private val workId: String?
                 copy = NewCopy(uuidv7(), locationId = locationId, condition = condition, notes = notes.trim()),
             )
         c.writes.addBook(book, coverPhoto = photoId)
+        // After the book's op, so the copy exists when the server applies this one.
+        wish?.let { c.writes.acquireWish(it, book.copy.id) }
         return newWorkId
+    }
+
+    /** "I bought it" for an edition you already own: just another copy of it (no new work or edition). */
+    fun addOwnedCopy(owned: OwnedEdition, onSaved: (workId: String) -> Unit) {
+        busy = true
+        viewModelScope.launch {
+            try {
+                val copyId = c.writes.addCopy(owned.editionId, locationId, condition, notes.trim())
+                wish?.let { c.writes.acquireWish(it, copyId) }
+                onSaved(owned.workId)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** Not bought yet: keep it in the wishlist instead (e.g. scanned in a bookshop). */
+    fun addToWishlist(onDone: () -> Unit) {
+        if (title.isBlank()) {
+            titleMissing = true
+            return
+        }
+        viewModelScope.launch {
+            c.writes.addWish(title, authorList(), (normalizeIsbn(isbn) as? IsbnResult.Ok)?.isbn13)
+            onDone()
+        }
     }
 
     /** The provider's cover is copied to the server now if there is a connection; otherwise the book has none. */
@@ -255,6 +301,7 @@ fun BookFormScreen(
     onPhoto: () -> Unit,
     onOpenWork: (String) -> Unit,
     onSaved: (String) -> Unit,
+    onWishAdded: () -> Unit = {},
 ) {
     LaunchedEffect(scannedIsbn) { scannedIsbn?.let(vm::scanned) }
     LaunchedEffect(photoId) { photoId?.let { vm.photoId = it } }
@@ -281,7 +328,8 @@ fun BookFormScreen(
         }
         if (!vm.editing) Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.add_scan)) }
 
-        vm.notice?.let { n -> Notice(n, onOpenWork) }
+        vm.wish?.let { Notice(it) }
+        vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(vm.covers, vm.photoId, vm.title.ifBlank { "?" }, 64.dp)
@@ -322,12 +370,24 @@ fun BookFormScreen(
         Button(onClick = { vm.save(onSaved) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth().testTag("save")) {
             Text(stringResource(if (vm.editing) R.string.common_saveChanges else R.string.form_addToLibrary))
         }
+        if (!vm.editing && !vm.fromWish) {
+            OutlinedButton(onClick = { vm.addToWishlist(onWishAdded) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.wish_addToWishlist))
+            }
+        }
         Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
-private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit) {
+private fun Notice(w: WishEntity) {
+    Card(Modifier.fillMaxWidth()) {
+        Text(str(R.string.wish_willBeAcquired, "title" to w.title), Modifier.padding(12.dp))
+    }
+}
+
+@Composable
+private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (OwnedEdition) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when (n) {
@@ -342,8 +402,9 @@ private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit) {
                 is LookupNotice.Owned -> {
                     Text(stringResource(R.string.form_duplicateTitle), style = MaterialTheme.typography.titleSmall)
                     Text("«${n.edition.title}» · " + plural(R.string.library_copies_one, R.string.library_copies_other, n.edition.copies))
-                    OutlinedButton(onClick = { onOpenWork(n.edition.workId) }) {
-                        Text(stringResource(R.string.add_viewDetails) + " · " + stringResource(R.string.form_addAnotherCopy))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onAddCopy(n.edition) }) { Text(stringResource(R.string.form_addAnotherCopy)) }
+                        OutlinedButton(onClick = { onOpenWork(n.edition.workId) }) { Text(stringResource(R.string.add_viewDetails)) }
                     }
                 }
             }

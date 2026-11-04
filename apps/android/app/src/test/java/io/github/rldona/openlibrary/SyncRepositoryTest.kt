@@ -52,6 +52,8 @@ class SyncRepositoryTest {
             editions = listOf(edition("e1", "w1", COVER), edition("e2", "w2")),
             copies = listOf(copy("c1", "e1", "l2"), copy("c2", "e2", null, status = "retired")),
             locations = listOf(location("l1", "Casa"), location("l2", "Salón", parentId = "l1")),
+            readings = emptyList(),
+            wishes = emptyList(),
         )
 
     private fun json(body: Any, code: Int = 200): MockResponse {
@@ -67,7 +69,7 @@ class SyncRepositoryTest {
     private fun image() = MockResponse.Builder().code(200).body(Buffer().write(byteArrayOf(1, 2, 3))).build()
 
     private fun page(cursor: Long, hasMore: Boolean, works: List<SyncWork> = emptyList(), deleted: List<SyncTombstone> = emptyList()) =
-        SyncPullPage("epoch-1", cursor, hasMore, T, works, emptyList(), emptyList(), emptyList(), deleted)
+        SyncPullPage("epoch-1", cursor, hasMore, T, works, emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), deleted)
 
     @Before
     fun setUp() {
@@ -166,6 +168,20 @@ class SyncRepositoryTest {
         server.enqueue(json("""{"type":"x","title":"Not authenticated","status":401,"code":"unauthorized"}""", 401))
         assertEquals(SyncStatus.Revoked, repo.sync())
         assertNull(db.sync().state())
+    }
+
+    @Test
+    fun anAppThatSyncsNewKindsOfDataStartsWithASnapshot() = runBlocking {
+        firstSync()
+        server.takeRequest(); server.takeRequest()
+        // A copy downloaded by an older app (before readings and wishes existed).
+        db.sync().setState(db.sync().state()!!.copy(format = 1))
+        server.enqueue(json(snapshot.copy(cursor = 12)))
+        assertEquals(SyncStatus.Idle, repo.sync())
+        assertEquals("/api/v1/sync/snapshot", server.takeRequest().url.encodedPath)
+        val state = db.sync().state()!!
+        assertEquals(12L, state.cursor)
+        assertEquals(io.github.rldona.openlibrary.data.SYNC_FORMAT, state.format)
     }
 
     @Test

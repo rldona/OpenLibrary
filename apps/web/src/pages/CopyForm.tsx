@@ -4,12 +4,12 @@ import { api, ApiError, errorText } from '../api';
 import { Banner, Modal, useToast } from '../components/ui';
 import { CopyFieldset, copyPayload, emptyCopy, type CopyDraft } from '../components/fields';
 import { priceInput } from '../lib/format';
-import { useInvalidate } from '../lib/queries';
+import { acquireWish, matchingWish, useInvalidate, useWishlist } from '../lib/queries';
 import { useI18n } from '../i18n';
 
 export type CopyMode =
   /** `title` is omitted when coming from the duplicate-ISBN warning (the title is not loaded yet). */
-  | { kind: 'add'; editionId: string; title?: string }
+  | { kind: 'add'; editionId: string; title?: string; wishId?: string }
   | { kind: 'edit'; copy: CopyDTO }
   | { kind: 'retire'; copy: CopyDTO };
 
@@ -29,6 +29,10 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
   const [reason, setReason] = useState<RetireReason>('gifted');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const wishes = useWishlist();
+  // "I bought it" for an edition you already own: the wish is fulfilled by this copy.
+  const wish =
+    mode.kind === 'add' && mode.wishId ? matchingWish(wishes.data?.items, mode.wishId, '') : undefined;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -37,6 +41,7 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
     try {
       if (mode.kind === 'add') {
         const res = await api.createCopy({ editionId: mode.editionId, ...copyPayload(draft) });
+        if (wish) await acquireWish(wish, res.created.copyId);
         invalidate(res);
         const c = res.editions.flatMap((x) => x.copies).find((x) => x.id === res.created.copyId);
         toast(t('copyForm.added', { code: c?.code ?? '' }));

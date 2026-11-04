@@ -8,6 +8,7 @@ import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.LocationEntity
 import io.github.rldona.openlibrary.data.SessionStore
+import io.github.rldona.openlibrary.data.SYNC_FORMAT
 import io.github.rldona.openlibrary.data.SyncStateEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.network.ApiClient
@@ -18,6 +19,10 @@ import kotlinx.serialization.builtins.ListSerializer
 import io.github.rldona.openlibrary.network.SyncCopy
 import io.github.rldona.openlibrary.network.SyncEdition
 import io.github.rldona.openlibrary.network.SyncLocation
+import io.github.rldona.openlibrary.network.SyncReading
+import io.github.rldona.openlibrary.network.SyncWish
+import io.github.rldona.openlibrary.data.WishEntity
+import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.network.SyncWork
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,7 +73,8 @@ class SyncRepository(
             _status.value = SyncStatus.Running(firstSync = state == null || full)
             val result =
                 try {
-                    val fresh = full || state == null
+                    // Also after an update that syncs new kinds of data: their records were skipped until now.
+                    val fresh = full || state == null || state.format < SYNC_FORMAT
                     if (fresh) snapshot(api)
                     val refused = push(api)
                     when {
@@ -94,11 +100,15 @@ class SyncRepository(
             dao.clearEditions()
             dao.clearCopies()
             dao.clearLocations()
+            dao.clearReadings()
+            dao.clearWishes()
             dao.upsertWorks(s.works.map { it.toEntity() })
             dao.upsertEditions(s.editions.map { it.toEntity() })
             dao.upsertCopies(s.copies.map { it.toEntity() })
             dao.upsertLocations(s.locations.map { it.toEntity() })
-            dao.setState(SyncStateEntity(epoch = s.epoch, cursor = s.cursor, lastSyncAt = dao.state()?.lastSyncAt))
+            dao.upsertReadings(s.readings.map { it.toEntity() })
+            dao.upsertWishes(s.wishes.map { it.toEntity() })
+            dao.setState(SyncStateEntity(epoch = s.epoch, cursor = s.cursor, lastSyncAt = dao.state()?.lastSyncAt, format = SYNC_FORMAT))
             reapplyPending()
             rebuildSearchIndex()
         }
@@ -172,13 +182,17 @@ class SyncRepository(
                 dao.upsertEditions(page.editions.map { it.toEntity() })
                 dao.upsertCopies(page.copies.map { it.toEntity() })
                 dao.upsertLocations(page.locations.map { it.toEntity() })
+                dao.upsertReadings(page.readings.map { it.toEntity() })
+                dao.upsertWishes(page.wishes.map { it.toEntity() })
                 val gone = page.deleted.groupBy({ it.entity }, { it.id })
                 gone["work"]?.let { dao.deleteWorks(it) }
                 gone["edition"]?.let { dao.deleteEditions(it) }
                 gone["copy"]?.let { dao.deleteCopies(it) }
                 gone["location"]?.let { dao.deleteLocations(it) }
+                gone["reading"]?.let { dao.deleteReadings(it) }
+                gone["wish"]?.let { dao.deleteWishes(it) }
                 dao.setState(start.copy(cursor = page.cursor))
-                val changed = page.works.size + page.editions.size + page.copies.size + page.locations.size
+                val changed = page.works.size + page.editions.size + page.copies.size + page.locations.size + page.readings.size + page.wishes.size
                 if (changed + page.deleted.size > 0) {
                     reapplyPending()
                     rebuildSearchIndex()
@@ -213,6 +227,8 @@ class SyncRepository(
                 dao.clearEditions()
                 dao.clearCopies()
                 dao.clearLocations()
+                dao.clearReadings()
+                dao.clearWishes()
                 dao.clearFts()
                 dao.clearState()
                 db.outbox().clear()
@@ -271,6 +287,12 @@ private fun SyncCopy.toEntity() =
         id, version, editionId, code, locationId, condition, acquiredOn, priceCents, priceCurrency, notes,
         status, retiredReason, retiredOn, createdAt, updatedAt,
     )
+
+private fun SyncReading.toEntity() =
+    ReadingEntity(id, version, copyId, status, startedOn, finishedOn, rating, notes, createdAt, updatedAt)
+
+private fun SyncWish.toEntity() =
+    WishEntity(id, version, title, authors, isbn13, workId, priority, notes, status, acquiredCopyId, createdAt, updatedAt)
 
 private fun SyncLocation.toEntity() =
     LocationEntity(id, version, parentId, name, kind, sortOrder, createdAt, updatedAt)

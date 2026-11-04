@@ -19,14 +19,19 @@ import {
   Id,
   LocationCreate,
   LocationPatch,
+  ReadingCreate,
+  ReadingPatch,
+  WishCreate,
+  WishPatch,
   WorkPatch,
   type Condition,
   type ConflictProblem,
   type LocationKind,
+  type ReadingStatus,
   type RetireReason,
 } from './catalog.js';
 
-export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location'] as const;
+export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location', 'reading', 'wish'] as const;
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
 
 type SyncMeta = { id: string; version: number; createdAt: string; updatedAt: string };
@@ -79,6 +84,26 @@ export type SyncLocation = SyncMeta & {
   sortOrder: number;
 };
 
+export type SyncReading = SyncMeta & {
+  copyId: string;
+  status: ReadingStatus;
+  startedOn: string | null;
+  finishedOn: string | null;
+  rating: number | null;
+  notes: string;
+};
+
+export type SyncWish = SyncMeta & {
+  title: string;
+  authors: string[];
+  isbn13: string | null;
+  workId: string | null;
+  priority: 'low' | 'normal' | 'high';
+  notes: string;
+  status: 'open' | 'acquired' | 'discarded';
+  acquiredCopyId: string | null;
+};
+
 export type SyncTombstone = { entity: SyncEntity; id: string; version: number; deletedAt: string };
 
 /** Entities grouped by type: simple to consume from Kotlin (no polymorphic records). */
@@ -87,6 +112,8 @@ export type SyncRecords = {
   editions: SyncEdition[];
   copies: SyncCopy[];
   locations: SyncLocation[];
+  readings: SyncReading[];
+  wishes: SyncWish[];
 };
 
 export type SyncSnapshot = SyncRecords & {
@@ -136,10 +163,14 @@ export const SyncOp = z.discriminatedUnion('type', [
   z.object({ opId: Id, type: z.literal('book.create'), book: BookCreate }),
   z.object({ opId: Id, type: z.literal('copy.create'), copy: CopyCreate }),
   z.object({ opId: Id, type: z.literal('location.create'), location: LocationCreate }),
+  z.object({ opId: Id, type: z.literal('reading.create'), reading: ReadingCreate }),
+  z.object({ opId: Id, type: z.literal('wish.create'), wish: WishCreate }),
   update('work.update', WorkPatch),
   update('edition.update', EditionPatch),
   update('copy.update', CopyPatch),
   update('location.update', LocationPatch),
+  update('reading.update', ReadingPatch),
+  update('wish.update', WishPatch),
 ]);
 export type SyncOp = z.input<typeof SyncOp>;
 

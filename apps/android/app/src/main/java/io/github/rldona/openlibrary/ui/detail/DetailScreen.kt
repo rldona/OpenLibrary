@@ -35,6 +35,7 @@ import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.LocationEntity
+import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.sync.pathOf
 import io.github.rldona.openlibrary.ui.components.Cover
@@ -44,7 +45,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
@@ -53,6 +56,7 @@ data class DetailState(
     val editions: List<EditionEntity> = emptyList(),
     val copies: List<CopyEntity> = emptyList(),
     val locations: Map<String, LocationEntity> = emptyMap(),
+    val readings: List<ReadingEntity> = emptyList(),
 )
 
 class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel() {
@@ -63,7 +67,8 @@ class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel()
             c.db.catalog().editionsOf(workId),
             c.db.catalog().copiesOfWork(workId),
             c.db.catalog().locations(),
-        ) { w, e, cp, l -> DetailState(w, e, cp, l.associateBy { it.id }) }
+            c.db.catalog().readingsOfWork(workId),
+        ) { w, e, cp, l, r -> DetailState(w, e, cp, l.associateBy { it.id }, r) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState())
 
     /** Sends only what changed, so another device's edits to other fields are merged, not overwritten. */
@@ -83,6 +88,21 @@ class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel()
     fun retire(copy: CopyEntity, reason: String) = viewModelScope.launch { c.writes.retireCopy(copy, reason) }
 
     fun restore(copy: CopyEntity) = viewModelScope.launch { c.writes.restoreCopy(copy) }
+
+    fun reading(action: ReadingAction) =
+        viewModelScope.launch {
+            when (action) {
+                is ReadingAction.Start -> c.writes.startReading(action.copyId, action.status)
+                is ReadingAction.Edit -> c.writes.editReading(action.reading, JsonObject(action.fields.mapValues { (_, v) -> toJson(v) }))
+            }
+        }
+
+    private fun toJson(v: Any?): JsonElement =
+        when (v) {
+            null -> JsonNull
+            is Number -> JsonPrimitive(v)
+            else -> JsonPrimitive(v.toString())
+        }
 }
 
 private sealed interface Dialog {
@@ -133,6 +153,7 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
                 work.subjects.take(4).forEach { AssistChip(onClick = {}, label = { Text(it) }) }
             }
         }
+        ReadingCard(s.readings, s.copies, vm::reading)
         work.description?.let {
             Text(stringResource(R.string.book_synopsis), style = MaterialTheme.typography.titleSmall)
             Text(it, style = MaterialTheme.typography.bodyMedium)

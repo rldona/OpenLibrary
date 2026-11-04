@@ -52,6 +52,9 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.edition': 'That edition already exists.',
     'errors.alreadyExists.copy': 'That copy already exists.',
     'errors.alreadyExists.location': 'That location already exists.',
+    'errors.alreadyExists.reading': 'That reading session already exists.',
+    'errors.alreadyExists.wish': 'That wish already exists.',
+    'errors.copyNotFound': 'The given copy does not exist.',
     'errors.conflict.work':
       'Another device changed {fields} of this book while you were editing it. Nothing was overwritten.',
     'errors.conflict.edition':
@@ -60,6 +63,10 @@ const SERVER: Record<Lang, Dict> = {
       'Another device changed {fields} of this copy while you were editing it. Nothing was overwritten.',
     'errors.conflict.location':
       'Another device changed {fields} of this location while you were editing it. Nothing was overwritten.',
+    'errors.conflict.reading':
+      'Another device changed {fields} of this reading while you were editing it. Nothing was overwritten.',
+    'errors.conflict.wish':
+      'Another device changed {fields} of this wish while you were editing it. Nothing was overwritten.',
     // images
     'errors.imageNotFound': 'That image does not exist.',
     'errors.imageEmpty': 'The image is empty.',
@@ -121,6 +128,9 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.edition': 'Esa edición ya existe.',
     'errors.alreadyExists.copy': 'Ese ejemplar ya existe.',
     'errors.alreadyExists.location': 'Esa ubicación ya existe.',
+    'errors.alreadyExists.reading': 'Esa lectura ya existe.',
+    'errors.alreadyExists.wish': 'Ese deseo ya existe.',
+    'errors.copyNotFound': 'El ejemplar indicado no existe.',
     'errors.conflict.work':
       'Otro dispositivo cambió {fields} de este libro mientras lo editabas. No se ha sobrescrito nada.',
     'errors.conflict.edition':
@@ -129,6 +139,10 @@ const SERVER: Record<Lang, Dict> = {
       'Otro dispositivo cambió {fields} de este ejemplar mientras lo editabas. No se ha sobrescrito nada.',
     'errors.conflict.location':
       'Otro dispositivo cambió {fields} de esta ubicación mientras la editabas. No se ha sobrescrito nada.',
+    'errors.conflict.reading':
+      'Otro dispositivo cambió {fields} de esta lectura mientras la editabas. No se ha sobrescrito nada.',
+    'errors.conflict.wish':
+      'Otro dispositivo cambió {fields} de este deseo mientras lo editabas. No se ha sobrescrito nada.',
     'errors.imageNotFound': 'Esa imagen no existe.',
     'errors.imageEmpty': 'La imagen está vacía.',
     'errors.imageInvalid': 'El archivo no es una imagen válida (usa JPEG, PNG o WebP).',

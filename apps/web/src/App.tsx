@@ -4,11 +4,12 @@ import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts';
 import { api, ApiError, errorText } from './api';
 import { Icon } from './components/ui';
 import { navigate, setParams, useLocation } from './lib/router';
-import { useLocations } from './lib/queries';
+import { useLocations, useWishlist } from './lib/queries';
 import { LanguageSwitch, useI18n } from './i18n';
 import { Library } from './pages/Library';
 import { Locations } from './pages/Locations';
 import { Settings } from './pages/Settings';
+import { Wishlist } from './pages/Wishlist';
 import { BookDrawer } from './pages/BookDrawer';
 import { BookForm } from './pages/BookForm';
 import { CopyForm, type CopyMode } from './pages/CopyForm';
@@ -64,11 +65,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const { path, params } = useLocation();
   const [dialog, setDialog] = useState<Dialog>(null);
   const locs = useLocations();
+  const wishes = useWishlist();
   const view = path.startsWith('/locations')
     ? 'locations'
-    : path.startsWith('/settings')
-      ? 'settings'
-      : 'library';
+    : path.startsWith('/wishlist')
+      ? 'wishlist'
+      : path.startsWith('/settings')
+        ? 'settings'
+        : 'library';
 
   // If the session expires, any 401 goes back to the login screen.
   const qc = useQueryClient();
@@ -82,6 +86,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   );
 
   const addBook = () => setDialog({ kind: 'book', mode: { kind: 'add' } });
+  const boughtWish = (w: { id: string; title: string; authors: string[]; isbn13: string | null }) =>
+    setDialog({
+      kind: 'book',
+      mode: {
+        kind: 'add',
+        prefill: { wishId: w.id, title: w.title, authors: w.authors, isbn: w.isbn13 ?? undefined },
+      },
+    });
   const actions = {
     editBook: (work: WorkDTO, edition: EditionDTO) =>
       setDialog({ kind: 'book', mode: { kind: 'edit', work, edition } }),
@@ -123,6 +135,13 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </div>
         {nav('/', 'library', 'book', t('nav.library'))}
         {nav('/locations', 'locations', 'tree', t('nav.locations'), locs.data?.items.length)}
+        {nav(
+          '/wishlist',
+          'wishlist',
+          'list',
+          t('nav.wishlist'),
+          wishes.data?.items.filter((w) => w.status === 'open').length,
+        )}
         <div className="sep" />
         {nav('/settings', 'settings', 'gear', t('nav.settings'))}
         <button className="nav" onClick={() => void logout()}>
@@ -152,6 +171,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <section className="view">
           {view === 'library' && <Library onAdd={addBook} />}
           {view === 'locations' && <Locations />}
+          {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
           {view === 'settings' && <Settings onLogout={onLogout} />}
         </section>
       </main>
@@ -160,7 +180,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <BookForm
           mode={dialog.mode}
           onClose={() => setDialog(null)}
-          onAddCopy={(id) => setDialog({ kind: 'copy', mode: { kind: 'add', editionId: id } })}
+          onAddCopy={(id, wishId) =>
+            setDialog({ kind: 'copy', mode: { kind: 'add', editionId: id, wishId } })
+          }
         />
       )}
       {dialog?.kind === 'copy' && <CopyForm mode={dialog.mode} onClose={() => setDialog(null)} />}

@@ -13,13 +13,28 @@
 import { and, eq, gt, isNull, ne, or } from 'drizzle-orm';
 import type { ConflictProblem } from '@openlibrary/contracts';
 import type { Db } from '../db/client.js';
-import { changeLog, copies, editions, locations, works } from '../db/schema.js';
+import {
+  changeLog,
+  copies,
+  editions,
+  locations,
+  readingSessions,
+  wishlistItems,
+  works,
+} from '../db/schema.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
 
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0] | Db;
-export type EntityName = 'work' | 'edition' | 'copy' | 'location';
+export type EntityName = 'work' | 'edition' | 'copy' | 'location' | 'reading' | 'wish';
 
-export const TABLES = { work: works, edition: editions, copy: copies, location: locations } as const;
+export const TABLES = {
+  work: works,
+  edition: editions,
+  copy: copies,
+  location: locations,
+  reading: readingSessions,
+  wish: wishlistItems,
+} as const;
 type AnyTable = (typeof TABLES)[EntityName];
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

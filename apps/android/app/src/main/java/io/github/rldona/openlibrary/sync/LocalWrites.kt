@@ -9,11 +9,15 @@ import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.LocationEntity
 import io.github.rldona.openlibrary.data.OutboxEntity
 import io.github.rldona.openlibrary.data.PendingUploadEntity
+import io.github.rldona.openlibrary.data.ReadingEntity
+import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.network.FieldConflict
 import io.github.rldona.openlibrary.network.NewBook
 import io.github.rldona.openlibrary.network.NewCopy
 import io.github.rldona.openlibrary.network.NewLocation
+import io.github.rldona.openlibrary.network.NewReading
+import io.github.rldona.openlibrary.network.NewWish
 import io.github.rldona.openlibrary.network.Op
 import io.github.rldona.openlibrary.network.OpJson
 import io.github.rldona.openlibrary.network.Patch
@@ -78,6 +82,25 @@ class LocalWrites(
         enqueue(Op.LocationCreate(uuidv7(), NewLocation(id, parentId?.let(::JsonPrimitive) ?: JsonNull, name.trim(), kind)))
         return id
     }
+
+    // ---------------- Reading ----------------
+    /** Starts reading a copy ("reading") or records it as already read ("read"). */
+    suspend fun startReading(copyId: String, status: String) =
+        enqueue(Op.ReadingCreate(uuidv7(), NewReading(uuidv7(), copyId, status)))
+
+    suspend fun editReading(reading: ReadingEntity, fields: JsonObject) =
+        enqueue(Op.ReadingUpdate(uuidv7(), reading.id, Patch(baseOf(reading.version), fields)))
+
+    // ---------------- Wishlist ----------------
+    suspend fun addWish(title: String, authors: List<String>, isbn13: String?, priority: String = "normal", notes: String = "") =
+        enqueue(Op.WishCreate(uuidv7(), NewWish(uuidv7(), title.trim(), authors, isbn13, priority, notes.trim())))
+
+    suspend fun editWish(wish: WishEntity, fields: JsonObject) =
+        enqueue(Op.WishUpdate(uuidv7(), wish.id, Patch(baseOf(wish.version), fields)))
+
+    /** BR14: the wish is kept as history, linked to the copy that fulfilled it. Queue it after that copy's op. */
+    suspend fun acquireWish(wish: WishEntity, copyId: String) =
+        editWish(wish, buildJsonObject { put("status", "acquired"); put("acquiredCopyId", copyId) })
 
     // ---------------- Conflicts and rejections ----------------
     /** Re-sends my values on top of the server's current version. `edited` replaces some of them (combine). */
@@ -165,6 +188,25 @@ class LocalWrites(
                 }
                 is Op.EditionUpdate -> c.editionById(op.id)?.let { d.upsertEditions(listOf(patched(it, op.patch.fields, EditionEntity.serializer()))) }
                 is Op.LocationUpdate -> c.locationById(op.id)?.let { d.upsertLocations(listOf(patched(it, op.patch.fields, LocationEntity.serializer()))) }
+                is Op.ReadingCreate -> {
+                    val r = op.reading
+                    if (c.readingById(r.id) == null) {
+                        val dates = readingDates(r.status, r.startedOn, r.finishedOn)
+                        d.upsertReadings(listOf(ReadingEntity(r.id, 0, r.copyId, r.status, dates.first, dates.second, r.rating, r.notes, ts, ts)))
+                    }
+                }
+                is Op.WishCreate -> {
+                    val w = op.wish
+                    if (c.wishById(w.id) == null) {
+                        d.upsertWishes(listOf(WishEntity(w.id, 0, w.title, w.authors, w.isbn13, null, w.priority, w.notes, "open", null, ts, ts)))
+                    }
+                }
+                is Op.WishUpdate -> c.wishById(op.id)?.let { d.upsertWishes(listOf(patched(it, op.patch.fields, WishEntity.serializer()))) }
+                is Op.ReadingUpdate -> c.readingById(op.id)?.let { r ->
+                    val p = patched(r, op.patch.fields, ReadingEntity.serializer())
+                    val dates = readingDates(op.patch.fields["status"]?.jsonPrimitive?.contentOrNull, p.startedOn, p.finishedOn)
+                    d.upsertReadings(listOf(p.copy(startedOn = dates.first, finishedOn = dates.second)))
+                }
                 is Op.CopyUpdate -> c.copyById(op.id)?.let { copy ->
                     var p = patched(copy, op.patch.fields, CopyEntity.serializer())
                     // Same rule as the server: retiring stamps the date and a reason; restoring clears them.
@@ -175,6 +217,15 @@ class LocalWrites(
                     d.upsertCopies(listOf(p))
                 }
             }
+        }
+
+        /** BR11, as on the server: entering "reading" or "read" without the matching date stamps today. */
+        private fun readingDates(status: String?, startedOn: String?, finishedOn: String?): Pair<String?, String?> {
+            val today = LocalDate.now().toString()
+            return Pair(
+                if (status == "reading" && startedOn == null) today else startedOn,
+                if (status == "read" && finishedOn == null) today else finishedOn,
+            )
         }
 
         private suspend fun insertCopy(db: AppDatabase, n: NewCopy, ts: String) {
@@ -203,6 +254,10 @@ private fun Op.typeName(): String =
         is Op.EditionUpdate -> "edition.update"
         is Op.CopyUpdate -> "copy.update"
         is Op.LocationUpdate -> "location.update"
+        is Op.ReadingCreate -> "reading.create"
+        is Op.ReadingUpdate -> "reading.update"
+        is Op.WishCreate -> "wish.create"
+        is Op.WishUpdate -> "wish.update"
     }
 
 private fun Op.entityId(): String =
@@ -210,5 +265,7 @@ private fun Op.entityId(): String =
         is Op.BookCreate -> book.edition.id
         is Op.CopyCreate -> copy.id
         is Op.LocationCreate -> location.id
+        is Op.ReadingCreate -> reading.id
+        is Op.WishCreate -> wish.id
         is Op.Update -> id
     }

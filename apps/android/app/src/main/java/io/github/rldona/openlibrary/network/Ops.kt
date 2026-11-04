@@ -75,6 +75,27 @@ data class NewLocation(
 )
 
 @Serializable
+data class NewReading(
+    val id: String,
+    val copyId: String,
+    val status: String,
+    val startedOn: String? = null,
+    val finishedOn: String? = null,
+    val rating: Double? = null,
+    val notes: String = "",
+)
+
+@Serializable
+data class NewWish(
+    val id: String,
+    val title: String,
+    val authors: List<String> = emptyList(),
+    val isbn13: String? = null,
+    val priority: String = "normal",
+    val notes: String = "",
+)
+
+@Serializable
 sealed interface Op {
     val opId: String
 
@@ -86,6 +107,12 @@ sealed interface Op {
 
     @Serializable @SerialName("location.create")
     data class LocationCreate(override val opId: String, val location: NewLocation) : Op
+
+    @Serializable @SerialName("reading.create")
+    data class ReadingCreate(override val opId: String, val reading: NewReading) : Op
+
+    @Serializable @SerialName("wish.create")
+    data class WishCreate(override val opId: String, val wish: NewWish) : Op
 
     sealed interface Update : Op {
         val id: String
@@ -103,6 +130,12 @@ sealed interface Op {
 
     @Serializable @SerialName("location.update")
     data class LocationUpdate(override val opId: String, override val id: String, override val patch: Patch) : Update
+
+    @Serializable @SerialName("reading.update")
+    data class ReadingUpdate(override val opId: String, override val id: String, override val patch: Patch) : Update
+
+    @Serializable @SerialName("wish.update")
+    data class WishUpdate(override val opId: String, override val id: String, override val patch: Patch) : Update
 }
 
 /** Same op, new id and base version: how "keep mine" resolves a conflict. */
@@ -112,4 +145,6 @@ fun Op.Update.rebased(opId: String, baseVersion: Int, fields: JsonObject): Op.Up
         is Op.EditionUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
         is Op.CopyUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
         is Op.LocationUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
+        is Op.ReadingUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
+        is Op.WishUpdate -> copy(opId = opId, patch = Patch(baseVersion, fields))
     }

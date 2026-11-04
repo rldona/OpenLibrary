@@ -16,7 +16,13 @@ import type {
   LoginRequest,
   LookupResult,
   Problem,
+  ReadingCreate,
+  ReadingPatch,
   SessionInfo,
+  WishCreate,
+  WishDTO,
+  WishList,
+  WishPatch,
   WorkDetail,
   WorkPatch,
 } from '@openlibrary/contracts';
@@ -85,6 +91,11 @@ export const api = {
   deleteEdition: (id: string) => request<{ workDeleted: boolean }>('DELETE', `/editions/${id}`),
   createCopy: (b: CopyCreate) => request<Created<{ copyId: string }>>('POST', '/copies', b),
   patchCopy: (id: string, p: CopyPatch) => request<WorkDetail>('PATCH', `/copies/${id}`, p),
+  createReading: (b: ReadingCreate) => request<WorkDetail>('POST', '/reading-sessions', b),
+  patchReading: (id: string, p: ReadingPatch) => request<WorkDetail>('PATCH', `/reading-sessions/${id}`, p),
+  wishlist: () => request<WishList>('GET', '/wishlist'),
+  createWish: (b: WishCreate) => request<WishDTO>('POST', '/wishlist', b),
+  patchWish: (id: string, p: WishPatch) => request<WishDTO>('PATCH', `/wishlist/${id}`, p),
 
   // locations
   locations: () => request<LocationTree>('GET', '/locations'),

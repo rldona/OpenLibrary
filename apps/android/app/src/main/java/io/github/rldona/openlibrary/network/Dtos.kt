@@ -99,6 +99,36 @@ data class SyncLocation(
 )
 
 @Serializable
+data class SyncReading(
+    val id: String,
+    val version: Int,
+    val createdAt: String,
+    val updatedAt: String,
+    val copyId: String,
+    val status: String,
+    val startedOn: String?,
+    val finishedOn: String?,
+    val rating: Double?,
+    val notes: String,
+)
+
+@Serializable
+data class SyncWish(
+    val id: String,
+    val version: Int,
+    val createdAt: String,
+    val updatedAt: String,
+    val title: String,
+    val authors: List<String>,
+    val isbn13: String?,
+    val workId: String?,
+    val priority: String,
+    val notes: String,
+    val status: String,
+    val acquiredCopyId: String?,
+)
+
+@Serializable
 data class SyncTombstone(val entity: String, val id: String, val version: Int, val deletedAt: String)
 
 @Serializable
@@ -110,6 +140,8 @@ data class SyncSnapshot(
     val editions: List<SyncEdition>,
     val copies: List<SyncCopy>,
     val locations: List<SyncLocation>,
+    val readings: List<SyncReading>,
+    val wishes: List<SyncWish>,
 )
 
 @Serializable
@@ -122,6 +154,8 @@ data class SyncPullPage(
     val editions: List<SyncEdition>,
     val copies: List<SyncCopy>,
     val locations: List<SyncLocation>,
+    val readings: List<SyncReading>,
+    val wishes: List<SyncWish>,
     val deleted: List<SyncTombstone>,
 )
 

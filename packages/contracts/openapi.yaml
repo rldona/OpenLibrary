@@ -359,19 +359,65 @@ components:
         name: { type: string }
         kind: { type: string, enum: [home, room, bookcase, shelf, box, other] }
         sortOrder: { type: integer }
+    SyncReading:
+      type: object
+      additionalProperties: false
+      required: [id, version, createdAt, updatedAt, copyId, status, startedOn, finishedOn, rating, notes]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        copyId: { type: string }
+        status: { type: string, enum: [pending, reading, read, abandoned] }
+        startedOn: { type: [string, 'null'], description: YYYY-MM-DD }
+        finishedOn: { type: [string, 'null'], description: YYYY-MM-DD }
+        rating: { type: [number, 'null'], description: 0.5 to 5 in half points }
+        notes: { type: string }
+    SyncWish:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          version,
+          createdAt,
+          updatedAt,
+          title,
+          authors,
+          isbn13,
+          workId,
+          priority,
+          notes,
+          status,
+          acquiredCopyId,
+        ]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        title: { type: string }
+        authors: { type: array, items: { type: string } }
+        isbn13: { type: [string, 'null'] }
+        workId: { type: [string, 'null'] }
+        priority: { type: string, enum: [low, normal, high] }
+        notes: { type: string }
+        status: { type: string, enum: [open, acquired, discarded] }
+        acquiredCopyId: { type: [string, 'null'], description: The copy created by "I bought it". }
     SyncTombstone:
       type: object
       additionalProperties: false
       required: [entity, id, version, deletedAt]
       properties:
-        entity: { type: string, enum: [work, edition, copy, location] }
+        entity: { type: string, enum: [work, edition, copy, location, reading, wish] }
         id: { type: string }
         version: { type: integer }
         deletedAt: { type: string }
     SyncSnapshot:
       type: object
       additionalProperties: false
-      required: [epoch, cursor, serverTime, works, editions, copies, locations]
+      required: [epoch, cursor, serverTime, works, editions, copies, locations, readings, wishes]
       properties:
         epoch: { type: string }
         cursor: { type: integer, description: Pass it as `since` in the next pull. }
@@ -380,10 +426,13 @@ components:
         editions: { type: array, items: { $ref: '#/components/schemas/SyncEdition' } }
         copies: { type: array, items: { $ref: '#/components/schemas/SyncCopy' } }
         locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
+        readings: { type: array, items: { $ref: '#/components/schemas/SyncReading' } }
+        wishes: { type: array, items: { $ref: '#/components/schemas/SyncWish' } }
     SyncPullPage:
       type: object
       additionalProperties: false
-      required: [epoch, cursor, hasMore, serverTime, works, editions, copies, locations, deleted]
+      required:
+        [epoch, cursor, hasMore, serverTime, works, editions, copies, locations, readings, wishes, deleted]
       properties:
         epoch: { type: string }
         cursor: { type: integer }
@@ -393,6 +442,8 @@ components:
         editions: { type: array, items: { $ref: '#/components/schemas/SyncEdition' } }
         copies: { type: array, items: { $ref: '#/components/schemas/SyncCopy' } }
         locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
+        readings: { type: array, items: { $ref: '#/components/schemas/SyncReading' } }
+        wishes: { type: array, items: { $ref: '#/components/schemas/SyncWish' } }
         deleted: { type: array, items: { $ref: '#/components/schemas/SyncTombstone' } }
     SyncPushRequest:
       type: object
@@ -407,7 +458,10 @@ components:
             Each op has `opId` (UUIDv7) and `type`, plus:
             `book.create` → `book` (as POST /books: `work` or `workId`, `edition`, `copy`, all with client ids);
             `copy.create` → `copy` (as POST /copies); `location.create` → `location` (as POST /locations);
-            `work.update` | `edition.update` | `copy.update` | `location.update` → `id` and
+            `reading.create` → `reading` (as POST /reading-sessions: `copyId`, `status`, dates, rating, notes);
+            `wish.create` → `wish` (as POST /wishlist: `title`, `authors`, `isbn13`, `priority`, `notes`…);
+            `work.update` | `edition.update` | `copy.update` | `location.update` | `reading.update` |
+            `wish.update` → `id` and
             `patch` ({ baseVersion, fields }, only the fields the user changed).
           items:
             type: object
@@ -421,10 +475,14 @@ components:
                     book.create,
                     copy.create,
                     location.create,
+                    reading.create,
+                    wish.create,
                     work.update,
                     edition.update,
                     copy.update,
                     location.update,
+                    reading.update,
+                    wish.update,
                   ]
     SyncOpResult:
       type: object

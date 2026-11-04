@@ -88,6 +88,48 @@ data class LocationEntity(
     val updatedAt: String,
 )
 
+/** One reading of a copy (F4). The work's status is derived from these (see [workReadingStatus]). */
+@Serializable
+@Entity(tableName = "readings", indices = [Index("copyId")])
+data class ReadingEntity(
+    @PrimaryKey val id: String,
+    val version: Int,
+    val copyId: String,
+    val status: String,
+    val startedOn: String?,
+    val finishedOn: String?,
+    val rating: Double?,
+    val notes: String,
+    val createdAt: String,
+    val updatedAt: String,
+)
+
+/** BR13, like workReadingStatus in packages/contracts: reading if any session is, read if any was. */
+fun workReadingStatus(sessions: List<ReadingEntity>): String =
+    when {
+        sessions.any { it.status == "reading" } -> "reading"
+        sessions.any { it.status == "read" } -> "read"
+        else -> "pending"
+    }
+
+/** A book you want (F4); never part of the collection (BR14). */
+@Serializable
+@Entity(tableName = "wishes", indices = [Index("isbn13")])
+data class WishEntity(
+    @PrimaryKey val id: String,
+    val version: Int,
+    val title: String,
+    val authors: List<String>,
+    val isbn13: String?,
+    val workId: String?,
+    val priority: String,
+    val notes: String,
+    val status: String,
+    val acquiredCopyId: String?,
+    val createdAt: String,
+    val updatedAt: String,
+)
+
 /** Full-text index, one row per edition: folded title, authors, ISBN, publisher, subjects and locations. */
 @Fts4(notIndexed = ["editionId"])
 @Entity(tableName = "book_fts")
@@ -128,4 +170,12 @@ data class SyncStateEntity(
     val epoch: String,
     val cursor: Long,
     val lastSyncAt: Long?,
+    /**
+     * Entity types the local copy was downloaded with ([SYNC_FORMAT]). An older app skips records of types it
+     * does not know yet while the cursor moves on, so a newer app must take a snapshot to get them.
+     */
+    @ColumnInfo(defaultValue = "0") val format: Int = SYNC_FORMAT,
 )
+
+/** 1: catalog (F2); 2: + reading sessions and wishes (F4). Bump it whenever a synced entity type is added. */
+const val SYNC_FORMAT = 2

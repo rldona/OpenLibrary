@@ -4,7 +4,7 @@
  *  - edition: new edition of an existing work.
  *  - edit:    fixes work and edition data (only sends what you changed).
  */
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   normalizeIsbn,
   formatIsbn,
@@ -16,12 +16,12 @@ import { api, ApiError, errorText } from '../api';
 import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
 import { CopyFieldset, LanguageSelect, copyPayload, emptyCopy, type CopyDraft } from '../components/fields';
 import { splitList } from '../lib/format';
-import { useInvalidate } from '../lib/queries';
+import { acquireWish, matchingWish, useInvalidate, useWishlist } from '../lib/queries';
 import { openBook } from '../lib/router';
 import { useI18n } from '../i18n';
 
 type Mode =
-  | { kind: 'add'; prefill?: { isbn?: string } }
+  | { kind: 'add'; prefill?: { isbn?: string; title?: string; authors?: string[]; wishId?: string } }
   | { kind: 'edition'; work: WorkDTO }
   | { kind: 'edit'; work: WorkDTO; edition: EditionDTO };
 
@@ -92,7 +92,7 @@ export function BookForm({
 }: {
   mode: Mode;
   onClose: () => void;
-  onAddCopy: (editionId: string) => void;
+  onAddCopy: (editionId: string, wishId?: string) => void;
 }) {
   const { t, lang } = useI18n();
   const toast = useToast();
@@ -103,7 +103,12 @@ export function BookForm({
         ? fromModel(mode.work, mode.edition)
         : mode.kind === 'edition'
           ? { ...fromModel(mode.work, undefined, lang), isbn: '' }
-          : { ...fromModel(undefined, undefined, lang), isbn: mode.prefill?.isbn ?? '' },
+          : {
+              ...fromModel(undefined, undefined, lang),
+              isbn: mode.prefill?.isbn ?? '',
+              title: mode.prefill?.title ?? '',
+              authors: mode.prefill?.authors?.join('; ') ?? '',
+            },
     // The form keeps its initial values even if the UI language changes while it is open.
     [mode],
   );
@@ -127,6 +132,13 @@ export function BookForm({
   const [busy, setBusy] = useState(false);
   const set = (k: keyof Draft, v: string) => setD((x) => ({ ...x, [k]: v }));
   const lockWork = mode.kind === 'edition';
+  const wishes = useWishlist();
+  const wish =
+    mode.kind === 'add' ? matchingWish(wishes.data?.items, mode.prefill?.wishId, d.isbn) : undefined;
+  // "I bought it" with an ISBN: look it up once on opening (it may also be an edition you already own).
+  useEffect(() => {
+    if (mode.kind === 'add' && mode.prefill?.isbn) void doLookup();
+  }, []);
 
   async function doLookup() {
     setError(null);
@@ -217,6 +229,7 @@ export function BookForm({
         edition: { ...editionFields(d), coverAssetId, metadataSource: source ?? 'Manual' },
         copy: copyPayload(copy),
       });
+      if (wish) await acquireWish(wish, res.created.copyId);
       invalidate(res);
       const c = res.editions.flatMap((x) => x.copies).find((x) => x.id === res.created.copyId);
       toast(
@@ -316,7 +329,7 @@ export function BookForm({
               className="btn sm"
               onClick={() => {
                 onClose();
-                onAddCopy(duplicate.editionId);
+                onAddCopy(duplicate.editionId, wish?.id);
               }}
             >
               {t('form.addAnotherCopy')}
@@ -375,6 +388,7 @@ export function BookForm({
         </div>
 
         {lockWork && <Banner kind="info">{t('form.newEditionInfo')}</Banner>}
+        {wish && <Banner kind="info">{t('wish.willBeAcquired', { title: wish.title })}</Banner>}
         <div className="fgrid">
           <label className="span2">
             {t('book.title')} *

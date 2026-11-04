@@ -63,6 +63,33 @@ interface CatalogDao {
     @Query("SELECT DISTINCT coverAssetId FROM editions WHERE coverAssetId IS NOT NULL")
     suspend fun coverIds(): List<String>
 
+    @Query(
+        """
+        SELECT r.* FROM readings r JOIN copies c ON c.id = r.copyId JOIN editions e ON e.id = c.editionId
+        WHERE e.workId = :workId ORDER BY r.createdAt
+        """,
+    )
+    fun readingsOfWork(workId: String): Flow<List<ReadingEntity>>
+
+    @Query("SELECT * FROM readings WHERE id = :id") suspend fun readingById(id: String): ReadingEntity?
+
+    /** Open wishes first, by priority (high, normal, low), newest first; then bought and discarded. */
+    @Query(
+        """
+        SELECT * FROM wishes ORDER BY status != 'open',
+            CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, createdAt DESC
+        """,
+    )
+    fun wishes(): Flow<List<WishEntity>>
+
+    @Query("SELECT COUNT(*) FROM wishes WHERE status = 'open'") fun openWishCount(): Flow<Int>
+
+    @Query("SELECT * FROM wishes WHERE id = :id") suspend fun wishById(id: String): WishEntity?
+
+    /** BR15: the open wish a scanned ISBN fulfils. */
+    @Query("SELECT * FROM wishes WHERE status = 'open' AND isbn13 = :isbn13 LIMIT 1")
+    suspend fun openWishByIsbn(isbn13: String): WishEntity?
+
     @Query("SELECT * FROM works WHERE id = :id") suspend fun workById(id: String): WorkEntity?
     @Query("SELECT * FROM editions WHERE id = :id") suspend fun editionById(id: String): EditionEntity?
     @Query("SELECT * FROM copies WHERE id = :id") suspend fun copyById(id: String): CopyEntity?
@@ -83,17 +110,23 @@ interface SyncDao {
     @Upsert suspend fun upsertEditions(rows: List<EditionEntity>)
     @Upsert suspend fun upsertCopies(rows: List<CopyEntity>)
     @Upsert suspend fun upsertLocations(rows: List<LocationEntity>)
+    @Upsert suspend fun upsertReadings(rows: List<ReadingEntity>)
+    @Upsert suspend fun upsertWishes(rows: List<WishEntity>)
     @Upsert suspend fun setState(state: SyncStateEntity)
 
     @Query("DELETE FROM works WHERE id IN (:ids)") suspend fun deleteWorks(ids: List<String>)
     @Query("DELETE FROM editions WHERE id IN (:ids)") suspend fun deleteEditions(ids: List<String>)
     @Query("DELETE FROM copies WHERE id IN (:ids)") suspend fun deleteCopies(ids: List<String>)
     @Query("DELETE FROM locations WHERE id IN (:ids)") suspend fun deleteLocations(ids: List<String>)
+    @Query("DELETE FROM readings WHERE id IN (:ids)") suspend fun deleteReadings(ids: List<String>)
+    @Query("DELETE FROM wishes WHERE id IN (:ids)") suspend fun deleteWishes(ids: List<String>)
 
     @Query("DELETE FROM works") suspend fun clearWorks()
     @Query("DELETE FROM editions") suspend fun clearEditions()
     @Query("DELETE FROM copies") suspend fun clearCopies()
     @Query("DELETE FROM locations") suspend fun clearLocations()
+    @Query("DELETE FROM readings") suspend fun clearReadings()
+    @Query("DELETE FROM wishes") suspend fun clearWishes()
     @Query("DELETE FROM sync_state") suspend fun clearState()
 
     @Query("SELECT * FROM sync_state WHERE id = 0") suspend fun state(): SyncStateEntity?
