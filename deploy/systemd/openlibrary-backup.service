@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenLibrary: copia de seguridad (base de datos y portadas) con restic
+Description=OpenLibrary: backup (database and covers) with restic
 Wants=network-online.target docker.service
 After=network-online.target docker.service
 

@@ -1,46 +1,47 @@
-import { CONDITIONS, CONDITION_LABELS, type Condition } from '@openlibrary/contracts';
+import { CONDITIONS, type Condition } from '@openlibrary/contracts';
 import { flattenLocations, useLocations } from '../lib/queries';
-import { LANGUAGES, today } from '../lib/format';
+import { BOOK_LANGUAGES, langName, today } from '../lib/format';
+import { useI18n } from '../i18n';
 
 export function LocationSelect({
   value,
   onChange,
-  label = 'Ubicación',
+  label,
 }: {
   value: string;
   onChange: (v: string) => void;
   label?: string;
 }) {
+  const { t } = useI18n();
   const locs = useLocations();
   const flat = flattenLocations(locs.data);
   return (
     <label className="span2">
-      {label}
+      {label ?? t('copy.location')}
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Sin ubicación (colocar más tarde)</option>
+        <option value="">{t('copy.noLocationLater')}</option>
         {flat.map((l) => (
           <option key={l.id} value={l.id}>
             {l.path.join(' › ')}
           </option>
         ))}
       </select>
-      {!flat.length && locs.isSuccess && (
-        <small className="muted">Aún no has creado ubicaciones: hazlo en «Ubicaciones».</small>
-      )}
+      {!flat.length && locs.isSuccess && <small className="muted">{t('copy.noLocationsYet')}</small>}
     </label>
   );
 }
 
 export function LanguageSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const known = value && !LANGUAGES[value] ? { [value]: value, ...LANGUAGES } : LANGUAGES;
+  const { t } = useI18n();
+  const codes = value && !BOOK_LANGUAGES.includes(value) ? [value, ...BOOK_LANGUAGES] : BOOK_LANGUAGES;
   return (
     <label>
-      Idioma
+      {t('book.language')}
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
-        {Object.entries(known).map(([k, l]) => (
+        {codes.map((k) => (
           <option key={k} value={k}>
-            {l}
+            {langName(k)}
           </option>
         ))}
       </select>
@@ -63,51 +64,55 @@ export const emptyCopy = (): CopyDraft => ({
   notes: '',
 });
 
+/** Accepts both decimal separators: "12,95" and "12.95". */
+const parsePrice = (s: string) => Number(s.trim().replace(',', '.'));
+
 export const copyPayload = (c: CopyDraft) => ({
   locationId: c.locationId || null,
   condition: c.condition,
   acquiredOn: c.acquiredOn || null,
-  priceCents: c.price.trim() ? Math.round(Number(c.price.replace(',', '.')) * 100) : null,
+  priceCents: c.price.trim() ? Math.round(parsePrice(c.price) * 100) : null,
   notes: c.notes.trim(),
 });
 
 export function CopyFieldset({ value, onChange }: { value: CopyDraft; onChange: (c: CopyDraft) => void }) {
+  const { t } = useI18n();
   const set = <K extends keyof CopyDraft>(k: K, v: CopyDraft[K]) => onChange({ ...value, [k]: v });
-  const badPrice = value.price.trim() !== '' && !Number.isFinite(Number(value.price.replace(',', '.')));
+  const badPrice = value.price.trim() !== '' && !Number.isFinite(parsePrice(value.price));
   return (
     <fieldset>
-      <legend>Tu ejemplar</legend>
+      <legend>{t('copy.yourCopy')}</legend>
       <div className="fgrid">
         <LocationSelect value={value.locationId} onChange={(v) => set('locationId', v)} />
         <label>
-          Conservación
+          {t('copy.condition')}
           <select value={value.condition} onChange={(e) => set('condition', e.target.value as Condition)}>
             {CONDITIONS.map((c) => (
               <option key={c} value={c}>
-                {CONDITION_LABELS[c]}
+                {t(`condition.${c}`)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Fecha de adquisición
+          {t('copy.acquiredOn')}
           <input type="date" value={value.acquiredOn} onChange={(e) => set('acquiredOn', e.target.value)} />
         </label>
         <label>
-          Precio (€)
+          {t('copy.priceEur')}
           <input
             inputMode="decimal"
-            placeholder="Opcional"
+            placeholder={t('common.optional')}
             value={value.price}
             onChange={(e) => set('price', e.target.value)}
             aria-invalid={badPrice}
           />
-          {badPrice && <small className="err">Escribe un número, p. ej. 12,95</small>}
+          {badPrice && <small className="err">{t('copy.priceInvalid')}</small>}
         </label>
         <label className="span2">
-          Notas personales
+          {t('copy.notes')}
           <input
-            placeholder="Dedicatoria, de dónde viene, estado…"
+            placeholder={t('copy.notesPlaceholder')}
             value={value.notes}
             onChange={(e) => set('notes', e.target.value)}
           />

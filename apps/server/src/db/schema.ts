@@ -1,18 +1,18 @@
 /**
- * Esquema de la base de datos (SQLite).
- * Sistema y autenticación (F0) + catálogo: obras, ediciones, ejemplares, ubicaciones, portadas e historial (F1).
- * Fechas en texto ISO-8601 UTC para que sean legibles en copias y exportaciones.
+ * Database schema (SQLite).
+ * System and authentication (F0) + catalog: works, editions, copies, locations, covers and change log (F1).
+ * Dates are ISO-8601 UTC text so they stay readable in backups and exports.
  */
 import { sql } from 'drizzle-orm';
 import { check, index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-/** Pares clave/valor del sistema: epoch de datos, versión del esquema lógico… */
+/** System key/value pairs: data epoch, copy code sequence… */
 export const meta = sqliteTable('meta', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
 
-/** El único propietario de la biblioteca. */
+/** The library's single owner. */
 export const owner = sqliteTable(
   'owner',
   {
@@ -25,8 +25,8 @@ export const owner = sqliteTable(
 );
 
 /**
- * Sesiones web (cookie, caducan) y dispositivos (token bearer de larga duración, revocables).
- * Solo se guarda el hash SHA-256 del token, nunca el token.
+ * Web sessions (cookie, expiring) and devices (long-lived, revocable bearer tokens).
+ * Only the SHA-256 hash of the token is stored, never the token itself.
  */
 export const sessions = sqliteTable(
   'sessions',
@@ -45,7 +45,7 @@ export const sessions = sqliteTable(
   (t) => [index('sessions_kind_idx').on(t.kind)],
 );
 
-/** Contador de intentos fallidos de login, por IP y global (protección contra fuerza bruta). */
+/** Failed login counters, per IP and global (brute-force protection). */
 export const authFailures = sqliteTable('auth_failures', {
   key: text('key').primaryKey(),
   failures: integer('failures').notNull(),
@@ -54,9 +54,9 @@ export const authFailures = sqliteTable('auth_failures', {
 });
 
 // ============================================================================
-// Catálogo (F1). Todas las entidades sincronizables comparten:
-//   id (UUIDv7 del cliente), version (la incrementa el servidor), created_at, updated_at, deleted_at (lápida).
-// Autores y géneros se guardan como listas JSON en la obra: cada campo es atómico para la fusión por campo.
+// Catalog (F1). Every syncable entity shares:
+//   id (client UUIDv7), version (bumped by the server), created_at, updated_at, deleted_at (tombstone).
+// Authors and subjects are JSON lists on the work: each field is atomic for field-level merging.
 // ============================================================================
 const syncCols = {
   id: text('id').primaryKey(),
@@ -85,7 +85,7 @@ export const works = sqliteTable(
     originalLanguage: text('original_language'),
     series: text('series'),
     seriesIndex: real('series_index'),
-    /** Derivados para ordenar (sin tildes, minúsculas); no se sincronizan. */
+    /** Derived sort keys (no diacritics, lower case); not synced. */
     sortTitle: text('sort_title').notNull().default(''),
     sortAuthor: text('sort_author').notNull().default(''),
   },
@@ -123,7 +123,7 @@ export const copies = sqliteTable(
     editionId: text('edition_id')
       .notNull()
       .references(() => editions.id),
-    /** Código humano EJ-0001, asignado por el servidor. */
+    /** Human-friendly code EJ-0001, assigned by the server. */
     code: text('code').notNull().unique(),
     locationId: text('location_id').references(() => locations.id),
     condition: text('condition', { enum: ['new', 'fine', 'good', 'used', 'fair', 'poor'] })
@@ -156,7 +156,7 @@ export const locations = sqliteTable(
   (t) => [index('locations_parent_idx').on(t.parentId)],
 );
 
-/** Portadas y otras imágenes, direccionadas por el SHA-256 del archivo original. */
+/** Covers and other images, addressed by the SHA-256 of the original file. */
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(),
   mime: text('mime').notNull(),
@@ -168,8 +168,8 @@ export const assets = sqliteTable('assets', {
 });
 
 /**
- * Historial de cambios: base de la sincronización (pull por cursor `seq`) y de la fusión por campo.
- * `fields` guarda los valores nuevos de los campos modificados.
+ * Change log: basis of sync (pull by `seq` cursor) and of field-level merging.
+ * `fields` stores the new values of the modified fields.
  */
 export const changeLog = sqliteTable(
   'change_log',
@@ -186,7 +186,7 @@ export const changeLog = sqliteTable(
   (t) => [index('change_log_entity_idx').on(t.entity, t.entityId, t.version)],
 );
 
-/** Caché de búsquedas en proveedores externos (no se sincroniza). */
+/** Cache of external provider lookups (not synced). */
 export const lookupCache = sqliteTable('lookup_cache', {
   isbn13: text('isbn13').primaryKey(),
   payload: text('payload', { mode: 'json' }).notNull(),

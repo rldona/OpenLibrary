@@ -20,7 +20,7 @@ import type {
   WorkDetail,
   WorkPatch,
 } from '@openlibrary/contracts';
-import { API_PREFIX } from '@openlibrary/contracts';
+import { API_PREFIX, type Lang, type Params } from '@openlibrary/contracts';
 
 export class ApiError extends Error {
   constructor(
@@ -31,15 +31,23 @@ export class ApiError extends Error {
   }
 }
 
+/** UI language, sent as Accept-Language so server messages come back in the same language. */
+let apiLang: Lang = 'en';
+export const setApiLang = (l: Lang) => {
+  apiLang = l;
+};
+
 async function request<T>(method: string, path: string, body?: unknown, contentType?: string): Promise<T> {
   const isRaw = body instanceof Blob;
   const res = await fetch(API_PREFIX + path, {
     method,
     credentials: 'same-origin',
-    headers:
-      body === undefined
+    headers: {
+      'accept-language': apiLang,
+      ...(body === undefined
         ? {}
-        : { 'content-type': isRaw ? contentType || 'application/octet-stream' : 'application/json' },
+        : { 'content-type': isRaw ? contentType || 'application/octet-stream' : 'application/json' }),
+    },
     body: body === undefined ? undefined : isRaw ? body : JSON.stringify(body),
   });
   if (res.status === 204) return undefined as T;
@@ -58,7 +66,7 @@ const qs = (o: Record<string, unknown>) =>
 type Created<T> = WorkDetail & { created: T };
 
 export const api = {
-  // sistema y sesión
+  // system and session
   health: () => request<HealthResponse>('GET', '/health'),
   me: () => request<SessionInfo>('GET', '/auth/me'),
   login: (b: LoginRequest) => request<SessionInfo>('POST', '/auth/login', b),
@@ -67,7 +75,7 @@ export const api = {
   revoke: (id: string) => request<void>('DELETE', `/auth/devices/${encodeURIComponent(id)}`),
   changePassword: (b: ChangePasswordRequest) => request<void>('POST', '/auth/password', b),
 
-  // catálogo
+  // catalog
   library: (q: LibraryQuery) => request<LibraryPage>('GET', `/library?${qs(q)}`),
   facets: () => request<LibraryFacets>('GET', '/library/facets'),
   work: (id: string) => request<WorkDetail>('GET', `/works/${id}`),
@@ -78,13 +86,13 @@ export const api = {
   createCopy: (b: CopyCreate) => request<Created<{ copyId: string }>>('POST', '/copies', b),
   patchCopy: (id: string, p: CopyPatch) => request<WorkDetail>('PATCH', `/copies/${id}`, p),
 
-  // ubicaciones
+  // locations
   locations: () => request<LocationTree>('GET', '/locations'),
   createLocation: (b: LocationCreate) => request<LocationTree>('POST', '/locations', b),
   patchLocation: (id: string, p: LocationPatch) => request<LocationTree>('PATCH', `/locations/${id}`, p),
   deleteLocation: (id: string) => request<LocationTree>('DELETE', `/locations/${id}`),
 
-  // metadatos y portadas
+  // metadata and covers
   lookup: (isbn: string) => request<LookupResult>('GET', `/lookup/isbn/${encodeURIComponent(isbn)}`),
   uploadCover: (file: Blob) => request<AssetDTO>('POST', '/assets', file, file.type),
   fetchCover: (url: string) => request<AssetDTO>('POST', '/assets/fetch', { url }),
@@ -93,14 +101,19 @@ export const api = {
 export const coverUrl = (id: string, size: 'thumb' | 'full' = 'thumb') =>
   `${API_PREFIX}/assets/${id}${size === 'full' ? '?size=full' : ''}`;
 
-/** Mensaje legible para mostrar al usuario. */
-export function errorText(e: unknown): string {
+/**
+ * Readable message for the user. Server errors already come translated (Accept-Language);
+ * client-side cases (network down, rate limit wait) use the translator passed in.
+ */
+export function errorText(e: unknown, t: (key: string, params?: Params) => string): string {
   if (e instanceof ApiError) {
     if (e.status === 429 && typeof e.problem.retryAfterSeconds === 'number') {
       const s = e.problem.retryAfterSeconds;
-      return `Demasiados intentos. Vuelve a probar en ${s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`}.`;
+      return s >= 60
+        ? t('errors.retryInMinutes', { n: Math.ceil(s / 60) })
+        : t('errors.retryInSeconds', { n: s });
     }
     return e.message;
   }
-  return 'No se puede contactar con el servidor.';
+  return t('errors.network');
 }

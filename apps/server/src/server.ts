@@ -9,12 +9,12 @@ const app = await buildApp({ config, db });
 
 if (!new AuthService(db, config.sessionTtlMs).isConfigured()) {
   app.log.warn(
-    'Aún no hay contraseña: ejecuta «ol set-password» (en desarrollo: npm run cli -w @openlibrary/server -- set-password) para poder iniciar sesión.',
+    'No password yet: run "ol set-password" (in development: npm run cli -w @openlibrary/server -- set-password).',
   );
 }
 
 const shutdown = async (signal: string) => {
-  app.log.info({ signal }, 'cerrando');
+  app.log.info({ signal }, 'shutting down');
   await app.close();
   db.$client.close();
   process.exit(0);
@@ -25,5 +25,5 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 await app.listen({ host: config.host, port: config.port });
 app.log.info(
   { data: config.dataDir, publicUrl: config.publicUrl.href, web: !!config.webDist },
-  'OpenLibrary listo',
+  'OpenLibrary ready',
 );

@@ -1,6 +1,6 @@
 /**
- * Router mínimo sobre la History API: ruta + parámetros de búsqueda.
- * La ficha de un libro es un parámetro (?libro=<obra>&ed=<edición>) para poder abrirla sobre cualquier vista.
+ * Minimal router on top of the History API: path + search params.
+ * The book detail is a parameter (?book=<work>&ed=<edition>) so it can open over any view.
  */
 import { useSyncExternalStore } from 'react';
 
@@ -25,7 +25,7 @@ export function navigate(to: string, opts: { replace?: boolean } = {}) {
   notify();
 }
 
-/** Cambia parámetros de la URL actual (undefined/'' los elimina). */
+/** Changes params of the current URL (undefined/'' removes them). */
 export function setParams(patch: Record<string, string | undefined>, opts: { replace?: boolean } = {}) {
   const url = new URL(location.href);
   for (const [k, v] of Object.entries(patch)) {
@@ -35,5 +35,5 @@ export function setParams(patch: Record<string, string | undefined>, opts: { rep
   navigate(url.pathname + url.search, opts);
 }
 
-export const openBook = (workId: string, editionId?: string) => setParams({ libro: workId, ed: editionId });
-export const closeBook = () => setParams({ libro: undefined, ed: undefined });
+export const openBook = (workId: string, editionId?: string) => setParams({ book: workId, ed: editionId });
+export const closeBook = () => setParams({ book: undefined, ed: undefined });

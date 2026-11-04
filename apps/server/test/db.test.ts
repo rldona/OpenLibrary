@@ -8,12 +8,12 @@ import { getMeta, openDb } from '../src/db/client.js';
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ol-test-'));
 const cli = (dataDir: string, ...args: string[]) =>
   execFileSync(process.execPath, ['--import', 'tsx', 'src/cli.ts', ...args], {
-    env: { ...process.env, DATA_DIR: dataDir, OL_PASSWORD: 'una contraseña larga', NODE_ENV: 'test' },
+    env: { ...process.env, DATA_DIR: dataDir, OL_PASSWORD: 'a long password', NODE_ENV: 'test' },
     encoding: 'utf8',
   });
 
-describe('base de datos', () => {
-  it('las migraciones son idempotentes y el epoch persiste', () => {
+describe('database', () => {
+  it('migrations are idempotent and the epoch persists', () => {
     const dir = tmp();
     const file = path.join(dir, 'library.db');
     const a = openDb(file);
@@ -26,14 +26,14 @@ describe('base de datos', () => {
   });
 });
 
-describe('CLI de administración', () => {
-  it('set-password, backup, after-restore y check', () => {
+describe('admin CLI', () => {
+  it('set-password, backup, after-restore and check', () => {
     const dir = tmp();
-    expect(cli(dir, 'set-password')).toContain('Contraseña creada');
+    expect(cli(dir, 'set-password')).toContain('Password created');
     const out = path.join(dir, 'backups', 'snap.db');
-    expect(cli(dir, 'backup', out)).toContain('Copia creada');
+    expect(cli(dir, 'backup', out)).toContain('Backup created');
 
-    // La copia es una BD válida con el propietario y el mismo epoch.
+    // The copy is a valid DB with the owner and the same epoch.
     const copy = openDb(out);
     const original = openDb(path.join(dir, 'library.db'));
     expect(getMeta(copy, 'epoch')).toBe(getMeta(original, 'epoch'));
@@ -42,10 +42,10 @@ describe('CLI de administración', () => {
     copy.$client.close();
     original.$client.close();
 
-    expect(cli(dir, 'after-restore')).toContain('Nuevo epoch');
+    expect(cli(dir, 'after-restore')).toContain('New epoch');
     const after = openDb(path.join(dir, 'library.db'));
     expect(getMeta(after, 'epoch')).not.toBe(before);
     after.$client.close();
-    expect(cli(dir, 'check')).toContain('Integridad: ok');
+    expect(cli(dir, 'check')).toContain('Integrity: ok');
   });
 });

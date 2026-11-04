@@ -10,16 +10,16 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
-  /** Carpeta con todo el estado: library.db, assets/, backups/. */
+  /** Folder holding all state: library.db, assets/, backups/. */
   DATA_DIR: z.string().default('./.data'),
-  /** URL con la que se accede desde los navegadores (p. ej. https://pc.tailnet.ts.net). Se usa para CSRF y cookies. */
+  /** URL browsers use to reach the app (e.g. https://pc.tailnet.ts.net). Used for CSRF and cookies. */
   PUBLIC_URL: z.url().default('http://localhost:8080'),
-  /** Orígenes extra permitidos para peticiones con cookie (p. ej. el servidor de Vite en desarrollo). */
+  /** Extra origins allowed for cookie requests (e.g. the Vite dev server). */
   EXTRA_ORIGINS: z.string().default(''),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
-  /** true si hay un proxy delante (tailscale serve) que fija X-Forwarded-For. */
+  /** true when a proxy in front (tailscale serve) sets X-Forwarded-For. */
   TRUST_PROXY: bool,
-  /** Carpeta con la web compilada. Si no existe, solo se sirve la API. */
+  /** Folder with the built web app. If missing, only the API is served. */
   WEB_DIST: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -44,7 +44,7 @@ export type Config = {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {
-    throw new Error(`Configuración inválida:\n${z.prettifyError(parsed.error)}`);
+    throw new Error(`Invalid configuration:\n${z.prettifyError(parsed.error)}`);
   }
   const e = parsed.data;
   const publicUrl = new URL(e.PUBLIC_URL);

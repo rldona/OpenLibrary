@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Actualiza a la última versión del repositorio: copia de seguridad, compilación y reinicio.
+# Updates to the latest version of the repository: backup, build and restart.
 source "$(dirname "$(readlink -f "$0")")/common.sh"
 cd "$OL_REPO"
-log "Copia de seguridad previa…"
-"$OL_REPO/deploy/scripts/backup.sh" || log "AVISO: la copia previa falló; continúo."
-log "Descargando cambios…"
+log "Backup first…"
+"$OL_REPO/deploy/scripts/backup.sh" || log "WARNING: the pre-update backup failed; continuing."
+log "Pulling changes…"
 git pull --ff-only
-log "Compilando la imagen…"
+log "Building the image…"
 "${COMPOSE[@]}" build
 "${COMPOSE[@]}" up -d
-log "Actualizado. Estado:"
+log "Updated. Status:"
 "${COMPOSE[@]}" ps

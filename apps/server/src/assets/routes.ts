@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { AssetId, FetchAssetRequest } from '@openlibrary/contracts';
-import { notFound, parse } from '../errors.js';
+import { HttpError, notFound, parse } from '../errors.js';
 import { requireAuth } from '../auth/routes.js';
 import type { LookupService } from '../lookup/service.js';
 import { MAX_UPLOAD_BYTES, type AssetService } from './service.js';
@@ -15,7 +15,7 @@ export async function assetAndLookupRoutes(
     requireAuth(req);
   });
 
-  // Imagen binaria en el cuerpo (image/jpeg, image/png, image/webp…).
+  // Binary image in the body (image/jpeg, image/png, image/webp…).
   app.addContentTypeParser(
     /^image\//,
     { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES },
@@ -24,26 +24,23 @@ export async function assetAndLookupRoutes(
 
   app.post('/assets', { bodyLimit: MAX_UPLOAD_BYTES }, async (req, reply) => {
     const body = req.body;
-    if (!Buffer.isBuffer(body)) {
-      reply.code(415);
-      return { title: 'Tipo no soportado', status: 415, detail: 'Envía la imagen con Content-Type image/*.' };
-    }
+    if (!Buffer.isBuffer(body)) throw new HttpError(415, 'unsupported-media', 'errors.unsupportedMedia');
     reply.code(201);
     return assets.store(body, 'upload');
   });
 
-  /** Guarda la portada propuesta por un proveedor externo. */
+  /** Stores the cover proposed by an external provider. */
   app.post('/assets/fetch', async (req, reply) => {
-    const { url } = parse(FetchAssetRequest, req.body);
+    const { url } = parse(FetchAssetRequest, req.body, req.lang);
     reply.code(201);
     return assets.fetchFromProvider(url);
   });
 
   app.get<{ Params: { id: string }; Querystring: { size?: string } }>('/assets/:id', async (req, reply) => {
-    const id = parse(AssetId, req.params.id);
+    const id = parse(AssetId, req.params.id, req.lang);
     const size = req.query.size === 'full' ? 'full' : 'thumb';
     const file = assets.pathOf(id, size);
-    if (!assets.get(id) || !fs.existsSync(file)) throw notFound('Esa imagen no existe.');
+    if (!assets.get(id) || !fs.existsSync(file)) throw notFound('errors.imageNotFound');
     return reply
       .type('image/jpeg')
       .header('cache-control', 'private, max-age=31536000, immutable')

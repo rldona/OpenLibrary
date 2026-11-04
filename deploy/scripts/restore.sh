@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Restaura una copia de restic (por defecto la última).
-#   sudo restore.sh            → última copia
-#   sudo restore.sh 4f2a9c1e   → una instantánea concreta («restic snapshots» para verlas)
-# El estado actual NO se borra: se aparta como library.db.antes-de-restaurar-<fecha>.
+# Restores a restic backup (the latest by default).
+#   sudo restore.sh            → latest backup
+#   sudo restore.sh 4f2a9c1e   → a specific snapshot ("restic snapshots" lists them)
+# The current state is NOT deleted: it is set aside as library.db.before-restore-<date>.
 source "$(dirname "$(readlink -f "$0")")/common.sh"
-: "${RESTIC_REPOSITORY:?Define RESTIC_REPOSITORY en /etc/openlibrary/backup.env}"
-: "${RESTIC_PASSWORD_FILE:?Define RESTIC_PASSWORD_FILE en /etc/openlibrary/backup.env}"
+: "${RESTIC_REPOSITORY:?Set RESTIC_REPOSITORY in /etc/openlibrary/backup.env}"
+: "${RESTIC_PASSWORD_FILE:?Set RESTIC_PASSWORD_FILE in /etc/openlibrary/backup.env}"
 export RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
 
 SNAPSHOT="${1:-latest}"
@@ -13,29 +13,29 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-log "Extrayendo la copia $SNAPSHOT…"
+log "Extracting backup $SNAPSHOT…"
 restic restore "$SNAPSHOT" --tag openlibrary --host openlibrary --target "$TMP"
 SRC_DB="$TMP$OL_DATA/backups/library.db"
-[ -f "$SRC_DB" ] || die "la copia no contiene $OL_DATA/backups/library.db"
+[ -f "$SRC_DB" ] || die "the backup does not contain $OL_DATA/backups/library.db"
 
-read -r -p "Se sustituirá la biblioteca actual por la copia $SNAPSHOT. ¿Continuar? [s/N] " ok
-[[ "$ok" =~ ^[sS]$ ]] || die "cancelado"
+read -r -p "The current library will be replaced by backup $SNAPSHOT. Continue? [y/N] " ok
+[[ "$ok" =~ ^[yY]$ ]] || die "cancelled"
 
-log "Deteniendo la aplicación…"
+log "Stopping the app…"
 "${COMPOSE[@]}" stop app
 
-log "Apartando el estado actual…"
+log "Setting the current state aside…"
 for f in library.db library.db-wal library.db-shm; do
-  [ -f "$OL_DATA/$f" ] && mv "$OL_DATA/$f" "$OL_DATA/$f.antes-de-restaurar-$STAMP"
+  [ -f "$OL_DATA/$f" ] && mv "$OL_DATA/$f" "$OL_DATA/$f.before-restore-$STAMP"
 done
-[ -d "$OL_DATA/assets" ] && mv "$OL_DATA/assets" "$OL_DATA/assets.antes-de-restaurar-$STAMP"
+[ -d "$OL_DATA/assets" ] && mv "$OL_DATA/assets" "$OL_DATA/assets.before-restore-$STAMP"
 
 cp "$SRC_DB" "$OL_DATA/library.db"
 [ -d "$TMP$OL_DATA/assets" ] && cp -a "$TMP$OL_DATA/assets" "$OL_DATA/assets"
 chown -R 1000:1000 "$OL_DATA/library.db" "$OL_DATA/assets" 2>/dev/null || true
 
-log "Verificando integridad y cambiando el epoch…"
-"${COMPOSE[@]}" run --rm app node dist/cli.js after-restore || die "la copia restaurada no es válida; el estado anterior sigue apartado en $OL_DATA"
+log "Checking integrity and bumping the epoch…"
+"${COMPOSE[@]}" run --rm app node dist/cli.js after-restore || die "the restored backup is not valid; the previous state is still set aside in $OL_DATA"
 
 "${COMPOSE[@]}" start app
-log "Restauración completada. Los dispositivos harán una resincronización completa al conectarse."
+log "Restore completed. Devices will perform a full resync when they connect."

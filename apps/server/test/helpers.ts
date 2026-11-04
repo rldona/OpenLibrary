@@ -10,7 +10,7 @@ import type { Fetch } from '../src/lookup/providers.js';
 export const PASSWORD = 'correct horse battery staple';
 export const ORIGIN = 'https://biblioteca.test';
 
-/** App en memoria con reloj controlable y carpeta de datos temporal. */
+/** In-memory app with a controllable clock and a temporary data folder. */
 export async function makeApp(
   opts: { configured?: boolean; env?: Record<string, string>; fetch?: Fetch } = {},
 ) {
@@ -27,9 +27,9 @@ export async function makeApp(
   return { app, db, config, advance, dataDir };
 }
 
-/** Por defecto las pruebas no tienen Internet. */
+/** By default tests have no Internet access. */
 export const noNetwork: Fetch = async () => {
-  throw new Error('sin red en pruebas');
+  throw new Error('no network in tests');
 };
 
 export const cookieOf = (res: { cookies: { name: string; value: string }[] }) =>
@@ -37,7 +37,7 @@ export const cookieOf = (res: { cookies: { name: string; value: string }[] }) =>
 
 type App = Awaited<ReturnType<typeof makeApp>>['app'];
 
-/** Cliente autenticado como la web (cookie + Origin). */
+/** Client authenticated like the web app (cookie + Origin). */
 export async function webClient(app: App) {
   const res = await app.inject({
     method: 'POST',
@@ -57,6 +57,7 @@ export async function webClient(app: App) {
     return { status: r.statusCode, body: r.body ? (r.json() as any) : undefined, raw: r }; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
   return {
+    token,
     get: (u: string) => call('GET', u),
     post: (u: string, b?: unknown) => call('POST', u, b ?? {}),
     patch: (u: string, b: unknown) => call('PATCH', u, b),

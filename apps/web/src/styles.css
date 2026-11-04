@@ -260,7 +260,7 @@ main {
   margin: 2px 0 0;
 }
 
-/* ---------- controles ---------- */
+/* ---------- controls ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -391,7 +391,7 @@ main {
   cursor: pointer;
 }
 
-/* ---------- portadas ---------- */
+/* ---------- covers ---------- */
 .cover {
   position: relative;
   aspect-ratio: 2 / 3;
@@ -527,7 +527,7 @@ main {
   border-radius: 99px;
 }
 
-/* ---------- biblioteca ---------- */
+/* ---------- library ---------- */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -651,7 +651,7 @@ main {
   margin-top: 28px;
 }
 
-/* ---------- ficha ---------- */
+/* ---------- book details ---------- */
 .scrim {
   position: fixed;
   inset: 0;
@@ -866,7 +866,7 @@ main {
   flex-wrap: wrap;
 }
 
-/* ---------- avisos ---------- */
+/* ---------- notices ---------- */
 .banner {
   display: flex;
   gap: 10px;
@@ -922,7 +922,7 @@ main {
   transform: translateX(-50%);
 }
 
-/* ---------- modales y formularios ---------- */
+/* ---------- modals and forms ---------- */
 .modal-bg {
   position: fixed;
   inset: 0;
@@ -1064,7 +1064,7 @@ legend {
   margin: 0;
 }
 
-/* ---------- ubicaciones ---------- */
+/* ---------- locations ---------- */
 .loc-wrap {
   display: grid;
   grid-template-columns: 290px 1fr;
@@ -1188,7 +1188,7 @@ legend {
   width: 36px;
 }
 
-/* ---------- ajustes y acceso ---------- */
+/* ---------- settings and login ---------- */
 .stack {
   display: flex;
   flex-direction: column;
@@ -1238,7 +1238,7 @@ legend {
   background: var(--ok);
 }
 
-/* ---------- móvil / pantallas estrechas ---------- */
+/* ---------- mobile / narrow screens ---------- */
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
@@ -1303,4 +1303,21 @@ legend {
 }
 .tbl .mono {
   white-space: nowrap;
+}
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.lang-switch button {
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.side .foot p {
+  margin: 10px 0 0;
+}
+.panel .seg {
+  align-self: flex-start;
 }

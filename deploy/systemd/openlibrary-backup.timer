@@ -1,9 +1,9 @@
 [Unit]
-Description=OpenLibrary: copia de seguridad diaria (y al arrancar si se perdió)
+Description=OpenLibrary: daily backup (and at boot if one was missed)
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
-# Si el PC estaba apagado a esa hora, se ejecuta al encenderlo.
+# If the PC was off at that time, it runs once it is switched on.
 Persistent=true
 OnBootSec=15min
 RandomizedDelaySec=5min

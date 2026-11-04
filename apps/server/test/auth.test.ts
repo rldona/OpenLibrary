@@ -10,22 +10,22 @@ const login = (app: Awaited<ReturnType<typeof makeApp>>['app'], password: string
     payload: { password },
   });
 
-describe('sistema', () => {
-  it('health responde sin autenticación y con epoch', async () => {
+describe('system', () => {
+  it('health answers without auth and includes the epoch', async () => {
     const { app } = await makeApp();
     const res = await app.inject('/api/v1/health');
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: 'ok', epoch: expect.any(String) });
   });
 
-  it('rutas desconocidas devuelven problem+json', async () => {
+  it('unknown routes return problem+json', async () => {
     const { app } = await makeApp();
     const res = await app.inject('/api/v1/nada');
     expect(res.statusCode).toBe(404);
     expect(res.headers['content-type']).toContain('application/problem+json');
   });
 
-  it('envía cabeceras de seguridad', async () => {
+  it('sends security headers', async () => {
     const { app } = await makeApp();
     const res = await app.inject('/api/v1/health');
     expect(res.headers['content-security-policy']).toContain("default-src 'self'");
@@ -34,15 +34,15 @@ describe('sistema', () => {
   });
 });
 
-describe('login web', () => {
-  it('sin contraseña configurada responde 503 con instrucciones', async () => {
+describe('web login', () => {
+  it('without a password it answers 503 with instructions', async () => {
     const { app } = await makeApp({ configured: false });
     const res = await login(app, 'loquesea');
     expect(res.statusCode).toBe(503);
     expect(res.json().detail).toContain('set-password');
   });
 
-  it('contraseña correcta crea cookie segura y /me funciona', async () => {
+  it('right password creates a secure cookie and /me works', async () => {
     const { app } = await makeApp();
     const res = await login(app, PASSWORD);
     expect(res.statusCode).toBe(200);
@@ -53,19 +53,19 @@ describe('login web', () => {
     expect(me.json()).toMatchObject({ authenticated: true, kind: 'web' });
   });
 
-  it('contraseña incorrecta: 401 y sin cookie', async () => {
+  it('wrong password: 401 and no cookie', async () => {
     const { app } = await makeApp();
     const res = await login(app, 'nope');
     expect(res.statusCode).toBe(401);
     expect(cookieOf(res)).toBeUndefined();
   });
 
-  it('/me sin sesión es 401', async () => {
+  it('/me without a session is 401', async () => {
     const { app } = await makeApp();
     expect((await app.inject('/api/v1/auth/me')).statusCode).toBe(401);
   });
 
-  it('logout revoca la sesión', async () => {
+  it('logout revokes the session', async () => {
     const { app } = await makeApp();
     const token = cookieOf(await login(app, PASSWORD))!;
     const out = await app.inject({
@@ -79,7 +79,7 @@ describe('login web', () => {
     expect(me.statusCode).toBe(401);
   });
 
-  it('la sesión web caduca si no se usa durante el TTL', async () => {
+  it('a web session expires if unused for the TTL', async () => {
     const { app, advance } = await makeApp({ env: { SESSION_TTL_DAYS: '1' } });
     const token = cookieOf(await login(app, PASSWORD))!;
     advance(25 * 60 * 60 * 1000);
@@ -88,7 +88,7 @@ describe('login web', () => {
     );
   });
 
-  it('la caducidad es deslizante si se sigue usando', async () => {
+  it('expiry slides while the session is in use', async () => {
     const { app, advance } = await makeApp({ env: { SESSION_TTL_DAYS: '1' } });
     const token = cookieOf(await login(app, PASSWORD))!;
     for (let i = 0; i < 4; i++) {
@@ -100,16 +100,16 @@ describe('login web', () => {
   });
 });
 
-describe('fuerza bruta', () => {
-  it('bloquea una IP tras 5 fallos y duplica la espera', async () => {
+describe('brute force', () => {
+  it('locks an IP after 5 failures and doubles the wait', async () => {
     const { app, advance } = await makeApp();
     for (let i = 0; i < 4; i++) expect((await login(app, 'mal')).statusCode).toBe(401);
     const fifth = await login(app, 'mal');
     expect(fifth.statusCode).toBe(429);
     expect(fifth.headers['retry-after']).toBe('60');
-    // Bloqueada: ni siquiera la contraseña correcta pasa.
+    // Locked: not even the right password gets through.
     expect((await login(app, PASSWORD)).statusCode).toBe(429);
-    // Otra IP no está afectada.
+    // Another IP is not affected.
     expect((await login(app, PASSWORD, '10.0.0.2')).statusCode).toBe(200);
     advance(61_000);
     const sixth = await login(app, 'mal');
@@ -117,13 +117,13 @@ describe('fuerza bruta', () => {
     expect(sixth.headers['retry-after']).toBe('120');
     advance(121_000);
     expect((await login(app, PASSWORD)).statusCode).toBe(200);
-    // El éxito reinicia el contador.
+    // Success resets the counter.
     expect((await login(app, 'mal')).statusCode).toBe(401);
   });
 });
 
 describe('CSRF', () => {
-  it('rechaza un login desde otro origen', async () => {
+  it('rejects a login from another origin', async () => {
     const { app } = await makeApp();
     const res = await app.inject({
       method: 'POST',
@@ -134,7 +134,7 @@ describe('CSRF', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('rechaza peticiones con cookie sin Origin ni Sec-Fetch-Site', async () => {
+  it('rejects cookie requests without Origin or Sec-Fetch-Site', async () => {
     const { app } = await makeApp();
     const token = cookieOf(await login(app, PASSWORD))!;
     const res = await app.inject({
@@ -145,7 +145,7 @@ describe('CSRF', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('rechaza Sec-Fetch-Site cross-site', async () => {
+  it('rejects cross-site Sec-Fetch-Site', async () => {
     const { app } = await makeApp();
     const res = await app.inject({
       method: 'POST',
@@ -157,7 +157,7 @@ describe('CSRF', () => {
   });
 });
 
-describe('dispositivos (Android)', () => {
+describe('devices (Android)', () => {
   async function register(app: Awaited<ReturnType<typeof makeApp>>['app']) {
     const res = await app.inject({
       method: 'POST',
@@ -168,7 +168,7 @@ describe('dispositivos (Android)', () => {
     return res.json() as { deviceId: string; token: string };
   }
 
-  it('registra con contraseña y usa token Bearer sin cabeceras de navegador', async () => {
+  it('registers with the password and uses a Bearer token without browser headers', async () => {
     const { app } = await makeApp();
     const { token } = await register(app);
     expect(token).toMatch(/^olt_/);
@@ -176,7 +176,7 @@ describe('dispositivos (Android)', () => {
     expect(me.json()).toMatchObject({ kind: 'device', expiresAt: null });
   });
 
-  it('el token del dispositivo no caduca por tiempo', async () => {
+  it('device tokens do not expire over time', async () => {
     const { app, advance } = await makeApp();
     const { token } = await register(app);
     advance(400 * 24 * 60 * 60 * 1000);
@@ -184,13 +184,13 @@ describe('dispositivos (Android)', () => {
     expect(me.statusCode).toBe(200);
   });
 
-  it('se lista y se revoca desde la web', async () => {
+  it('devices are listed and revoked from the web', async () => {
     const { app } = await makeApp();
     const { deviceId, token } = await register(app);
     const web = cookieOf(await login(app, PASSWORD))!;
     const list = await app.inject({ url: '/api/v1/auth/devices', cookies: { ol_session: web } });
     expect(list.json().items.map((d: { name: string }) => d.name)).toEqual(
-      expect.arrayContaining(['Pixel 8', 'Navegador']),
+      expect.arrayContaining(['Pixel 8', 'Browser']),
     );
     const del = await app.inject({
       method: 'DELETE',
@@ -203,7 +203,7 @@ describe('dispositivos (Android)', () => {
     expect(me.statusCode).toBe(401);
   });
 
-  it('una contraseña errónea no registra el dispositivo', async () => {
+  it('a wrong password does not register the device', async () => {
     const { app } = await makeApp();
     const res = await app.inject({
       method: 'POST',
@@ -214,8 +214,8 @@ describe('dispositivos (Android)', () => {
   });
 });
 
-describe('cambio de contraseña', () => {
-  it('exige la actual, mantiene esta sesión y revoca las demás', async () => {
+describe('password change', () => {
+  it('requires the current one, keeps this session and revokes the others', async () => {
     const { app } = await makeApp();
     const a = cookieOf(await login(app, PASSWORD))!;
     const b = cookieOf(await login(app, PASSWORD))!;
@@ -227,12 +227,12 @@ describe('cambio de contraseña', () => {
         cookies: { ol_session: a },
         payload: { current, next },
       });
-    expect((await post('mal', 'otra contraseña larga')).statusCode).toBe(401);
+    expect((await post('mal', 'another long password')).statusCode).toBe(401);
     expect((await post(PASSWORD, 'corta')).statusCode).toBe(400);
-    expect((await post(PASSWORD, 'otra contraseña larga')).statusCode).toBe(204);
+    expect((await post(PASSWORD, 'another long password')).statusCode).toBe(204);
     expect((await app.inject({ url: '/api/v1/auth/me', cookies: { ol_session: a } })).statusCode).toBe(200);
     expect((await app.inject({ url: '/api/v1/auth/me', cookies: { ol_session: b } })).statusCode).toBe(401);
     expect((await login(app, PASSWORD)).statusCode).toBe(401);
-    expect((await login(app, 'otra contraseña larga')).statusCode).toBe(200);
+    expect((await login(app, 'another long password')).statusCode).toBe(200);
   });
 });

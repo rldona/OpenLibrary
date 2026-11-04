@@ -1,26 +1,30 @@
 /**
- * Herramientas de administración que se ejecutan en el servidor (no por HTTP):
- *   set-password            crea o cambia la contraseña (lee OL_PASSWORD o la pide por teclado)
- *   backup <archivo.db>     copia consistente de la base de datos en caliente
- *   check                   comprueba la integridad de la base de datos
- *   after-restore           tras restaurar una copia: verifica y cambia el epoch (los clientes resincronizan)
- *   status                  resumen del estado
- *   demo-data               carga ubicaciones y libros de ejemplo (solo con la biblioteca vacía)
+ * Admin tools that run on the server (not over HTTP):
+ *   set-password            creates or changes the password (reads OL_PASSWORD or prompts for it)
+ *   backup <file.db>        consistent hot copy of the database
+ *   check                   checks database integrity
+ *   after-restore           after restoring a backup: verifies it and bumps the epoch (clients resync)
+ *   status                  state summary
+ *   demo-data [en|es]       loads sample locations and books (only on an empty library)
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { pickLang } from '@openlibrary/contracts';
 import { loadConfig } from './config.js';
 import { bumpEpoch, getMeta, openDb, type Db } from './db/client.js';
 import { AuthService } from './auth/service.js';
 import { CatalogService } from './catalog/service.js';
+import { HttpError } from './errors.js';
+import { tr } from './i18n.js';
 import { loadDemo } from './demo.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const write = (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput;
-    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = (s: string) => {
+    const out = rl as unknown as { _writeToOutput: (s: string) => void };
+    const write = out._writeToOutput;
+    out._writeToOutput = (s: string) => {
       if (s.startsWith(question)) write.call(rl, s);
     };
     rl.question(question, (answer) => {
@@ -31,10 +35,7 @@ function askHidden(question: string): Promise<string> {
   });
 }
 
-function integrity(db: Db): string {
-  const row = db.$client.pragma('integrity_check', { simple: true });
-  return String(row);
-}
+const integrity = (db: Db) => String(db.$client.pragma('integrity_check', { simple: true }));
 
 async function main(): Promise<number> {
   const [cmd, ...args] = process.argv.slice(2);
@@ -47,29 +48,37 @@ async function main(): Promise<number> {
       let pw = process.env.OL_PASSWORD;
       if (!pw) {
         if (!process.stdin.isTTY) {
-          console.error('Sin terminal: define OL_PASSWORD o ejecuta el comando de forma interactiva (-it).');
+          console.error('No terminal: set OL_PASSWORD or run the command interactively (-it).');
           return 1;
         }
-        pw = await askHidden('Nueva contraseña (mín. 12 caracteres): ');
-        const again = await askHidden('Repítela: ');
+        pw = await askHidden('New password (min. 12 characters): ');
+        const again = await askHidden('Repeat it: ');
         if (pw !== again) {
-          console.error('Las contraseñas no coinciden.');
+          console.error('The passwords do not match.');
           return 1;
         }
       }
       const existed = auth.isConfigured();
-      await auth.setPassword(pw);
+      try {
+        await auth.setPassword(pw);
+      } catch (e) {
+        if (e instanceof HttpError) {
+          console.error(tr('en')(e.key, e.params));
+          return 1;
+        }
+        throw e;
+      }
       console.log(
         existed
-          ? 'Contraseña cambiada. Se han cerrado todas las sesiones y dispositivos.'
-          : 'Contraseña creada. Ya puedes iniciar sesión.',
+          ? 'Password changed. Every session and device has been signed out.'
+          : 'Password created. You can sign in now.',
       );
       return 0;
     }
     case 'backup': {
       const out = args[0];
       if (!out) {
-        console.error('Uso: backup <archivo-destino.db>');
+        console.error('Usage: backup <target-file.db>');
         return 1;
       }
       fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
@@ -78,24 +87,23 @@ async function main(): Promise<number> {
       await db.$client.backup(tmp);
       fs.renameSync(tmp, out);
       const size = (fs.statSync(out).size / 1024).toFixed(0);
-      console.log(`Copia creada: ${out} (${size} KB)`);
+      console.log(`Backup created: ${out} (${size} KB)`);
       return 0;
     }
     case 'check': {
       const r = integrity(db);
-      console.log(`Integridad: ${r}`);
+      console.log(`Integrity: ${r}`);
       return r === 'ok' ? 0 : 2;
     }
     case 'after-restore': {
       const r = integrity(db);
       if (r !== 'ok') {
-        console.error(`La base de datos restaurada no es íntegra: ${r}`);
+        console.error(`The restored database is not consistent: ${r}`);
         return 2;
       }
+      new CatalogService(db).reindexAll();
       const epoch = bumpEpoch(db);
-      console.log(
-        `Restauración verificada. Nuevo epoch ${epoch}: los dispositivos harán una resincronización completa.`,
-      );
+      console.log(`Restore verified. New epoch ${epoch}: devices will perform a full resync.`);
       return 0;
     }
     case 'status': {
@@ -116,9 +124,10 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'demo-data': {
+      const lang = pickLang(args[0] ?? 'en');
       try {
-        const r = loadDemo(new CatalogService(db));
-        console.log(`Datos de ejemplo cargados: ${r.locations} ubicaciones y ${r.books} libros.`);
+        const r = loadDemo(new CatalogService(db), lang);
+        console.log(`Sample data loaded (${lang}): ${r.locations} locations and ${r.books} books.`);
         return 0;
       } catch (e) {
         console.error((e as Error).message);
@@ -127,7 +136,7 @@ async function main(): Promise<number> {
     }
     default:
       console.log(
-        'Comandos: set-password | backup <archivo.db> | check | after-restore | status | demo-data',
+        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es]',
       );
       return cmd ? 1 : 0;
   }

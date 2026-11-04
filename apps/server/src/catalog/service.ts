@@ -46,7 +46,7 @@ export class CatalogService {
 
   private ts = () => this.now().toISOString();
 
-  // ======================= Ubicaciones (utilidades) =======================
+  // ======================= Locations (helpers) =======================
   private locationMap(tx: Tx = this.db): Map<string, LocationRow> {
     const rows = tx.select().from(locations).where(isNull(locations.deletedAt)).all();
     return new Map(rows.map((l) => [l.id, l]));
@@ -84,18 +84,18 @@ export class CatalogService {
       .from(locations)
       .where(eq(locations.id, id))
       .get();
-    if (!l || l.deletedAt) throw badRequest('La ubicación indicada no existe.');
+    if (!l || l.deletedAt) throw badRequest('errors.locationNotFound');
   }
 
   private ensureAsset(tx: Tx, id: string | null | undefined) {
     if (!id) return;
     if (!tx.select({ id: assets.id }).from(assets).where(eq(assets.id, id)).get()) {
-      throw badRequest('La portada indicada no existe. Súbela primero.');
+      throw badRequest('errors.coverNotFound');
     }
   }
 
-  // ======================= Búsqueda de texto completo =======================
-  /** Recalcula la fila de búsqueda de cada edición (título, autores, ISBN, editorial, géneros, ubicaciones…). */
+  // ======================= Full-text search =======================
+  /** Recomputes the search row of each edition (title, authors, ISBN, publisher, subjects, locations…). */
   private reindex(tx: Tx, editionIds: Iterable<string>) {
     const map = this.locationMap(tx);
     for (const id of new Set(editionIds)) {
@@ -138,7 +138,7 @@ export class CatalogService {
       .map((r) => r.id);
   }
 
-  /** Reconstruye todo el índice (tras importar o restaurar). */
+  /** Rebuilds the whole index (after an import or a restore). */
   reindexAll(): void {
     this.db.transaction((tx) => {
       tx.run(sql`DELETE FROM search_fts`);
@@ -150,7 +150,7 @@ export class CatalogService {
     });
   }
 
-  // ======================= Lectura =======================
+  // ======================= Reads =======================
   findByIsbn(isbn13: string, tx: Tx = this.db) {
     const e = tx
       .select()
@@ -169,7 +169,7 @@ export class CatalogService {
 
   getWork(id: string, tx: Tx = this.db): WorkDetail {
     const w = tx.select().from(works).where(eq(works.id, id)).get();
-    if (!w || w.deletedAt) throw notFound('Ese libro no existe.');
+    if (!w || w.deletedAt) throw notFound('errors.bookNotFound');
     const map = this.locationMap(tx);
     const eds = tx
       .select()
@@ -208,7 +208,7 @@ export class CatalogService {
     return { ...c, locationPath: this.pathOf(map, c.locationId) };
   }
 
-  /** Listado de la biblioteca: una fila por edición con ejemplares activos. */
+  /** Library listing: one row per edition with active copies. */
   library(q: Out<typeof C.LibraryQuery>): LibraryPage {
     const t0 = performance.now();
     const client = this.db.$client;
@@ -219,7 +219,7 @@ export class CatalogService {
     let copyCond = "c.edition_id = e.id AND c.deleted_at IS NULL AND c.status = 'active'";
     if (q.location === 'none') copyCond += ' AND c.location_id IS NULL';
     else if (q.location) {
-      if (!map.has(q.location)) throw badRequest('La ubicación indicada no existe.');
+      if (!map.has(q.location)) throw badRequest('errors.locationNotFound');
       const ids = this.subtree(map, q.location);
       copyCond += ` AND c.location_id IN (${ids.map(() => '?').join(',')})`;
       params.push(...ids);
@@ -262,7 +262,7 @@ export class CatalogService {
     };
     let rows: Row[];
     if (q.sort === 'location') {
-      // Orden por la ruta de la primera ubicación: se calcula en memoria (las rutas no están en SQL).
+      // Sorting by the first location's path is done in memory (paths are not stored in SQL).
       const all = client.prepare(select).all(...params) as Row[];
       const firstLoc = new Map<string, string>();
       for (const c of client
@@ -356,7 +356,7 @@ export class CatalogService {
     return { subjects, languages };
   }
 
-  // ======================= Altas =======================
+  // ======================= Creation =======================
   private nextCopyCode(tx: Tx): string {
     const n = Number(getMeta(tx as Db, 'copy_seq') ?? '0') + 1;
     setMeta(tx as Db, 'copy_seq', String(n));
@@ -373,7 +373,7 @@ export class CatalogService {
     this.ensureLocation(tx, c.locationId);
     const id = c.id ?? uuidv7();
     if (tx.select({ id: copies.id }).from(copies).where(eq(copies.id, id)).get()) {
-      throw new HttpError(409, 'already-exists', 'Ese ejemplar ya existe.');
+      throw new HttpError(409, 'already-exists', 'errors.alreadyExists.copy');
     }
     const fields = {
       editionId,
@@ -395,7 +395,7 @@ export class CatalogService {
     return id;
   }
 
-  /** Alta compuesta en una transacción: obra (nueva o existente) + edición + ejemplar. */
+  /** Composite creation in one transaction: work (new or existing) + edition + copy. */
   createBook(
     input: Out<typeof C.BookCreate>,
     sid: string | null = null,
@@ -409,7 +409,8 @@ export class CatalogService {
           throw new HttpError(
             409,
             'duplicate-isbn',
-            `Ya tienes esta edición («${existing.title}», ${existing.copies} ejemplar(es)). Añade otro ejemplar en lugar de duplicarla.`,
+            'errors.duplicateIsbn',
+            { title: existing.title, n: existing.copies },
             { existing },
           );
         }
@@ -417,12 +418,12 @@ export class CatalogService {
       let workId = input.workId;
       if (workId) {
         const w = tx.select().from(works).where(eq(works.id, workId)).get();
-        if (!w || w.deletedAt) throw badRequest('La obra indicada no existe.');
+        if (!w || w.deletedAt) throw badRequest('errors.workNotFound');
       } else {
         const { id, ...fields } = input.work!;
         workId = id ?? uuidv7();
         if (tx.select({ id: works.id }).from(works).where(eq(works.id, workId)).get()) {
-          throw new HttpError(409, 'already-exists', 'Esa obra ya existe.');
+          throw new HttpError(409, 'already-exists', 'errors.alreadyExists.work');
         }
         tx.insert(works)
           .values({
@@ -441,7 +442,7 @@ export class CatalogService {
       const { id: edId, ...edFields } = ed;
       const editionId = edId ?? uuidv7();
       if (tx.select({ id: editions.id }).from(editions).where(eq(editions.id, editionId)).get()) {
-        throw new HttpError(409, 'already-exists', 'Esa edición ya existe.');
+        throw new HttpError(409, 'already-exists', 'errors.alreadyExists.edition');
       }
       const editionValues = { workId, ...edFields };
       tx.insert(editions)
@@ -455,21 +456,21 @@ export class CatalogService {
     });
   }
 
-  /** Otro ejemplar de una edición existente (sin duplicar datos bibliográficos). */
+  /** Another copy of an existing edition (without duplicating bibliographic data). */
   createCopy(
     input: Out<typeof C.CopyCreate>,
     sid: string | null = null,
   ): WorkDetail & { created: { copyId: string } } {
     return this.db.transaction((tx) => {
       const e = tx.select().from(editions).where(eq(editions.id, input.editionId)).get();
-      if (!e || e.deletedAt) throw badRequest('La edición indicada no existe.');
+      if (!e || e.deletedAt) throw badRequest('errors.editionNotFound');
       const copyId = this.insertCopy(tx, e.id, input, this.ts(), sid);
       this.reindex(tx, [e.id]);
       return { ...this.getWork(e.workId, tx), created: { copyId } };
     });
   }
 
-  // ======================= Modificaciones =======================
+  // ======================= Updates =======================
   patchWork(id: string, p: Out<typeof C.WorkPatch>, sid: string | null = null): WorkDetail {
     return this.db.transaction((tx) => {
       patchEntity<WorkRow>(tx, 'work', id, p.baseVersion, p.fields, {
@@ -523,11 +524,11 @@ export class CatalogService {
     });
   }
 
-  /** Borra una edición (y sus ejemplares). Si la obra se queda sin ediciones, también se borra. */
+  /** Deletes an edition (and its copies). If the work is left without editions, it is deleted too. */
   deleteEdition(id: string, sid: string | null = null): { workDeleted: boolean } {
     return this.db.transaction((tx) => {
       const e = tx.select().from(editions).where(eq(editions.id, id)).get();
-      if (!e || e.deletedAt) throw notFound('Esa edición no existe.');
+      if (!e || e.deletedAt) throw notFound('errors.editionNotFound');
       const now = this.ts();
       for (const c of tx
         .select({ id: copies.id })
@@ -548,7 +549,7 @@ export class CatalogService {
     });
   }
 
-  // ======================= Ubicaciones =======================
+  // ======================= Locations =======================
   locationTree(): LocationTree {
     const map = this.locationMap();
     const counts = new Map<string | null, number>();
@@ -584,7 +585,7 @@ export class CatalogService {
       const { id: maybeId, ...fields } = input;
       const id = maybeId ?? uuidv7();
       if (tx.select({ id: locations.id }).from(locations).where(eq(locations.id, id)).get()) {
-        throw new HttpError(409, 'already-exists', 'Esa ubicación ya existe.');
+        throw new HttpError(409, 'already-exists', 'errors.alreadyExists.location');
       }
       tx.insert(locations)
         .values({ id, version: 1, createdAt: now, updatedAt: now, ...fields })
@@ -598,9 +599,9 @@ export class CatalogService {
     this.db.transaction((tx) => {
       const map = this.locationMap(tx);
       if (p.fields.parentId !== undefined && p.fields.parentId !== null) {
-        if (!map.has(p.fields.parentId)) throw badRequest('La ubicación padre no existe.');
+        if (!map.has(p.fields.parentId)) throw badRequest('errors.parentNotFound');
         if (this.subtree(map, id).includes(p.fields.parentId)) {
-          throw badRequest('No puedes mover una ubicación dentro de sí misma o de una de sus subdivisiones.');
+          throw badRequest('errors.locationCycle');
         }
       }
       const { applied } = patchEntity<LocationRow>(tx, 'location', id, p.baseVersion, p.fields, {
@@ -617,9 +618,9 @@ export class CatalogService {
   deleteLocation(id: string, sid: string | null = null): LocationTree {
     this.db.transaction((tx) => {
       const map = this.locationMap(tx);
-      if (!map.has(id)) throw notFound('Esa ubicación no existe.');
+      if (!map.has(id)) throw notFound('errors.locationNotFound');
       if ([...map.values()].some((l) => l.parentId === id)) {
-        throw new HttpError(409, 'location-not-empty', 'Tiene subdivisiones: muévelas o bórralas primero.');
+        throw new HttpError(409, 'location-not-empty', 'errors.locationHasChildren');
       }
       const inside = tx
         .select({ id: copies.id })
@@ -627,11 +628,7 @@ export class CatalogService {
         .where(and(eq(copies.locationId, id), isNull(copies.deletedAt), eq(copies.status, 'active')))
         .all();
       if (inside.length) {
-        throw new HttpError(
-          409,
-          'location-not-empty',
-          `Hay ${inside.length} ejemplar(es) aquí: muévelos antes de borrarla.`,
-        );
+        throw new HttpError(409, 'location-not-empty', 'errors.locationHasCopies', { n: inside.length });
       }
       softDelete(tx, 'location', id, this.ts(), sid);
     });

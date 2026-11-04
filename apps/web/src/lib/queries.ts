@@ -14,7 +14,7 @@ export const useFacets = () => useQuery({ queryKey: keys.facets, queryFn: api.fa
 export const useWork = (id: string | null) =>
   useQuery({ queryKey: keys.work(id ?? ''), queryFn: () => api.work(id!), enabled: !!id });
 
-/** Tras cualquier cambio en el catálogo: refrescar listado, facetas y ubicaciones (conteos). */
+/** After any catalog change: refresh the listing, facets and locations (counts). */
 export function invalidateCatalog(qc: QueryClient, work?: WorkDetail) {
   if (work) qc.setQueryData(keys.work(work.work.id), work);
   void qc.invalidateQueries({ queryKey: keys.library });
@@ -26,7 +26,7 @@ export const useInvalidate = () => {
   return (work?: WorkDetail) => invalidateCatalog(qc, work);
 };
 
-/** Ubicaciones ordenadas en profundidad con su ruta completa (para selectores). */
+/** Locations in depth-first order with their full path (for selects). */
 export function flattenLocations(
   tree: LocationTree | undefined,
 ): (LocationDTO & { path: string[]; depth: number })[] {
@@ -45,7 +45,7 @@ export function flattenLocations(
   return out;
 }
 
-/** Ruta legible omitiendo la raíz «Casa» si es la única raíz (más corta y más clara). */
+/** Readable path that omits the root ("Home") when it is the only root: shorter and clearer. */
 export function shortPath(path: string[], tree: LocationTree | undefined): string {
   const roots = tree?.items.filter((l) => !l.parentId).length ?? 0;
   const p = roots === 1 && path.length > 1 ? path.slice(1) : path;

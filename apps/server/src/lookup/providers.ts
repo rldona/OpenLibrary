@@ -1,11 +1,11 @@
 /**
- * Proveedores de metadatos por ISBN. Sus respuestas son PROPUESTAS que el usuario revisa:
- * nunca se guardan directamente en el catálogo.
+ * Metadata providers by ISBN. Their answers are PROPOSALS the user reviews:
+ * they are never stored directly in the catalog.
  */
 import type { MetadataProposal } from '@openlibrary/contracts';
 
 export type Fetch = typeof fetch;
-const UA = 'OpenLibrary-personal/0.1 (biblioteca personal autoalojada)';
+const UA = 'OpenLibrary-personal/0.1 (self-hosted personal library)';
 const TIMEOUT_MS = 6000;
 
 const yearOf = (s: unknown) => {
@@ -34,7 +34,7 @@ async function getJson(fetchImpl: Fetch, url: string): Promise<unknown> {
   return res.json();
 }
 
-/** Open Library: buena cobertura de portadas y ediciones; sin sinopsis en esta API. */
+/** Open Library: good coverage of covers and editions; no synopsis in this API. */
 export async function openLibrary(fetchImpl: Fetch, isbn13: string): Promise<MetadataProposal | null> {
   const data = (await getJson(
     fetchImpl,
@@ -61,7 +61,7 @@ export async function openLibrary(fetchImpl: Fetch, isbn13: string): Promise<Met
   };
 }
 
-/** Google Books: aporta sinopsis, idioma y categorías; complementa a Open Library. */
+/** Google Books: adds synopsis, language and categories; complements Open Library. */
 export async function googleBooks(fetchImpl: Fetch, isbn13: string): Promise<MetadataProposal | null> {
   const data = (await getJson(
     fetchImpl,
@@ -90,7 +90,7 @@ export async function googleBooks(fetchImpl: Fetch, isbn13: string): Promise<Met
   };
 }
 
-/** Combina propuestas: la primera fuente manda y las siguientes rellenan huecos. */
+/** Merges proposals: the first source wins and later ones fill the gaps. */
 export function mergeProposals(list: MetadataProposal[]): MetadataProposal | null {
   if (!list.length) return null;
   const out = { ...list[0]! };

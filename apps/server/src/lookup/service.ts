@@ -22,7 +22,7 @@ export class LookupService {
 
   async byIsbn(raw: string, opts: { refresh?: boolean } = {}): Promise<LookupResult> {
     const n = normalizeIsbn(raw);
-    if (!n.ok) throw badRequest(n.reason);
+    if (!n.ok) throw badRequest(`isbn.${n.reason}`);
     const existing = this.catalog.findByIsbn(n.isbn13);
     const base = { isbn13: n.isbn13, isbn10: n.isbn10, existing };
 
@@ -47,7 +47,7 @@ export class LookupService {
     const proposal = mergeProposals(found.map((f) => f.p));
     const sources = found.map((f) => f.name);
 
-    // Solo se guarda en caché si todos los proveedores respondieron (un fallo de red no es un «no encontrado»).
+    // Only cache when every provider answered (a network failure is not a "not found").
     if (!errors.length) {
       const payload: Cached = { sources, proposal };
       const fetchedAt = this.now().toISOString();

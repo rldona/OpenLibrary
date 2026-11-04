@@ -1,0 +1,422 @@
+# OpenLibrary — Functional analysis and technical design (v0.2)
+
+> Personal library of physical books. A single owner. Server on a home Ubuntu PC that is **not** always on. Web client (catalog and management from the computer) and native Android app (barcode scanner, camera for covers and offline browsing).
+
+Living document. Confirmed decisions (2026-11-04): full-management web app, access from outside home, collection starts from scratch, reading tracked per copy, self-hosted at zero cost, **documentation in English and the app in English and Spanish**. Everything else is a recommendation open to review.
+
+---
+
+## 1. Requirements analysis: ambiguities, contradictions and dependencies
+
+| # | Topic | Issue found | Proposal |
+|---|-------|-------------|----------|
+| A1 | **Role of the web app** | The conversation described the web as "catalog viewing", but the definition (§11) asks for manual entry, editing, copies, locations, import/export… | The web is the **full management station** (everything except scanning/photographing). Android is the **capture and browsing station**. Both edit; the web is online-only. **Decided:** full management. |
+| A2 | **Reading status: copy or work?** | §8 says "each copy can have a reading status", but reading is an experience of the work (owning two copies of *1984* does not mean reading it twice), and §15 asks to distinguish metrics per work and per copy. | Reading is recorded as a **`ReadingSession` linked to a copy** (the one you held), and the **work status is derived** (read if any session of any copy/edition is finished). The UI shows a single status and a "Re-read" button that starts another session. **Decided** (revisable). |
+| A3 | **Metadata with the PC off** | If ISBN lookup goes through the server, scanning with the PC off never retrieves data even if the phone has Internet. | Android queries the providers (Open Library, Google Books) **directly** when online; the web does it through the server (proxy). Same normalisation module in both. |
+| A4 | **Access from outside home** | Not specified whether Android syncs only on the home Wi-Fi. Exposing the PC to the Internet conflicts with §16 (privacy). | **Tailscale** (mesh VPN, no open ports): works at home and away, with no public exposure. **Decided:** access from outside. The architecture is ready to go public without code changes (§9.1). |
+| A5 | **"Server as central reference" vs offline edits** | If the server is authoritative and Android edits offline, we must define what happens when both touch the same data. | **Field-level** merge with a base version; conflict only if the *same field* changed on both sides → shown to the user (§6). |
+| A6 | **Provisional books** | Offline creation: does it complete itself later? | Marked `metadata_status = provisional`. When back online the lookup is **proposed** (not applied); the user reviews it. Manually edited data is never overwritten. |
+| A7 | **ISBN shared between works** | Some publishers reuse ISBNs, or one ISBN covers a multi-volume work. | ISBN is a **non-unique** index system-wide; the app warns about matches and lets you choose "same edition / a different one". |
+| A8 | **Cover: edition or copy?** | You want to photograph covers. A photo of *your* copy (wear, dedication) differs from the "official" cover. | The cover belongs to the **edition**. A photo can be used as the edition cover or stored as a **copy photo** (MVP: edition cover only; copy photos → later). |
+| A9 | **Import** | The format of "an existing collection" is not stated. | **Decided:** starting from scratch. MVP: import only our own format (CSV and JSON), useful for restore and migration. Goodreads and others come later. |
+| A10 | **Offline phone security** | Private data on the phone: app lock? | Encrypted local DB (SQLCipher) + optional biometric lock. Device token revocable from the web. |
+| A11 | **Series / collections / volumes** | Not mentioned but common (Dune, The Lord of the Rings, encyclopaedias). | `series` + `series_index` on the work; multiple volumes as a `volumes` field on the edition. No dedicated model in the MVP. |
+| A12 | **Currency and price** | Purchase price without currency. | `price_cents` (integer) + `price_currency` (EUR by default). |
+| A13 | **"Other identifiers"** | Open-ended. | Generic `edition_identifier (scheme, value)` table: OLID, Google Books ID, Spanish legal deposit, BNE, OCLC… |
+| A14 | **Languages** | Not covered by the definition. | **Decided:** UI in English and Spanish (browser language by default, switchable and remembered); server messages follow `Accept-Language`; documentation, code and comments in English. |
+
+**Unresolved dependencies**: availability/quality of metadata for old Spanish editions (Open Library and Google Books have major gaps; see risk R1), and the Ubuntu PC needs disk space and some external backup destination.
+
+---
+
+## 2. Use cases and main flows
+
+### Actors
+- **Owner** (single user), from web or Android.
+- **External metadata providers** (system).
+- **Server** (system): data reference, sync, backups.
+
+### Use cases (MVP)
+
+| ID | Use case | Web | Android | Offline (Android) |
+|----|----------|:---:|:-------:|:-----------------:|
+| UC01 | Scan an ISBN and add the book | — | ✔ | ✔ (provisional) |
+| UC02 | Manual entry (with/without ISBN) | ✔ | ✔ | ✔ |
+| UC03 | Review/fix proposed metadata | ✔ | ✔ | ✔ (no remote lookup) |
+| UC04 | Photograph a cover | — | ✔ | ✔ (uploaded later) |
+| UC05 | Add a copy to an existing edition | ✔ | ✔ | ✔ |
+| UC06 | Move / retire a copy | ✔ | ✔ | ✔ |
+| UC07 | Manage locations (tree) | ✔ | ✔ (browse + simple create) | browse |
+| UC08 | Search, filter, sort | ✔ | ✔ | ✔ |
+| UC09 | Change reading status, rate, notes, quotes | ✔ | ✔ | ✔ |
+| UC10 | Wishlist and "I bought it" | ✔ | ✔ | ✔ |
+| UC11 | Statistics | ✔ | ✔ | ✔ (on local data) |
+| UC12 | Import collection | ✔ | — | — |
+| UC13 | Export CSV / full JSON | ✔ | (share export) | — |
+| UC14 | Backups and restore | ✔ (trigger/view) + CLI | — | — |
+| UC15 | Sync and resolve conflicts | (online) | ✔ | persistent queue |
+| UC16 | Manage credentials and devices | ✔ | login/logout | — |
+
+### Key flow UC01 — Scanning
+```
+Add → Camera (CameraX + ML Kit, on-device)
+  → Code read → normalise → valid 978/979 EAN-13 or ISBN-10?
+      no  → notice "Not an ISBN (e.g. ISSN 977…)" and keep scanning
+      yes → is there an edition with that ISBN in the local DB?
+              yes → "You already own this edition (N copies at …)" → [Add another copy] [View details]
+              no  → is it on the wishlist? → notice "it will be marked as acquired"
+                  → Internet available?
+                      no  → form with the ISBN, marked PROVISIONAL
+                      yes → query providers (6 s timeout, in parallel)
+                             found → pre-filled form (source shown)
+                             empty → "No results", empty form with the ISBN
+  → Review/fix + copy data (location, condition, reading)
+  → Save (local, transaction) → sync queue
+```
+
+### Flow UC10 — Wish → collection
+Wish (free text or linked to a work/edition) → "I bought it" → opens the pre-filled creation form (reusing the work/edition if it exists) → on save, the wish becomes `acquired` with a reference to the new copy (it is not deleted: history).
+
+---
+
+## 3. Domain model
+
+```
+Work                        1 ── * Edition                      1 ── * Copy
+ id, title, original_title       id, work_id, title?, subtitle        id, edition_id, code (EJ-0001)
+ original_language               publisher, published_year            location_id?, condition
+ description, series,            language, pages, format, volumes     acquired_on, price_cents,
+ series_index                    isbn13?, isbn10?, cover_asset_id?    price_currency, notes,
+ authors[], subjects[]           metadata_status, metadata_source     status (active|retired),
+                                 *identifiers (scheme,value)          retired_reason, retired_on
+
+Location (tree)              Copy * ── 0..1 Location
+ id, parent_id?, name, kind (home|room|bookcase|shelf|box|other), sort_order
+
+ReadingSession               Copy 1 ── * ReadingSession
+ id, copy_id, status (pending|reading|read|abandoned), started_on?, finished_on?,
+ rating (1–5, half points), notes
+
+Quote                        id, work_id, copy_id?, text, page?, note
+WishlistItem                 id, work_id?, edition_id?, free_title?, free_authors?, isbn13?,
+                             priority, notes, status (open|acquired|discarded), acquired_copy_id?
+Asset                        id = sha256, mime, width, height, bytes, origin (upload|provider|import)
+```
+
+> **Simplification applied in F1:** authors and subjects are stored as JSON lists on the work (`works.authors`, `works.subjects`) instead of `Person`/`Subject` tables. Each list is an atomic field for sync's field-level merge and is enough for search, filters and statistics. If needed later (author pages, translators), it can be normalised without changing the API.
+
+**Why this design**
+- *Work ↔ Edition ↔ Copy* follows a simplified FRBR (Work/Manifestation/Item); "Expression" (translation) is omitted to keep things simple: the translation is an attribute of the edition (`language`; translator as an edition-level contributor — later).
+- Reading hangs off the **copy** (A2); work and edition derive their status.
+- Content-addressed `Asset` (hash) → idempotent uploads, natural deduplication and simple backups.
+- Every syncable entity has: client-generated UUIDv7 `id`, `version` (integer, bumped by the server), `created_at`, `updated_at`, `deleted_at` (tombstone).
+
+---
+
+## 4. Business rules and states
+
+**Catalog**
+- BR01. Only `Work.title` is required. An edition may have no ISBN.
+- BR02. ISBNs are normalised: hyphens/spaces removed, ISBN-10 → ISBN-13 (and back when the prefix is 978). The check digit is validated. 979-xxx has no ISBN-10.
+- BR03. Prefix 977 = ISSN, 979-0 = ISMN (sheet music): rejected with a clear message. The EAN-5 price add-on is ignored.
+- BR04. Duplicate ISBN → no new edition without explicit confirmation.
+- BR05. External data are **proposals**: never applied without review; clients only send the fields the user changed, so a lookup never silently overwrites manual edits.
+- BR06. No cover → generated cover (title/author on a plain background). Provisional → visual badge.
+
+**Copies and locations**
+- BR07. A copy belongs to exactly one edition; it may have no location ("No location" is a filter).
+- BR08. Retire ≠ delete: `status = retired` + reason (sold, given away, lost, damaged). Retired copies do not count in the collection but keep their reading history. Physical deletion only to fix wrong entries.
+- BR09. A location cannot be its own ancestor (validated on the server). Deleting a location with content requires moving its copies/children first.
+- BR10. Human-friendly copy code `EJ-0001` assigned by the server (a temporary code is shown offline). Enables physical labels in the future.
+
+**Reading**
+```
+          start               finish
+ pending ─────────▶ reading ─────────▶ read
+    ▲                 │ abandon           │ re-read (new session)
+    └──── reset ──────┴──▶ abandoned      └──────▶ reading
+```
+- BR11. Moving to `reading` sets `started_on` = today if empty; to `read`, `finished_on` = today. Dates are editable.
+- BR12. Rating and notes per session; the details view shows the latest.
+- BR13. Work status: `reading` if any session is active; `read` if any is finished; otherwise `pending`.
+
+**Wishlist**
+- BR14. A wish never counts as collection. On acquisition: a copy is created (plus edition/work if missing) and the wish becomes `acquired`.
+- BR15. Scanning an ISBN that is on the wishlist shows a notice and links it.
+
+---
+
+## 5. Technical architecture and technologies
+
+```
+┌──────────────── Android (Kotlin) ────────────────┐         ┌────────────── Ubuntu PC ───────────────┐
+│ Compose UI ─ ViewModels ─ Repositories            │         │ tailscale serve (TLS) ─ API (Fastify)  │
+│ Room + FTS4 (SQLCipher)   Operation outbox        │◀─HTTPS─▶│   ├ SQLite (WAL) + FTS5                │
+│ CameraX + ML Kit Barcode  WorkManager (sync)      │ Tailnet │   ├ /data/assets (covers by hash)      │
+│ Coil (cover cache)        ISBN provider client    │         │   ├ ISBN providers (proxy for web)     │
+└───────────────────────────────────────────────────┘         │   └ Static web (React) served here     │
+            Browser (React + Vite + TanStack Query) ─────────▶│ systemd timers: nightly backup         │
+                                                              └────────────────────────────────────────┘
+```
+
+### Decisions (alternatives evaluated)
+
+| Area | Recommendation | Alternatives considered | Reason |
+|------|----------------|-------------------------|--------|
+| Mobile app | Native **Kotlin + Jetpack Compose** | Flutter, React Native, PWA | Native was requested. Direct CameraX/ML Kit access, WorkManager for reliable background sync, mature Room for offline. A PWA cannot reliably guarantee camera + persistent storage. |
+| Scanner | **ML Kit Barcode Scanning (bundled model)** | ZXing, cloud service | 100% offline, fast, no Google Play dependency with the *bundled* variant. |
+| Mobile DB | **Room (SQLite) + FTS4**, encrypted with SQLCipher | Realm, DataStore | Standard SQL, offline full-text search over thousands of books in ms. |
+| Backend | **Node.js 24 + TypeScript + Fastify** | Kotlin/Ktor, Python/FastAPI, Go, PocketBase | Shares types and validation (Zod) with the web; simple ecosystem; low footprint. Ktor would allow sharing models with Android via KMP but adds build complexity not worth it for a one-person project. PocketBase/Supabase solve CRUD but not a sync protocol with field-level conflicts. |
+| Server DB | **SQLite (WAL) + FTS5**, via Drizzle ORM | PostgreSQL | One user, thousands of rows: SQLite is plenty. A single file → trivial backups and reliable restore. Drizzle allows moving to Postgres if ever needed. |
+| Web | **React + Vite + TanStack Query**, served by the backend | SvelteKit, Next.js | Static SPA without SSR (no SEO, it is private). Leaves the door open to an offline PWA (later). |
+| i18n | Own lightweight layer: shared message catalog (`packages/contracts`), web dictionaries type-checked for completeness, server messages by `Accept-Language` | i18next, FormatJS | Two languages and a few hundred strings: no heavy dependency needed. Error messages travel as keys, so Android can reuse the catalog. |
+| Contract | **OpenAPI 3.1** as source of truth, generated from Zod schemas | GraphQL, gRPC | REST + JSON is the simplest to consume from Kotlin (OpenAPI generator/Retrofit) and TS. |
+| Network | **Tailscale** + HTTPS with `tailscale serve` (automatic certificate, no extra proxy) | Port forwarding + DDNS, Cloudflare Tunnel | No open ports or public exposure, free for personal use, works at home and away. Cloudflare Tunnel exposes to the Internet (even behind Access). |
+| Deployment | **Docker Compose** (1 container: API + web) with a `/srv/openlibrary` volume, listening on 127.0.0.1 only | Native systemd | Isolated and reproducible; updates via `deploy/scripts/update.sh`. Backups run from a systemd timer on the host. |
+| Metadata | **Open Library** (primary) + **Google Books** (fallback) | ISBNdb (paid), BNE (SRU/MARC) | Free. BNE is very valuable for Spanish books: proposed for later (F5). |
+| Auth | Password (Argon2id) + **cookie session** (web) and long-lived revocable **device token** (Android) | OAuth/OIDC, Basic | Single user: OIDC is overkill. Per-device tokens allow revoking a lost phone. |
+
+---
+
+## 6. Offline operation and sync protocol
+
+### Principles
+1. **Local-first on Android**: the UI *always* reads and writes Room. The network is never in the interaction path.
+2. **Client-generated IDs** (UUIDv7) → create offline without collisions or reassignment.
+3. **Persistent outbox**: each change is stored in the same transaction as the data as an operation with a unique `op_id`.
+4. **Idempotency**: the server records each applied `op_id`; repeating it returns the same result without re-applying.
+5. **Cursor pull**: the server keeps a `change_log` with a monotonic sequence; the client asks "everything since sequence N".
+6. **Field-level conflicts**, never a silent "last write wins".
+
+### Operation (push)
+```json
+{
+  "op_id": "0192f4c1-7a3e-7c2e-9d1a-4b6f3c2e1a90",
+  "entity": "copy",
+  "entity_id": "0192f4c1-6b10-7aa1-8c33-55e1d0b2f001",
+  "kind": "update",            // create | update | delete
+  "base_version": 7,           // version the client had
+  "fields": { "location_id": "…", "notes": "Not lent to anyone, it is on the bedside table" },
+  "client_ts": "2026-11-04T09:12:33Z"
+}
+```
+
+### Server algorithm (per operation, in a transaction)
+```
+if op_id ∈ applied_ops → return the stored result (idempotent)
+load the current entity (version = v)
+if kind=create and it does not exist → insert (version 1)
+if base_version == v → apply every field
+if base_version <  v → for each field sent:
+       did that field change in change_log between base_version and v?
+          no  → apply
+          yes, same value      → ignore (convergent)
+          yes, different value → record CONFLICT (do not apply that field)
+if kind=delete and there are changes after base_version → "edited vs deleted" conflict
+bump version, write change_log(seq++, entity, id, version, fields)
+store op_id → result
+```
+*(Implemented in F1 in `apps/server/src/catalog/changes.ts` and already used by the web; F3 adds `applied_ops` and the push/pull endpoints.)*
+
+### Sync cycle (client)
+```
+1. PUSH   POST /sync/push   { device_id, batch_id, ops[≤100] }  → { results[op_id: applied|duplicate|conflict|rejected] }
+2. ASSETS POST /assets (pending covers; idempotent by hash)
+3. PULL   GET  /sync/pull?since=<cursor>&limit=500 → { changes[], next_cursor, has_more }
+4. Apply remote changes in Room (entities with pending local ops are rebased)
+5. Download new covers in the background (300 px thumbnail; original on demand)
+```
+- Triggers: on app open, after each change (5 s debounce), when the network returns (WorkManager with `NetworkType.CONNECTED`), every 30 min, and a manual button.
+- Retries: exponential backoff (5 s → 10 min). The same batch is resent with the same `op_id`s → no duplicates even if the response was lost.
+- **First connection**: `GET /sync/snapshot` (compressed JSON of everything + cursor), then covers are queued.
+- **Visible states**: `Synced · 2 min ago` · `3 pending changes` · `Server unavailable — data from 4 Nov 09:12` · `1 conflict to review`.
+- **Conflicts**: listed under "Sync" with local vs server value per field → *Keep mine / Keep server / Combine (text)*. The resolution is just another operation.
+- **Rejections** (validation): shown with a readable message; the op can be edited or discarded; it does not block the rest of the queue.
+- Web: online, uses the same mutation API with `baseVersion` (so a stale web form never overwrites a phone change either).
+
+### Offline scope on Android
+| Available offline | Requires connection |
+|---|---|
+| Browse, search, filter, statistics | Metadata lookup (Internet) |
+| Manual/provisional entry, cover photos | Sync (server) |
+| Copies, reading, notes, quotes, wishlist | Import/export/backups (web) |
+| Browse locations, create a simple location | Reorganise the location tree (web, to avoid structural conflicts) |
+
+---
+
+## 7. Client–backend contracts (summary)
+
+Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 9457 (`application/problem+json`) with a stable `code` and a `detail` translated according to `Accept-Language`. Shapes live in `packages/contracts` (Zod).
+
+| Method | Path | Description | Status |
+|--------|------|-------------|--------|
+| GET | `/health` | status, version, data `epoch` | F0 ✔ |
+| POST | `/auth/login` · `/auth/logout` · GET `/auth/me` | web session (cookie) | F0 ✔ |
+| POST | `/auth/devices` | registers a device → `{deviceId, token}` (Android) | F0 ✔ |
+| GET / DELETE | `/auth/devices[/{id}]` | list / revoke sessions and devices | F0 ✔ |
+| POST | `/auth/password` | change password (revokes other sessions) | F0 ✔ |
+| GET | `/library?q=&location=&subject=&language=&sort=&limit=&offset=` · `/library/facets` | paginated listing with FTS search; facets | F1 ✔ |
+| POST | `/books` | work (new or existing) + edition + first copy, atomically; 409 `duplicate-isbn` | F1 ✔ |
+| GET / PATCH | `/works/{id}` | work + editions + copies; PATCH with `baseVersion` and field merge | F1 ✔ |
+| PATCH / DELETE | `/editions/{id}` | update / delete an edition | F1 ✔ |
+| POST / PATCH | `/copies`, `/copies/{id}` | add, move, edit, retire, restore | F1 ✔ |
+| GET / POST / PATCH / DELETE | `/locations[/{id}]` | tree with cumulative counts | F1 ✔ |
+| GET | `/lookup/isbn/{isbn}` | normalised metadata proposal (provider proxy, 30-day cache) + existing edition | F1 ✔ |
+| POST / GET | `/assets` · `/assets/fetch` · `/assets/{sha256}?size=thumb\|full` | upload / fetch provider cover / download | F1 ✔ |
+| GET / POST | `/sync/snapshot` · `/sync/pull` · `/sync/push` · `/sync/conflicts` | protocol §6 | F2–F3 |
+| … | `/reading-sessions`, `/quotes`, `/wishlist`, `/stats` | reading, wishlist, statistics | F4 |
+| … | `/export/csv` · `/export/full` (zip) · `/import` (dry-run + report) · `/admin/backups` | portability and backups | F5 |
+
+**Lookup response**
+```json
+{ "isbn13": "9788432221477", "isbn10": "8432221477", "found": true, "sources": ["Open Library"],
+  "proposal": { "title": "…", "subtitle": null, "authors": ["…"], "publisher": "…",
+                "publishedYear": 2013, "language": "es", "pages": 240,
+                "subjects": ["…"], "description": "…", "coverUrl": "…" },
+  "existing": null, "errors": [] }
+```
+
+**Full export format** (`library.json`, versioned `format_version: 1`): arrays `works, editions, copies, locations, reading_sessions, quotes, wishlist, assets` with every key and ID-based relations; covers under `assets/<sha256>.jpg`. Re-importable without loss (it is also the "logical" restore format).
+
+---
+
+## 8. Repository structure
+
+```
+OpenLibrary/
+├── apps/
+│   ├── server/            # Fastify + Drizzle + SQLite. src/{auth,catalog,lookup,assets,db}, i18n.ts, cli.ts; drizzle/ (migrations); test/
+│   ├── web/               # React + Vite. src/{pages,components,lib,i18n (en/es)}
+│   └── android/           # (F2) Gradle multi-module:
+│       ├── app/           #   navigation, DI (Hilt)
+│       ├── core/{model,database,network,sync,isbn,designsystem}
+│       └── feature/{library,detail,scan,cover,locations,reading,wishlist,stats,settings}
+├── packages/
+│   └── contracts/         # Zod schemas, ISBN logic, UUIDv7, shared i18n catalog → openapi.yaml (F2)
+├── deploy/                # docker-compose.yml, .env.example, systemd/openlibrary-backup.{service,timer}, scripts/{backup,restore,update}.sh + ol (CLI)
+├── docs/                  # this document, deployment runbook
+└── prototypes/            # clickable prototypes (web and Android, Spanish)
+```
+Monorepo with **npm workspaces** for the TypeScript side; Android uses its own Gradle build and consumes `openapi.yaml` to generate its client.
+
+---
+
+## 9. Ubuntu deployment, backups and restore
+
+### Deployment
+- `/srv/openlibrary/data/{library.db, assets/, backups/}`; configuration in `deploy/.env`.
+- `docker compose up -d` → `app` container (API + static web) published **only** on `127.0.0.1:8080`. `tailscale serve --bg --https=443 http://127.0.0.1:8080` exposes it over HTTPS to the tailnet only. Step-by-step guide: [deployment-runbook.md](deployment-runbook.md).
+- Starts with the system (`restart: unless-stopped`); since the PC gets switched off, there is nothing to "keep alive": the app starts in ~2 s.
+- First run: `ol set-password` sets the owner password (never from the web, so nobody can get there first).
+
+### Backups
+- **Nightly and at boot** (systemd timer with `Persistent=true`, so it runs even if the PC was off at the scheduled time):
+  1. `ol backup` → consistent hot copy of the database (SQLite online backup API).
+  2. **restic** of the snapshot + `assets/` (assets are immutable by hash → incremental) to an external disk/NAS and, optionally, encrypted cloud storage (B2 free tier). Retention: 7 daily, 4 weekly, 12 monthly.
+  3. Weekly `restic check` + warning if the last backup is older than 3 days (shown in the web, F5).
+- The web will also let you download the **full export** (zip) at any time: the "app-independent" copy (F5).
+- Android is in practice a third copy of the data (not of the original covers).
+
+### Restore
+```bash
+sudo deploy/scripts/restore.sh            # latest; or pass a snapshot id
+```
+- Stops the app, sets the current state aside (`*.before-restore-<date>`), restores database and covers, checks integrity, rebuilds the search index and **bumps the data epoch**: clients detect it and perform a **full resync** (their pending changes are resent and, if they clash, show up as conflicts — never lost).
+- Alternative logical restore: import `library.json` into a new installation.
+- **Restore drill** automated in CI (§12) and done manually every quarter.
+
+### 9.1 Internet-ready from day one
+
+The app is built as if it were on the Internet, even though it starts on the PC behind Tailscale. Publishing it later therefore **changes the deployment, not the code**.
+
+**Application requirements (since F0):**
+- Always HTTPS; the public URL is configured (`PUBLIC_URL`) and nothing assumes a "trusted" network.
+- Argon2id passwords, progressive lockout after failed attempts and rate limiting on `/auth/*`.
+- `Secure`, `HttpOnly`, `SameSite=Strict` cookies, CSRF protection and security headers (CSP, HSTS).
+- Optional second factor (TOTP) prepared, to enable when going public.
+- Revocable device tokens; access log visible in the web.
+- Covers served only with a session: nothing in the library is accessible unauthenticated.
+- All state lives in `/srv/openlibrary`, so moving the server means copying a folder or restoring a backup.
+
+**Options to publish it later:**
+
+| Option | What changes | Cost | Pros | Cons |
+|--------|--------------|------|------|------|
+| **A. Tailscale (current)** | — | €0 | Private, no open ports, works away from home | Every device needs Tailscale; no web when the PC is off |
+| **B. Cloudflare Tunnel from the PC** | Add a `cloudflared` container + domain | ~€10/year (domain) | Web from any browser; no open ports; Cloudflare Access as an extra login layer | Still depends on the PC being on |
+| **C. VPS** (Hetzner, OVH…) | Same `docker compose` on another machine + restore a backup | €4–6/month | Web always available; the PC no longer matters | Data on a rented server (encrypted disk and backups) |
+
+Going from A to B or C: roughly **an afternoon of deployment work**. The API, sync and apps do not change; on Android only the server URL changes in Settings.
+
+**Decided (2026-11-04): option A**, zero cost. Vercel (web) + Railway (API + Postgres) was also evaluated: viable, but it needs an own domain (cross-site cookies), private storage for covers and a monthly usage-based cost. Discarded for the MVP.
+
+**If published later:** buy a domain and choose B (stays on the PC) or C/Railway (always available; would mean moving from SQLite to Postgres, which Drizzle already supports, and storing covers in private S3 storage). The app is already hardened, so the business code does not change.
+
+---
+
+## 10. MVP plan by phases
+
+| Phase | Content | Verifiable acceptance criteria |
+|-------|---------|--------------------------------|
+| **F0 · Foundations** (1 wk) | Monorepo, CI (lint, test, build), DB schema + migrations, auth (login, devices), Docker Compose + `tailscale serve`, backup/restore scripts **(done 2026-11-04)** | `docker compose up` on Ubuntu serves `/api/v1/health` over HTTPS on the tailnet; password login; no access from outside the tailnet; backup produces a verifiable restic snapshot |
+| **F1 · Web catalog** (2 wk) | CRUD work/edition/copy/location, manual entry, ISBN lookup (proxy), covers, FTS search + filters + sorting, details view, location tree **(done 2026-11-04)**; bilingual UI EN/ES | Manual entry without ISBN ✔; ISBN → editable proposal ✔; 2 copies of one edition without duplicating it ✔; filtering by "Living room › Bookcase" includes child shelves ✔; search < 150 ms with 10,000 synthetic copies ✔ (4–46 ms) |
+| **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES | With the PC off, the whole library and its covers can be browsed and searched ✔; a change made on the web appears on Android after syncing ✔ |
+| **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts | Full UC01 flow ✔; changes in airplane mode survive killing the app and rebooting the phone ✔; resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
+| **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, quotes, wishlist → acquisition, statistics (works vs copies) | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ |
+| **F5 · Portability and hardening** (1.5 wk) | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |
+
+Indicative total: **~11 weeks** part-time. Every phase ends with something usable.
+
+**Traceability with §19 of the definition**: no ISBN → F1; scanning → F3; fixing data → F1/F3; several copies → F1; locating by location → F1/F2; reading status → F3/F4; offline search → F2; PC off → F2; offline changes → F3; no duplicates → F3; conflicts → F3; export/restore → F5; privacy → F0/F5.
+
+---
+
+## 11. Risks
+
+| ID | Risk | Prob. | Impact | Mitigation |
+|----|------|:-----:|:------:|------------|
+| R1 | Poor metadata for Spanish / old books | High | Medium | Two providers + BNE later; fast manual entry; cover photos; never block creation |
+| R2 | Subtle sync bugs (loss/duplication) | Medium | High | Simple protocol (outbox + cursor), property-based and fault-injection tests, readable sync logs |
+| R3 | Loss of the PC's disk | Medium | High | restic to 2 destinations + zip export + implicit copy on Android; stale-backup warning |
+| R4 | The phone cannot reach the PC (network, Tailscale down) | Medium | Low | Offline is the normal mode; clear status; stable MagicDNS name |
+| R5 | Restoring a backup "breaks" clients with newer data | Low | High | `epoch` + full resync that keeps pending ops as conflicts |
+| R6 | Scanning in low light / EAN-5 add-on | Medium | Low | Torch, manual ISBN entry, add-on ignored |
+| R7 | Scope too large for a personal project | High | Medium | Deliverable phases; non-MVP items in the backlog; web and Android share contracts |
+| R8 | Provider API changes/outages | Medium | Low | Adapter layer + lookup cache; stored data does not depend on them |
+| R9 | Private data leak (lost phone) | Low | Medium | SQLCipher, biometric lock, revoke the token from the web |
+| R10 | Translations drifting apart | Medium | Low | Spanish dictionaries type-checked against English; server catalog parity test |
+
+---
+
+## 12. Testing strategy
+
+| Level | What | Tools |
+|-------|------|-------|
+| Unit | ISBN (shared TS/Kotlin vectors: valid, invalid, ISSN, ISMN, X), reading rules, field merge, status derivation, location cycles, language negotiation | Vitest, JUnit5 + Kotest |
+| Property | Sync convergence: random op sequences on 2 replicas + reordering + duplication ⇒ same final state or an explicit conflict, never loss | fast-check (server), Kotest property |
+| Contract | Server conforms to `openapi.yaml`; the generated Android client compiles against it; response snapshots | Schemathesis / Dredd, deserialisation tests |
+| Server integration | Real API + temporary SQLite: CRUD, search, import/export round trip, `/sync/push` idempotency, messages in both languages | Vitest + Fastify inject |
+| Network faults | Fault proxy (Toxiproxy) between app and server: cut **after** the server commits and before the response arrives → retry ⇒ `duplicate`, no duplication; high latency; intermittent 500; server shut down mid-batch | Toxiproxy, MockWebServer (Android) |
+| Android | Room + migrations, outbox survives process death, WorkManager retries, Compose UI (offline search, scan flow with a test image) | Robolectric, Compose UI tests, WorkManager TestDriver |
+| Web E2E | Add, details, locations, wishlist, import with a broken file, language switch | Playwright |
+| Backups | CI job: create data → backup → delete → restore → compare counts and integrity | script + ephemeral container |
+| Performance | 10,000 synthetic copies: web search < 150 ms (✔ F1), Android < 100 ms, initial snapshot < 10 s on LAN | Vitest benchmark, Macrobenchmark |
+| Manual (per-release checklist) | Airplane mode, PC off, PC reboot during sync, two devices editing, low-light scanning, both languages | scenario matrix in `docs/qa-checklist.md` |
+
+---
+
+## 13. Beyond the MVP — evolutions with real value
+1. **BNE (Spanish National Library)** as a metadata provider (big improvement for Spanish books).
+2. **Loans** (to whom, when) — fits the model as an entity on `Copy`.
+3. **QR labels per shelf/copy** (the `EJ-0001` code already prepares for it).
+4. **Offline web PWA** (the architecture does not prevent it).
+5. Several photos per copy (dedications, condition).
+6. Series as an entity, translators per edition.
+7. Suggest the existing work when adding an edition in another language (e.g. "Nineteen Eighty-Four" for "1984").
+
+---
+
+## 14. Prototypes
+Clickable, dependency-free, with sample data (`prototypes/shared/data.js`). They predate the bilingual decision and are in Spanish; they are kept as design references and are not maintained:
+- **Web**: `prototypes/web/index.html` — catalog, search, filters, work/edition/copy details, locations, wishlist, statistics, import/export, sync and backups.
+- **Android**: `prototypes/android/index.html` — phone frame with a scenario panel (PC on/off, Internet yes/no, network faults, conflicts) to try scanning, cover photos, details, locations, wishlist and the sync queue.

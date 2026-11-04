@@ -1,8 +1,8 @@
 /**
- * Alta y edición de libros.
- *  - add:     ISBN opcional → propuesta de metadatos (revisable) → obra + edición + ejemplar.
- *  - edition: nueva edición de una obra existente.
- *  - edit:    corrige datos de la obra y de la edición (solo envía lo que has cambiado).
+ * Adding and editing books.
+ *  - add:     optional ISBN → metadata proposal (reviewable) → work + edition + copy.
+ *  - edition: new edition of an existing work.
+ *  - edit:    fixes work and edition data (only sends what you changed).
  */
 import { useMemo, useState, type FormEvent } from 'react';
 import {
@@ -18,6 +18,7 @@ import { CopyFieldset, LanguageSelect, copyPayload, emptyCopy, type CopyDraft } 
 import { splitList } from '../lib/format';
 import { useInvalidate } from '../lib/queries';
 import { openBook } from '../lib/router';
+import { useI18n } from '../i18n';
 
 type Mode =
   | { kind: 'add'; prefill?: { isbn?: string } }
@@ -45,7 +46,7 @@ type CoverChoice =
   | { kind: 'url'; url: string }
   | { kind: 'file'; file: File; preview: string };
 
-const fromModel = (w?: WorkDTO, e?: EditionDTO): Draft => ({
+const fromModel = (w?: WorkDTO, e?: EditionDTO, defaultLang = ''): Draft => ({
   isbn: e?.isbn13 ?? '',
   title: w?.title ?? '',
   subtitle: w?.subtitle ?? '',
@@ -55,7 +56,7 @@ const fromModel = (w?: WorkDTO, e?: EditionDTO): Draft => ({
   series: w?.series ?? '',
   publisher: e?.publisher ?? '',
   publishedYear: e?.publishedYear ? String(e.publishedYear) : '',
-  language: e?.language ?? (e ? '' : 'es'),
+  language: e ? (e.language ?? '') : defaultLang,
   pages: e?.pages ? String(e.pages) : '',
   format: e?.format ?? '',
 });
@@ -77,7 +78,7 @@ const editionFields = (d: Draft) => ({
   format: d.format.trim() || null,
   isbn13: d.isbn.trim() || null,
 });
-/** Solo los campos que el usuario ha cambiado: así no se pisan cambios hechos desde otro dispositivo. */
+/** Only the fields the user changed, so changes made from another device are never overwritten. */
 function diff<T extends Record<string, unknown>>(before: T, after: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(after).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k])),
@@ -93,6 +94,7 @@ export function BookForm({
   onClose: () => void;
   onAddCopy: (editionId: string) => void;
 }) {
+  const { t, lang } = useI18n();
   const toast = useToast();
   const invalidate = useInvalidate();
   const initial = useMemo(
@@ -100,8 +102,9 @@ export function BookForm({
       mode.kind === 'edit'
         ? fromModel(mode.work, mode.edition)
         : mode.kind === 'edition'
-          ? { ...fromModel(mode.work), isbn: '' }
-          : { ...fromModel(), isbn: mode.prefill?.isbn ?? '' },
+          ? { ...fromModel(mode.work, undefined, lang), isbn: '' }
+          : { ...fromModel(undefined, undefined, lang), isbn: mode.prefill?.isbn ?? '' },
+    // The form keeps its initial values even if the UI language changes while it is open.
     [mode],
   );
   const [d, setD] = useState<Draft>(initial);
@@ -129,7 +132,7 @@ export function BookForm({
     setError(null);
     setDuplicate(null);
     const n = normalizeIsbn(d.isbn);
-    if (!n.ok) return setLookup({ state: 'error', msg: n.reason });
+    if (!n.ok) return setLookup({ state: 'error', msg: t(`isbn.${n.reason}`) });
     set('isbn', n.isbn13);
     setLookup({ state: 'busy' });
     try {
@@ -141,7 +144,7 @@ export function BookForm({
       }
       const p = r.proposal;
       if (!p) return;
-      // La propuesta rellena; lo que el usuario ya hubiera escrito en la obra fija se respeta.
+      // The proposal fills the form; the fixed work data of a new edition is left alone.
       setD((x) => ({
         ...x,
         ...(lockWork
@@ -155,14 +158,14 @@ export function BookForm({
             }),
         publisher: p.publisher ?? x.publisher,
         publishedYear: p.publishedYear ? String(p.publishedYear) : x.publishedYear,
-        // Si el proveedor no indica idioma, mejor vacío que suponer «Español».
-        language: p.language ?? (mode.kind === 'add' && x.language === 'es' ? '' : x.language),
+        // If the provider does not say, better empty than guessing the UI language.
+        language: p.language ?? (mode.kind !== 'edit' && x.language === initial.language ? '' : x.language),
         pages: p.pages ? String(p.pages) : x.pages,
       }));
       if (p.coverUrl && cover.kind !== 'file') setCover({ kind: 'url', url: p.coverUrl });
       setSource(r.sources.join(' + '));
     } catch (e) {
-      setLookup({ state: 'error', msg: errorText(e) });
+      setLookup({ state: 'error', msg: errorText(e, t) });
     }
   }
 
@@ -173,7 +176,7 @@ export function BookForm({
       try {
         return (await api.fetchCover(cover.url)).id;
       } catch {
-        toast('No se pudo descargar la portada del proveedor; el libro se guarda sin ella.');
+        toast(t('form.coverDownloadFailed'));
       }
     }
     return null;
@@ -182,10 +185,10 @@ export function BookForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!lockWork && !d.title.trim()) return setError('El título es obligatorio.');
+    if (!lockWork && !d.title.trim()) return setError(t('validation.titleRequired'));
     if (d.isbn.trim()) {
       const n = normalizeIsbn(d.isbn);
-      if (!n.ok) return setError(`ISBN no válido: ${n.reason} Déjalo vacío si el libro no tiene ISBN.`);
+      if (!n.ok) return setError(t('form.isbnInvalid', { reason: t(`isbn.${n.reason}`) }));
     }
     setBusy(true);
     try {
@@ -205,7 +208,7 @@ export function BookForm({
             fields: ePatch,
           });
         invalidate(result);
-        toast(result ? 'Ficha actualizada' : 'No había cambios');
+        toast(t(result ? 'form.updated' : 'form.noChanges'));
         onClose();
         return;
       }
@@ -217,16 +220,18 @@ export function BookForm({
       invalidate(res);
       const c = res.editions.flatMap((x) => x.copies).find((x) => x.id === res.created.copyId);
       toast(
-        `Añadido «${res.work.title}» · ${c?.code ?? ''}${c?.locationPath.length ? ` en ${c.locationPath.join(' › ')}` : ' (sin ubicación)'}`,
+        c?.locationPath.length
+          ? t('form.addedAt', { title: res.work.title, code: c.code, path: c.locationPath.join(' › ') })
+          : t('form.addedNoLocation', { title: res.work.title, code: c?.code ?? '' }),
       );
       onClose();
       openBook(res.work.id, res.created.editionId);
     } catch (err) {
-      if (err instanceof ApiError && err.problem.type?.endsWith('duplicate-isbn')) {
+      if (err instanceof ApiError && err.problem.code === 'duplicate-isbn') {
         setDuplicate(err.problem.existing as { editionId: string; title: string; copies: number });
       } else if (err instanceof ApiError && err.status === 409) {
-        setError(`${err.message} Cierra y vuelve a abrir la ficha para ver los datos actuales.`);
-      } else setError(errorText(err));
+        setError(`${err.message} ${t('form.reopenHint')}`);
+      } else setError(errorText(err, t));
     } finally {
       setBusy(false);
     }
@@ -236,10 +241,16 @@ export function BookForm({
   const r = lookup.state === 'done' ? lookup.r : null;
   const title =
     mode.kind === 'edit'
-      ? 'Editar ficha'
+      ? t('form.editTitle')
       : mode.kind === 'edition'
-        ? `Nueva edición de «${mode.work.title}»`
-        : 'Añadir libro';
+        ? t('form.newEditionTitle', { title: mode.work.title })
+        : t('book.add');
+  const coverHint = {
+    none: t('form.coverNone'),
+    url: t('form.coverProvider'),
+    file: t('form.coverFile'),
+    asset: t('form.coverCurrent'),
+  }[cover.kind];
 
   return (
     <Modal
@@ -248,14 +259,16 @@ export function BookForm({
       wide
       footer={
         <>
-          <span className="hint">
-            Solo el título es obligatorio. Los datos externos son propuestas: corrige lo que quieras.
-          </span>
+          <span className="hint">{t('form.hint')}</span>
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button className="btn primary" form="book-form" disabled={busy}>
-            {busy ? 'Guardando…' : mode.kind === 'edit' ? 'Guardar cambios' : 'Añadir a la biblioteca'}
+            {busy
+              ? t('common.saving')
+              : mode.kind === 'edit'
+                ? t('common.saveChanges')
+                : t('form.addToLibrary')}
           </button>
         </>
       }
@@ -263,7 +276,7 @@ export function BookForm({
       <form id="book-form" onSubmit={submit} noValidate>
         <div className="isbnrow">
           <label>
-            ISBN (opcional)
+            {t('form.isbnOptional')}
             <input
               className="mono"
               value={d.isbn}
@@ -274,7 +287,7 @@ export function BookForm({
                   void doLookup();
                 }
               }}
-              placeholder="978-84-… o ISBN-10"
+              placeholder={t('form.isbnPlaceholder')}
               inputMode="numeric"
               autoFocus={mode.kind === 'add'}
             />
@@ -286,15 +299,18 @@ export function BookForm({
             disabled={!d.isbn.trim() || lookup.state === 'busy'}
           >
             <Icon name="search" size={16} />
-            {lookup.state === 'busy' ? 'Buscando…' : 'Buscar datos'}
+            {lookup.state === 'busy' ? t('form.searching') : t('form.lookup')}
           </button>
         </div>
 
         {lookup.state === 'error' && <Banner kind="err">{lookup.msg}</Banner>}
         {duplicate && (
           <Banner kind="warn">
-            <b>Ya tienes esta edición</b> («{duplicate.title}», {duplicate.copies}{' '}
-            {duplicate.copies === 1 ? 'ejemplar' : 'ejemplares'}).{' '}
+            <b>{t('form.duplicateTitle')}</b>{' '}
+            {t(duplicate.copies === 1 ? 'form.duplicateText.one' : 'form.duplicateText.other', {
+              title: duplicate.title,
+              n: duplicate.copies,
+            })}{' '}
             <button
               type="button"
               className="btn sm"
@@ -303,27 +319,25 @@ export function BookForm({
                 onAddCopy(duplicate.editionId);
               }}
             >
-              Añadir otro ejemplar
+              {t('form.addAnotherCopy')}
             </button>
           </Banner>
         )}
         {r && !duplicate && r.found && (
           <Banner kind="ok">
-            <b>Datos de {r.sources.join(' y ')}.</b> Son una propuesta: revísalos antes de guardar.
+            <b>{t('form.foundTitle', { sources: r.sources.join(' + ') })}</b> {t('form.foundText')}
           </Banner>
         )}
         {r && !duplicate && !r.found && (
           <Banner kind="warn">
             {r.errors.length ? (
               <>
-                <b>No se pudo consultar a los proveedores</b> (
-                {r.errors.length === 2 ? '¿sin conexión a Internet?' : r.errors[0]}). Puedes rellenar la ficha
-                a mano.
+                <b>{t('form.providersFailedTitle')}</b> (
+                {r.errors.length === 2 ? t('form.offlineGuess') : r.errors[0]}). {t('form.fillManually')}
               </>
             ) : (
               <>
-                <b>Sin resultados</b> para {formatIsbn(r.isbn13)}. Rellena lo que sepas; podrás completarlo
-                más adelante.
+                <b>{t('form.notFoundTitle')}</b> {t('form.notFoundText', { isbn: formatIsbn(r.isbn13) })}
               </>
             )}
           </Banner>
@@ -333,23 +347,15 @@ export function BookForm({
           <Cover
             src={coverSrc}
             assetId={cover.kind === 'asset' ? cover.id : null}
-            title={d.title || 'Sin título'}
+            title={d.title || t('book.untitled')}
             authors={splitList(d.authors)}
           />
           <div className="stack-sm">
-            <b>Portada</b>
-            <span className="muted small">
-              {cover.kind === 'none'
-                ? 'Sin portada: se mostrará una generada con el título.'
-                : cover.kind === 'url'
-                  ? 'Propuesta por el proveedor. Se guardará en tu servidor.'
-                  : cover.kind === 'file'
-                    ? 'Imagen elegida desde tu ordenador.'
-                    : 'Portada actual.'}
-            </span>
+            <b>{t('form.cover')}</b>
+            <span className="muted small">{coverHint}</span>
             <div className="row-sm">
               <label className="btn sm file">
-                <Icon name="image" size={15} /> Elegir imagen…
+                <Icon name="image" size={15} /> {t('form.chooseImage')}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -361,22 +367,17 @@ export function BookForm({
               </label>
               {cover.kind !== 'none' && (
                 <button type="button" className="btn sm ghost" onClick={() => setCover({ kind: 'none' })}>
-                  Quitar
+                  {t('common.remove')}
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {lockWork && (
-          <Banner kind="info">
-            Se añadirá como otra edición de la obra; los datos de la obra (título, autores, géneros) no se
-            duplican.
-          </Banner>
-        )}
+        {lockWork && <Banner kind="info">{t('form.newEditionInfo')}</Banner>}
         <div className="fgrid">
           <label className="span2">
-            Título *
+            {t('book.title')} *
             <input
               value={d.title}
               onChange={(e) => set('title', e.target.value)}
@@ -385,24 +386,24 @@ export function BookForm({
             />
           </label>
           <label className="span2">
-            Subtítulo
+            {t('book.subtitle')}
             <input value={d.subtitle} onChange={(e) => set('subtitle', e.target.value)} disabled={lockWork} />
           </label>
           <label className="span2">
-            Autor/es
+            {t('book.authors')}
             <input
               value={d.authors}
               onChange={(e) => set('authors', e.target.value)}
-              placeholder="Separa varios con ;"
+              placeholder={t('form.separateWithSemicolon')}
               disabled={lockWork}
             />
           </label>
           <label>
-            Editorial
+            {t('book.publisher')}
             <input value={d.publisher} onChange={(e) => set('publisher', e.target.value)} />
           </label>
           <label>
-            Año de publicación
+            {t('book.publishedYear')}
             <input
               inputMode="numeric"
               value={d.publishedYear}
@@ -411,7 +412,7 @@ export function BookForm({
           </label>
           <LanguageSelect value={d.language} onChange={(v) => set('language', v)} />
           <label>
-            Páginas
+            {t('book.pages')}
             <input
               inputMode="numeric"
               value={d.pages}
@@ -419,28 +420,28 @@ export function BookForm({
             />
           </label>
           <label>
-            Formato
+            {t('book.format')}
             <input
               value={d.format}
               onChange={(e) => set('format', e.target.value)}
-              placeholder="Bolsillo, tapa dura…"
+              placeholder={t('form.formatPlaceholder')}
             />
           </label>
           <label>
-            Serie / colección
+            {t('book.series')}
             <input value={d.series} onChange={(e) => set('series', e.target.value)} disabled={lockWork} />
           </label>
           <label className="span2">
-            Géneros
+            {t('book.subjects')}
             <input
               value={d.subjects}
               onChange={(e) => set('subjects', e.target.value)}
-              placeholder="Novela; Ciencia ficción"
+              placeholder={t('form.subjectsPlaceholder')}
               disabled={lockWork}
             />
           </label>
           <label className="span2">
-            Sinopsis
+            {t('book.synopsis')}
             <textarea
               rows={3}
               value={d.description}

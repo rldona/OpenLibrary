@@ -1,30 +1,25 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { formatIsbn, type LibraryItem, type LibraryQuery } from '@openlibrary/contracts';
+import { formatIsbn, LIBRARY_SORTS, type LibraryItem, type LibraryQuery } from '@openlibrary/contracts';
 import { api } from '../api';
 import { Cover, Icon } from '../components/ui';
 import { langName, fmtDate } from '../lib/format';
 import { flattenLocations, keys, shortPath, useFacets, useLocations } from '../lib/queries';
 import { openBook, setParams, useLocation } from '../lib/router';
+import { useI18n } from '../i18n';
 
 const PAGE = 60;
-const SORTS: [NonNullable<LibraryQuery['sort']>, string][] = [
-  ['title', 'Título'],
-  ['author', 'Autor'],
-  ['acquired', 'Adquirido (recientes)'],
-  ['added', 'Añadido (recientes)'],
-  ['location', 'Ubicación'],
-];
 
 export function Library({ onAdd }: { onAdd: () => void }) {
+  const { t } = useI18n();
   const { params } = useLocation();
   const q: LibraryQuery = {
     q: params.get('q') ?? undefined,
-    location: (params.get('ubicacion') as LibraryQuery['location']) ?? undefined,
-    subject: params.get('genero') ?? undefined,
-    language: params.get('idioma') ?? undefined,
-    sort: (params.get('orden') as LibraryQuery['sort']) ?? 'title',
+    location: (params.get('location') as LibraryQuery['location']) ?? undefined,
+    subject: params.get('subject') ?? undefined,
+    language: params.get('lang') ?? undefined,
+    sort: (params.get('sort') as LibraryQuery['sort']) ?? 'title',
   };
-  const view = params.get('vista') === 'tabla' ? 'table' : 'grid';
+  const view = params.get('view') === 'table' ? 'table' : 'grid';
   const locs = useLocations();
   const facets = useFacets();
   const flat = flattenLocations(locs.data);
@@ -43,50 +38,63 @@ export function Library({ onAdd }: { onAdd: () => void }) {
   const total = lib.data?.pages[0]?.total ?? 0;
   const copies = items.reduce((n, i) => n + i.copies.length, 0);
   const filtered = !!(q.q || q.location || q.subject || q.language);
-  const where = (it: LibraryItem) => {
-    const c = it.copies[0];
-    if (!c) return '';
-    return c.locationId ? shortPath(c.locationPath, locs.data) : 'Sin ubicación';
-  };
+  const pathOf = (c: LibraryItem['copies'][number]) =>
+    c.locationId ? shortPath(c.locationPath, locs.data) : t('copy.noLocation');
+
+  const summary = [
+    t(
+      filtered
+        ? total === 1
+          ? 'library.editionsFound.one'
+          : 'library.editionsFound.other'
+        : total === 1
+          ? 'library.editions.one'
+          : 'library.editions.other',
+      { n: total },
+    ),
+    items.length
+      ? t(copies === 1 ? 'library.copies.one' : 'library.copies.other', {
+          n: `${copies}${total > items.length ? '+' : ''}`,
+        })
+      : null,
+    q.q ? t('library.searchFor', { q: q.q }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>
       <div className="vh">
         <div>
-          <h1>Biblioteca</h1>
-          <p className="sub">
-            {lib.isPending
-              ? 'Cargando…'
-              : `${total} ${total === 1 ? 'edición' : 'ediciones'}${filtered ? (total === 1 ? ' encontrada' : ' encontradas') : ''}${items.length ? ` · ${copies}${total > items.length ? '+' : ''} ${copies === 1 ? 'ejemplar' : 'ejemplares'}` : ''}`}
-            {q.q && <> · búsqueda «{q.q}»</>}
-          </p>
+          <h1>{t('nav.library')}</h1>
+          <p className="sub">{lib.isPending ? t('common.loading') : summary}</p>
         </div>
-        <div className="seg" role="group" aria-label="Vista">
+        <div className="seg" role="group" aria-label={t('library.view')}>
           <button
             className={view === 'grid' ? 'on' : ''}
-            onClick={() => setParams({ vista: undefined }, { replace: true })}
+            onClick={() => setParams({ view: undefined }, { replace: true })}
           >
             <Icon name="grid" size={16} />
-            Portadas
+            {t('library.viewCovers')}
           </button>
           <button
             className={view === 'table' ? 'on' : ''}
-            onClick={() => setParams({ vista: 'tabla' }, { replace: true })}
+            onClick={() => setParams({ view: 'table' }, { replace: true })}
           >
             <Icon name="list" size={16} />
-            Tabla
+            {t('library.viewTable')}
           </button>
         </div>
       </div>
 
       <div className="filters">
         <select
-          aria-label="Ubicación"
+          aria-label={t('copy.location')}
           value={q.location ?? ''}
-          onChange={(e) => setParams({ ubicacion: e.target.value }, { replace: true })}
+          onChange={(e) => setParams({ location: e.target.value }, { replace: true })}
         >
-          <option value="">Todas las ubicaciones</option>
-          <option value="none">— Sin ubicación —</option>
+          <option value="">{t('library.allLocations')}</option>
+          <option value="none">— {t('copy.noLocation')} —</option>
           {flat.map((l) => (
             <option key={l.id} value={l.id}>
               {'  '.repeat(l.depth)}
@@ -95,11 +103,11 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           ))}
         </select>
         <select
-          aria-label="Género"
+          aria-label={t('book.subjects')}
           value={q.subject ?? ''}
-          onChange={(e) => setParams({ genero: e.target.value }, { replace: true })}
+          onChange={(e) => setParams({ subject: e.target.value }, { replace: true })}
         >
-          <option value="">Todos los géneros</option>
+          <option value="">{t('library.allSubjects')}</option>
           {facets.data?.subjects.map((s) => (
             <option key={s.name} value={s.name}>
               {s.name} ({s.count})
@@ -107,11 +115,11 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           ))}
         </select>
         <select
-          aria-label="Idioma"
+          aria-label={t('book.language')}
           value={q.language ?? ''}
-          onChange={(e) => setParams({ idioma: e.target.value }, { replace: true })}
+          onChange={(e) => setParams({ lang: e.target.value }, { replace: true })}
         >
-          <option value="">Todos los idiomas</option>
+          <option value="">{t('library.allLanguages')}</option>
           {facets.data?.languages.map((l) => (
             <option key={l} value={l}>
               {langName(l)}
@@ -119,15 +127,15 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           ))}
         </select>
         <select
-          aria-label="Ordenar"
+          aria-label={t('library.sort')}
           value={q.sort}
           onChange={(e) =>
-            setParams({ orden: e.target.value === 'title' ? undefined : e.target.value }, { replace: true })
+            setParams({ sort: e.target.value === 'title' ? undefined : e.target.value }, { replace: true })
           }
         >
-          {SORTS.map(([k, l]) => (
+          {LIBRARY_SORTS.map((k) => (
             <option key={k} value={k}>
-              Ordenar: {l}
+              {t('library.sortBy', { field: t(`library.sort.${k}`) })}
             </option>
           ))}
         </select>
@@ -135,32 +143,30 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           <button
             className="btn ghost sm"
             onClick={() =>
-              setParams({ q: undefined, ubicacion: undefined, genero: undefined, idioma: undefined })
+              setParams({ q: undefined, location: undefined, subject: undefined, lang: undefined })
             }
           >
-            Limpiar filtros
+            {t('library.clearFilters')}
           </button>
         )}
       </div>
 
-      {lib.isError && <div className="empty">No se pudo cargar la biblioteca.</div>}
+      {lib.isError && <div className="empty">{t('library.loadError')}</div>}
       {lib.isSuccess && !items.length && (
         <div className="empty">
           {filtered ? (
             <>
-              <h3>Nada por aquí</h3>
-              <p>No hay libros que coincidan. Prueba con otra búsqueda o quita filtros.</p>
+              <h3>{t('library.noMatchesTitle')}</h3>
+              <p>{t('library.noMatchesText')}</p>
             </>
           ) : (
             <>
-              <h3>Tu biblioteca está vacía</h3>
-              <p>
-                Empieza creando tus ubicaciones (casa, habitaciones, estanterías) y añade tu primer libro.
-              </p>
+              <h3>{t('library.emptyTitle')}</h3>
+              <p>{t('library.emptyText')}</p>
             </>
           )}
           <button className="btn primary" onClick={onAdd}>
-            <Icon name="plus" size={16} /> Añadir libro
+            <Icon name="plus" size={16} /> {t('book.add')}
           </button>
         </div>
       )}
@@ -181,12 +187,16 @@ export function Library({ onAdd }: { onAdd: () => void }) {
                 <div className="a">{it.authors.join(', ') || ' '}</div>
                 <div className="x">
                   {it.copies.length > 1 && <span className="badge">×{it.copies.length}</span>}
-                  {it.editionCount > 1 && <span className="badge">{it.editionCount} ediciones</span>}
-                  {it.metadataStatus === 'provisional' && <span className="badge warn">Provisional</span>}
+                  {it.editionCount > 1 && (
+                    <span className="badge">{t('library.editions.other', { n: it.editionCount })}</span>
+                  )}
+                  {it.metadataStatus === 'provisional' && (
+                    <span className="badge warn">{t('book.provisional')}</span>
+                  )}
                 </div>
                 <div className="w">
                   <Icon name="pin" size={13} />
-                  <span>{where(it)}</span>
+                  <span>{it.copies[0] ? pathOf(it.copies[0]) : ''}</span>
                 </div>
               </div>
             </button>
@@ -198,12 +208,12 @@ export function Library({ onAdd }: { onAdd: () => void }) {
             <thead>
               <tr>
                 <th />
-                <th>Título</th>
-                <th>Editorial</th>
+                <th>{t('book.title')}</th>
+                <th>{t('book.publisher')}</th>
                 <th>ISBN</th>
-                <th>Ej.</th>
-                <th>Ubicación</th>
-                <th>Adquirido</th>
+                <th title={t('library.copiesColumnTitle')}>{t('library.copiesColumn')}</th>
+                <th>{t('copy.location')}</th>
+                <th>{t('copy.acquired')}</th>
               </tr>
             </thead>
             <tbody>
@@ -231,17 +241,11 @@ export function Library({ onAdd }: { onAdd: () => void }) {
                     {it.publishedYear ? ` · ${it.publishedYear}` : ''}
                   </td>
                   <td className="mono">
-                    {it.isbn13 ? formatIsbn(it.isbn13) : <span className="muted">sin ISBN</span>}
+                    {it.isbn13 ? formatIsbn(it.isbn13) : <span className="muted">{t('book.noIsbn')}</span>}
                   </td>
                   <td>{it.copies.length}</td>
                   <td>
-                    {[
-                      ...new Set(
-                        it.copies.map((c) =>
-                          c.locationId ? shortPath(c.locationPath, locs.data) : 'Sin ubicación',
-                        ),
-                      ),
-                    ].map((p) => (
+                    {[...new Set(it.copies.map(pathOf))].map((p) => (
                       <div key={p}>{p}</div>
                     ))}
                   </td>
@@ -256,7 +260,9 @@ export function Library({ onAdd }: { onAdd: () => void }) {
       {lib.hasNextPage && (
         <div className="more">
           <button className="btn" disabled={lib.isFetchingNextPage} onClick={() => void lib.fetchNextPage()}>
-            {lib.isFetchingNextPage ? 'Cargando…' : `Cargar más (${total - items.length} restantes)`}
+            {lib.isFetchingNextPage
+              ? t('common.loading')
+              : t('library.loadMore', { n: total - items.length })}
           </button>
         </div>
       )}

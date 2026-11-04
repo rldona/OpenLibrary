@@ -1,5 +1,5 @@
-# OpenLibrary en el PC Ubuntu.
-# La app solo escucha en 127.0.0.1: el acceso desde fuera lo da «tailscale serve» (HTTPS, solo tu tailnet).
+# OpenLibrary on the Ubuntu PC.
+# The app only listens on 127.0.0.1: outside access is provided by "tailscale serve" (HTTPS, your tailnet only).
 name: openlibrary
 services:
   app:

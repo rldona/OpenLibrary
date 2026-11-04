@@ -1,6 +1,6 @@
 /**
- * Criterio F1: búsqueda < 150 ms con 10 000 ejemplares sintéticos.
- * Se insertan directamente con el servicio (sin HTTP) para que la preparación sea rápida.
+ * F1 criterion: search < 150 ms with 10,000 synthetic copies.
+ * Data is inserted straight through the service (no HTTP) so the setup is fast.
  */
 import { describe, expect, it } from 'vitest';
 import { CatalogService } from '../src/catalog/service.js';
@@ -25,8 +25,8 @@ const NAMES = ['Ana', 'Luis', 'Marta', 'Jorge', 'Lucía', 'Pablo', 'Elena', 'And
 const SURNAMES = ['García', 'Martínez', 'López', 'Sánchez', 'Pérez', 'Gómez', 'Díaz', 'Álvarez'];
 const pick = <T>(a: T[], i: number) => a[i % a.length]!;
 
-describe('rendimiento', () => {
-  it('10 000 ejemplares: búsquedas y filtros por debajo de 150 ms', () => {
+describe('performance', () => {
+  it('10,000 copies: searches and filters under 150 ms', () => {
     const db = openDb(':memory:');
     const cat = new CatalogService(db);
     const tree = cat.createLocation({ parentId: null, name: 'Casa', kind: 'home', sortOrder: 0 });

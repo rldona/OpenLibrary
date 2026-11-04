@@ -9,7 +9,7 @@ const ISBN = withCheckDigit('978843222147');
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-/** Proveedores simulados: Open Library da título/autor/portada; Google Books añade sinopsis e idioma. */
+/** Fake providers: Open Library gives title/author/cover; Google Books adds synopsis and language. */
 function fakeProviders(calls: string[] = []): Fetch {
   return (async (input: string | URL | Request) => {
     const url = String(input);
@@ -44,8 +44,8 @@ function fakeProviders(calls: string[] = []): Fetch {
   }) as Fetch;
 }
 
-describe('búsqueda por ISBN en proveedores', () => {
-  it('combina Open Library y Google Books y cachea el resultado', async () => {
+describe('ISBN lookup in providers', () => {
+  it('merges Open Library and Google Books and caches the result', async () => {
     const calls: string[] = [];
     const { app } = await makeApp({ fetch: fakeProviders(calls) });
     const c = await webClient(app);
@@ -68,10 +68,10 @@ describe('búsqueda por ISBN en proveedores', () => {
     });
     const n = calls.length;
     await c.get(`/lookup/isbn/${ISBN}`);
-    expect(calls.length).toBe(n); // segunda vez: caché
+    expect(calls.length).toBe(n); // second time: cache
   });
 
-  it('sin Internet no falla: informa del error y permite el alta manual', async () => {
+  it('offline it does not fail: it reports the error and allows manual entry', async () => {
     const { app } = await makeApp();
     const c = await webClient(app);
     const r = await c.get(`/lookup/isbn/${ISBN}`);
@@ -80,7 +80,7 @@ describe('búsqueda por ISBN en proveedores', () => {
     expect(r.body.errors).toHaveLength(2);
   });
 
-  it('detecta que ya tienes la edición', async () => {
+  it('detects that you already own the edition', async () => {
     const { app } = await makeApp({ fetch: fakeProviders() });
     const c = await webClient(app);
     const b = await c.post('/books', { work: { title: 'Montero' }, edition: { isbn13: ISBN }, copy: {} });
@@ -93,20 +93,20 @@ describe('búsqueda por ISBN en proveedores', () => {
     });
   });
 
-  it('rechaza códigos que no son ISBN', async () => {
+  it('rejects codes that are not ISBNs', async () => {
     const { app } = await makeApp();
     const c = await webClient(app);
     expect((await c.get('/lookup/isbn/9770212345007')).status).toBe(400);
   });
 });
 
-describe('portadas', () => {
+describe('covers', () => {
   const png = () =>
     sharp({ create: { width: 300, height: 450, channels: 3, background: '#8a3b12' } })
       .png()
       .toBuffer();
 
-  it('subida idempotente, miniatura y descarga autenticada', async () => {
+  it('idempotent upload, thumbnail and authenticated download', async () => {
     const { app, dataDir } = await makeApp();
     const c = await webClient(app);
     const login = await app.inject({
@@ -145,7 +145,7 @@ describe('portadas', () => {
     expect((await app.inject(`/api/v1/assets/${asset.id}`)).statusCode).toBe(401);
   });
 
-  it('rechaza archivos que no son imágenes y portadas inexistentes', async () => {
+  it('rejects non-image files and missing covers', async () => {
     const { app } = await makeApp();
     const c = await webClient(app);
     const login = await app.inject({
@@ -171,7 +171,7 @@ describe('portadas', () => {
     expect(missing.status).toBe(400);
   });
 
-  it('descarga portadas solo de proveedores permitidos', async () => {
+  it('downloads covers only from allowed providers', async () => {
     const img = await png();
     const fetchImpl = (async (u: string | URL) => {
       const url = String(u);

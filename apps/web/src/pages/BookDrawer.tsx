@@ -1,17 +1,11 @@
 import { useEffect } from 'react';
-import {
-  CONDITION_LABELS,
-  RETIRE_LABELS,
-  formatIsbn,
-  type EditionDTO,
-  type WorkDTO,
-  type CopyDTO,
-} from '@openlibrary/contracts';
+import { formatIsbn, type EditionDTO, type WorkDTO, type CopyDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon, useToast } from '../components/ui';
 import { fmtDate, fmtPrice, langName } from '../lib/format';
 import { useInvalidate, useLocations, useWork, shortPath } from '../lib/queries';
 import { closeBook, openBook, useLocation } from '../lib/router';
+import { useI18n } from '../i18n';
 
 export type DrawerActions = {
   editBook: (work: WorkDTO, edition: EditionDTO) => void;
@@ -22,8 +16,9 @@ export type DrawerActions = {
 };
 
 export function BookDrawer(actions: DrawerActions) {
+  const { t } = useI18n();
   const { params } = useLocation();
-  const workId = params.get('libro');
+  const workId = params.get('book');
   const work = useWork(workId);
   const locs = useLocations();
   const toast = useToast();
@@ -50,38 +45,33 @@ export function BookDrawer(actions: DrawerActions) {
   async function reactivate(c: CopyDTO) {
     try {
       invalidate(await api.patchCopy(c.id, { baseVersion: c.version, fields: { status: 'active' } }));
-      toast(`${c.code} vuelve a tu colección`);
+      toast(t('drawer.restored', { code: c.code }));
     } catch (e) {
-      toast(errorText(e));
+      toast(errorText(e, t));
     }
   }
 
   async function removeEdition(e: EditionDTO) {
-    if (
-      !confirm(
-        '¿Borrar esta edición y todos sus ejemplares? Úsalo solo para corregir errores de alta; si te has deshecho del libro, mejor «Retirar».',
-      )
-    )
-      return;
+    if (!confirm(t('drawer.deleteEditionConfirm'))) return;
     try {
       const r = await api.deleteEdition(e.id);
       invalidate();
-      toast('Edición borrada');
+      toast(t('drawer.editionDeleted'));
       if (r.workDeleted) closeBook();
       else openBook(data!.work.id);
     } catch (err) {
-      toast(errorText(err));
+      toast(errorText(err, t));
     }
   }
 
   return (
     <>
       <div className={`scrim ${open ? 'on' : ''}`} onClick={closeBook} />
-      <aside className={`drawer ${open ? 'on' : ''}`} aria-label="Ficha del libro" aria-hidden={!open}>
-        {open && work.isPending && <p className="muted pad">Cargando…</p>}
+      <aside className={`drawer ${open ? 'on' : ''}`} aria-label={t('drawer.label')} aria-hidden={!open}>
+        {open && work.isPending && <p className="muted pad">{t('common.loading')}</p>}
         {open && work.isError && (
           <div className="pad">
-            <Banner kind="err">{errorText(work.error)}</Banner>
+            <Banner kind="err">{errorText(work.error, t)}</Banner>
           </div>
         )}
         {data && ed && (
@@ -96,33 +86,41 @@ export function BookDrawer(actions: DrawerActions) {
               />
               <div className="grow">
                 <div className="kicker">
-                  Obra · {eds.length} {eds.length === 1 ? 'edición' : 'ediciones'} · {totalCopies}{' '}
-                  {totalCopies === 1 ? 'ejemplar' : 'ejemplares'}
+                  {t('drawer.kicker', {
+                    editions: t(eds.length === 1 ? 'library.editions.one' : 'library.editions.other', {
+                      n: eds.length,
+                    }),
+                    copies: t(totalCopies === 1 ? 'library.copies.one' : 'library.copies.other', {
+                      n: totalCopies,
+                    }),
+                  })}
                 </div>
                 <h2>{data.work.title}</h2>
                 {data.work.subtitle && <div className="subt">{data.work.subtitle}</div>}
-                <div>{data.work.authors.join(', ') || 'Autor desconocido'}</div>
+                <div>{data.work.authors.join(', ') || t('book.unknownAuthor')}</div>
                 <div className="chips">
                   {data.work.subjects.map((s) => (
                     <span key={s} className="chip">
                       {s}
                     </span>
                   ))}
-                  {data.work.series && <span className="chip">Serie: {data.work.series}</span>}
+                  {data.work.series && (
+                    <span className="chip">{t('drawer.series', { series: data.work.series })}</span>
+                  )}
                 </div>
                 <div className="actions">
                   <button className="btn sm" onClick={() => actions.editBook(data.work, ed)}>
-                    Editar ficha
+                    {t('drawer.editBook')}
                   </button>
                   <button className="btn sm" onClick={() => actions.addCopy(ed.id, data.work.title)}>
-                    + Ejemplar
+                    {t('drawer.addCopy')}
                   </button>
                   <button className="btn sm" onClick={() => actions.newEdition(data.work)}>
-                    + Otra edición
+                    {t('drawer.addEdition')}
                   </button>
                 </div>
               </div>
-              <button className="icon-btn x" onClick={closeBook} aria-label="Cerrar">
+              <button className="icon-btn x" onClick={closeBook} aria-label={t('common.close')}>
                 <Icon name="x" />
               </button>
             </div>
@@ -130,16 +128,16 @@ export function BookDrawer(actions: DrawerActions) {
             {ed.metadataStatus === 'provisional' && (
               <div className="pad-x">
                 <Banner kind="warn">
-                  <b>Registro provisional:</b> se dio de alta sin datos completos.{' '}
+                  <b>{t('drawer.provisionalTitle')}</b> {t('drawer.provisionalText')}{' '}
                   <button className="btn sm" onClick={() => actions.editBook(data.work, ed)}>
-                    Completar
+                    {t('drawer.complete')}
                   </button>
                 </Banner>
               </div>
             )}
 
             <section className="sec">
-              <h3>Edición</h3>
+              <h3>{t('drawer.edition')}</h3>
               {eds.length > 1 && (
                 <div className="tabs">
                   {eds.map((x) => (
@@ -148,30 +146,30 @@ export function BookDrawer(actions: DrawerActions) {
                       className={`tab ${x.id === ed.id ? 'on' : ''}`}
                       onClick={() => openBook(data.work.id, x.id)}
                     >
-                      {x.publisher ?? 'Sin editorial'} {x.publishedYear ?? ''} · {langName(x.language)}
+                      {x.publisher ?? t('book.noPublisher')} {x.publishedYear ?? ''} · {langName(x.language)}
                     </button>
                   ))}
                 </div>
               )}
               <dl className="kv">
                 <div>
-                  <dt>Editorial</dt>
+                  <dt>{t('book.publisher')}</dt>
                   <dd>{ed.publisher ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt>Año</dt>
+                  <dt>{t('book.year')}</dt>
                   <dd>{ed.publishedYear ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt>Idioma</dt>
+                  <dt>{t('book.language')}</dt>
                   <dd>{langName(ed.language)}</dd>
                 </div>
                 <div>
-                  <dt>Páginas</dt>
+                  <dt>{t('book.pages')}</dt>
                   <dd>{ed.pages ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt>Formato</dt>
+                  <dt>{t('book.format')}</dt>
                   <dd>{ed.format ?? '—'}</dd>
                 </div>
                 <div>
@@ -183,8 +181,8 @@ export function BookDrawer(actions: DrawerActions) {
                   <dd className="mono">{ed.isbn10 ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt>Datos</dt>
-                  <dd>{ed.metadataSource ?? 'Manual'}</dd>
+                  <dt>{t('drawer.dataSource')}</dt>
+                  <dd>{ed.metadataSource ?? t('drawer.manual')}</dd>
                 </div>
               </dl>
               {data.work.description && <p className="desc">{data.work.description}</p>}
@@ -192,7 +190,7 @@ export function BookDrawer(actions: DrawerActions) {
 
             <section className="sec">
               <h3>
-                Ejemplares de esta edición <span className="badge">{active.length}</span>
+                {t('drawer.copiesOfEdition')} <span className="badge">{active.length}</span>
               </h3>
               {active.map((c) => (
                 <div key={c.id} className="copy">
@@ -200,46 +198,45 @@ export function BookDrawer(actions: DrawerActions) {
                     <b className="mono">{c.code}</b>
                     <div className="actions tight">
                       <button className="btn sm" onClick={() => actions.editCopy(c)}>
-                        Mover / editar
+                        {t('drawer.moveEdit')}
                       </button>
                       <button className="btn sm ghost danger" onClick={() => actions.retireCopy(c)}>
-                        Retirar
+                        {t('drawer.retire')}
                       </button>
                     </div>
                   </div>
                   <div className={`where ${c.locationId ? '' : 'none'}`}>
                     <Icon name="pin" size={20} />
                     <span>
-                      {c.locationId ? shortPath(c.locationPath, locs.data) : 'Sin ubicación asignada'}
+                      {c.locationId ? shortPath(c.locationPath, locs.data) : t('copy.noLocationAssigned')}
                     </span>
                   </div>
                   <div className="copy-meta">
                     <span>
-                      Conservación <b>{CONDITION_LABELS[c.condition]}</b>
+                      {t('copy.condition')} <b>{t(`condition.${c.condition}`)}</b>
                     </span>
                     <span>
-                      Adquirido <b>{fmtDate(c.acquiredOn)}</b>
+                      {t('copy.acquired')} <b>{fmtDate(c.acquiredOn)}</b>
                     </span>
                     <span>
-                      Precio <b>{fmtPrice(c.priceCents, c.priceCurrency)}</b>
+                      {t('copy.price')} <b>{fmtPrice(c.priceCents, c.priceCurrency)}</b>
                     </span>
                   </div>
                   {c.notes && <div className="note">{c.notes}</div>}
                 </div>
               ))}
-              {!active.length && <p className="muted">No quedan ejemplares activos de esta edición.</p>}
+              {!active.length && <p className="muted">{t('drawer.noActiveCopies')}</p>}
               {retired.length > 0 && (
                 <details className="retired">
-                  <summary>Retirados ({retired.length})</summary>
+                  <summary>{t('drawer.retiredCount', { n: retired.length })}</summary>
                   {retired.map((c) => (
                     <div key={c.id} className="row-sm">
                       <span className="mono">{c.code}</span>
                       <span className="muted">
-                        {RETIRE_LABELS[c.retiredReason as keyof typeof RETIRE_LABELS] ?? 'Retirado'} ·{' '}
-                        {fmtDate(c.retiredOn)}
+                        {t(`retire.${c.retiredReason ?? 'other'}`)} · {fmtDate(c.retiredOn)}
                       </span>
                       <button className="btn sm ghost" onClick={() => void reactivate(c)}>
-                        Recuperar
+                        {t('drawer.restore')}
                       </button>
                     </div>
                   ))}
@@ -249,7 +246,7 @@ export function BookDrawer(actions: DrawerActions) {
 
             <section className="sec muted small">
               <button className="btn sm ghost danger" onClick={() => void removeEdition(ed)}>
-                Borrar esta edición (corregir un alta errónea)
+                {t('drawer.deleteEdition')}
               </button>
             </section>
           </>

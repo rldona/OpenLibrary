@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { RETIRE_LABELS, RETIRE_REASONS, type CopyDTO } from '@openlibrary/contracts';
+import { RETIRE_REASONS, type CopyDTO, type RetireReason } from '@openlibrary/contracts';
 import { api, ApiError, errorText } from '../api';
 import { Banner, Modal, useToast } from '../components/ui';
 import { CopyFieldset, copyPayload, emptyCopy, type CopyDraft } from '../components/fields';
+import { priceInput } from '../lib/format';
 import { useInvalidate } from '../lib/queries';
+import { useI18n } from '../i18n';
 
 export type CopyMode =
-  | { kind: 'add'; editionId: string; title: string }
+  /** `title` is omitted when coming from the duplicate-ISBN warning (the title is not loaded yet). */
+  | { kind: 'add'; editionId: string; title?: string }
   | { kind: 'edit'; copy: CopyDTO }
   | { kind: 'retire'; copy: CopyDTO };
 
@@ -14,15 +17,16 @@ const fromCopy = (c: CopyDTO): CopyDraft => ({
   locationId: c.locationId ?? '',
   condition: c.condition,
   acquiredOn: c.acquiredOn ?? '',
-  price: c.priceCents == null ? '' : String(c.priceCents / 100).replace('.', ','),
+  price: priceInput(c.priceCents),
   notes: c.notes,
 });
 
 export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => void }) {
+  const { t } = useI18n();
   const toast = useToast();
   const invalidate = useInvalidate();
   const [draft, setDraft] = useState<CopyDraft>(mode.kind === 'add' ? emptyCopy() : fromCopy(mode.copy));
-  const [reason, setReason] = useState<(typeof RETIRE_REASONS)[number]>('gifted');
+  const [reason, setReason] = useState<RetireReason>('gifted');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,7 +39,7 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
         const res = await api.createCopy({ editionId: mode.editionId, ...copyPayload(draft) });
         invalidate(res);
         const c = res.editions.flatMap((x) => x.copies).find((x) => x.id === res.created.copyId);
-        toast(`Ejemplar ${c?.code} añadido a la misma edición`);
+        toast(t('copyForm.added', { code: c?.code ?? '' }));
       } else if (mode.kind === 'edit') {
         const before = copyPayload(fromCopy(mode.copy));
         const after = copyPayload(draft);
@@ -46,7 +50,7 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
         );
         if (Object.keys(fields).length) {
           invalidate(await api.patchCopy(mode.copy.id, { baseVersion: mode.copy.version, fields }));
-          toast(`${mode.copy.code} actualizado`);
+          toast(t('copyForm.updated', { code: mode.copy.code }));
         }
       } else {
         invalidate(
@@ -55,14 +59,14 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
             fields: { status: 'retired', retiredReason: reason },
           }),
         );
-        toast(`${mode.copy.code} retirado (${RETIRE_LABELS[reason].toLowerCase()})`);
+        toast(t('copyForm.retired', { code: mode.copy.code, reason: t(`retire.${reason}`).toLowerCase() }));
       }
       onClose();
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 409
-          ? `${err.message} Cierra y vuelve a abrir la ficha.`
-          : errorText(err),
+          ? `${err.message} ${t('form.reopenHint')}`
+          : errorText(err, t),
       );
     } finally {
       setBusy(false);
@@ -71,10 +75,10 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
 
   const title =
     mode.kind === 'add'
-      ? 'Nuevo ejemplar'
+      ? t('copyForm.newTitle')
       : mode.kind === 'edit'
-        ? `Ejemplar ${mode.copy.code}`
-        : `Retirar ${mode.copy.code}`;
+        ? t('copyForm.editTitle', { code: mode.copy.code })
+        : t('copyForm.retireTitle', { code: mode.copy.code });
   return (
     <Modal
       title={title}
@@ -82,10 +86,14 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
       footer={
         <>
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button className="btn primary" form="copy-form" disabled={busy}>
-            {mode.kind === 'add' ? 'Añadir ejemplar' : mode.kind === 'edit' ? 'Guardar' : 'Retirar ejemplar'}
+            {mode.kind === 'add'
+              ? t('copyForm.addButton')
+              : mode.kind === 'edit'
+                ? t('common.save')
+                : t('copyForm.retireButton')}
           </button>
         </>
       }
@@ -93,22 +101,18 @@ export function CopyForm({ mode, onClose }: { mode: CopyMode; onClose: () => voi
       <form id="copy-form" onSubmit={submit}>
         {mode.kind === 'add' && (
           <Banner kind="info">
-            Otro ejemplar de <b>{mode.title}</b>: comparte los datos bibliográficos de la edición, sin
-            duplicarlos.
+            {mode.title ? t('copyForm.addInfo', { title: mode.title }) : t('copyForm.addInfoGeneric')}
           </Banner>
         )}
         {mode.kind === 'retire' ? (
           <>
-            <p className="muted">
-              Deja de contar en tu colección, pero se conserva su historial. Útil si lo regalas, lo vendes o
-              lo pierdes.
-            </p>
+            <p className="muted">{t('copyForm.retireInfo')}</p>
             <label className="block">
-              Motivo
-              <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)}>
+              {t('copyForm.reason')}
+              <select value={reason} onChange={(e) => setReason(e.target.value as RetireReason)}>
                 {RETIRE_REASONS.map((r) => (
                   <option key={r} value={r}>
-                    {RETIRE_LABELS[r]}
+                    {t(`retire.${r}`)}
                   </option>
                 ))}
               </select>

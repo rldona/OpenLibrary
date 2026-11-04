@@ -1,30 +1,32 @@
-/** Datos de ejemplo para probar la aplicación (solo si la biblioteca está vacía). ISBN de ejemplo, no reales. */
-import { withCheckDigit } from '@openlibrary/contracts';
-import { BookCreate, LocationCreate } from '@openlibrary/contracts';
+/**
+ * Sample data to try the app (only on an empty library). The ISBNs are made up.
+ * Book data is real-world (titles, authors); location names follow the given language.
+ */
+import { BookCreate, LocationCreate, withCheckDigit, type Lang } from '@openlibrary/contracts';
 import type { CatalogService } from './catalog/service.js';
 
 type Loc = [
   key: string,
-  name: string,
+  name: { en: string; es: string },
   parent: string | null,
   kind: 'home' | 'room' | 'bookcase' | 'shelf' | 'box' | 'other',
 ];
 const LOCATIONS: Loc[] = [
-  ['casa', 'Casa', null, 'home'],
-  ['salon', 'Salón', 'casa', 'room'],
-  ['est', 'Estantería principal', 'salon', 'bookcase'],
-  ['b1', 'Balda 1', 'est', 'shelf'],
-  ['b2', 'Balda 2', 'est', 'shelf'],
-  ['b3', 'Balda 3', 'est', 'shelf'],
-  ['tv', 'Mueble TV', 'salon', 'bookcase'],
-  ['despacho', 'Despacho', 'casa', 'room'],
-  ['ikea', 'Estantería IKEA', 'despacho', 'bookcase'],
-  ['sup', 'Balda superior', 'ikea', 'shelf'],
-  ['inf', 'Balda inferior', 'ikea', 'shelf'],
-  ['dormitorio', 'Dormitorio', 'casa', 'room'],
-  ['mesilla', 'Mesilla', 'dormitorio', 'other'],
-  ['trastero', 'Trastero', 'casa', 'room'],
-  ['caja', 'Caja «Clásicos»', 'trastero', 'box'],
+  ['casa', { en: 'Home', es: 'Casa' }, null, 'home'],
+  ['salon', { en: 'Living room', es: 'Salón' }, 'casa', 'room'],
+  ['est', { en: 'Main bookcase', es: 'Estantería principal' }, 'salon', 'bookcase'],
+  ['b1', { en: 'Shelf 1', es: 'Balda 1' }, 'est', 'shelf'],
+  ['b2', { en: 'Shelf 2', es: 'Balda 2' }, 'est', 'shelf'],
+  ['b3', { en: 'Shelf 3', es: 'Balda 3' }, 'est', 'shelf'],
+  ['tv', { en: 'TV unit', es: 'Mueble TV' }, 'salon', 'bookcase'],
+  ['despacho', { en: 'Study', es: 'Despacho' }, 'casa', 'room'],
+  ['ikea', { en: 'IKEA bookcase', es: 'Estantería IKEA' }, 'despacho', 'bookcase'],
+  ['sup', { en: 'Top shelf', es: 'Balda superior' }, 'ikea', 'shelf'],
+  ['inf', { en: 'Bottom shelf', es: 'Balda inferior' }, 'ikea', 'shelf'],
+  ['dormitorio', { en: 'Bedroom', es: 'Dormitorio' }, 'casa', 'room'],
+  ['mesilla', { en: 'Bedside table', es: 'Mesilla' }, 'dormitorio', 'other'],
+  ['trastero', { en: 'Storage room', es: 'Trastero' }, 'casa', 'room'],
+  ['caja', { en: 'Box "Classics"', es: 'Caja «Clásicos»' }, 'trastero', 'box'],
 ];
 
 type Demo = {
@@ -39,7 +41,7 @@ type Demo = {
   loc: string | null;
   cond?: string;
   acq?: string;
-  notes?: string;
+  notes?: { en: string; es: string };
   extra?: string[];
 };
 const BOOKS: Demo[] = [
@@ -154,7 +156,7 @@ const BOOKS: Demo[] = [
     loc: 'inf',
     cond: 'used',
     acq: '2025-10-30',
-    notes: 'Comprado en la Cuesta de Moyano.',
+    notes: { en: 'Bought at the Cuesta de Moyano book stalls.', es: 'Comprado en la Cuesta de Moyano.' },
   },
   {
     t: 'Clean Code',
@@ -180,7 +182,10 @@ const BOOKS: Demo[] = [
     loc: 'caja',
     cond: 'poor',
     acq: '2010-06-01',
-    notes: 'Heredado del abuelo. Lomo despegado en el tomo II.',
+    notes: {
+      en: 'Inherited from grandpa. Loose spine on volume II.',
+      es: 'Heredado del abuelo. Lomo despegado en el tomo II.',
+    },
   },
   {
     t: 'Kafka en la orilla',
@@ -194,24 +199,22 @@ const BOOKS: Demo[] = [
     loc: null,
     cond: 'new',
     acq: '2026-10-25',
-    notes: 'Aún en la mochila, sin colocar.',
+    notes: { en: 'Still in the backpack, not shelved yet.', es: 'Aún en la mochila, sin colocar.' },
   },
 ];
 
-export function loadDemo(catalog: CatalogService): { locations: number; books: number } {
+export function loadDemo(catalog: CatalogService, lang: Lang = 'en'): { locations: number; books: number } {
   if (
     catalog.library({ sort: 'title', limit: 1, offset: 0 }).total > 0 ||
     catalog.locationTree().items.length > 0
   ) {
-    throw new Error(
-      'La biblioteca no está vacía: los datos de ejemplo solo se cargan en una biblioteca nueva.',
-    );
+    throw new Error('The library is not empty: sample data can only be loaded into a new library.');
   }
   const ids = new Map<string, string>();
   for (const [key, name, parent, kind] of LOCATIONS) {
     const before = new Set(catalog.locationTree().items.map((l) => l.id));
     const tree = catalog.createLocation(
-      LocationCreate.parse({ name, kind, parentId: parent ? ids.get(parent)! : null }),
+      LocationCreate.parse({ name: name[lang], kind, parentId: parent ? ids.get(parent)! : null }),
     );
     ids.set(key, tree.items.find((l) => !before.has(l.id))!.id);
   }
@@ -225,13 +228,13 @@ export function loadDemo(catalog: CatalogService): { locations: number; books: n
           language: b.l,
           pages: b.p,
           isbn13: b.isbn ? withCheckDigit(b.isbn) : null,
-          metadataSource: 'Datos de ejemplo',
+          metadataSource: lang === 'es' ? 'Datos de ejemplo' : 'Sample data',
         },
         copy: {
           locationId: b.loc ? ids.get(b.loc) : null,
           condition: b.cond ?? 'good',
           acquiredOn: b.acq,
-          notes: b.notes ?? '',
+          notes: b.notes?.[lang] ?? '',
         },
       }),
     );
@@ -243,7 +246,7 @@ export function loadDemo(catalog: CatalogService): { locations: number; books: n
         acquiredOn: '2026-01-06',
         priceCents: null,
         priceCurrency: 'EUR',
-        notes: 'Regalo de Reyes (repetido).',
+        notes: lang === 'es' ? 'Regalo de Reyes (repetido).' : 'Christmas present (a duplicate).',
       });
     }
   }

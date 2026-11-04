@@ -1,25 +1,28 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { PASSWORD_MIN_LENGTH, type Device } from '@openlibrary/contracts';
+import { LANGS, PASSWORD_MIN_LENGTH, type Device } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { useToast } from '../components/ui';
 import { fmtDateTime } from '../lib/format';
+import { LANG_NAMES, useI18n } from '../i18n';
 
 export function Settings({ onLogout }: { onLogout: () => void }) {
+  const { t, lang, setLang } = useI18n();
   const qc = useQueryClient();
   const toast = useToast();
   const health = useQuery({ queryKey: ['health'], queryFn: api.health });
   const devices = useQuery({ queryKey: ['devices'], queryFn: api.devices });
 
   async function revoke(d: Device) {
-    if (!confirm(`¿Revocar el acceso de «${d.name}»? Tendrá que volver a iniciar sesión.`)) return;
+    const name = d.kind === 'web' ? t('settings.browser') : d.name;
+    if (!confirm(t('settings.revokeConfirm', { name }))) return;
     try {
       await api.revoke(d.id);
       if (d.current) return onLogout();
       void qc.invalidateQueries({ queryKey: ['devices'] });
-      toast(`Acceso de «${d.name}» revocado`);
+      toast(t('settings.revoked', { name }));
     } catch (e) {
-      toast(errorText(e));
+      toast(errorText(e, t));
     }
   }
 
@@ -27,31 +30,49 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
     <>
       <div className="vh">
         <div>
-          <h1>Ajustes</h1>
-          <p className="sub">Servidor, sesiones y seguridad.</p>
+          <h1>{t('nav.settings')}</h1>
+          <p className="sub">{t('settings.subtitle')}</p>
         </div>
       </div>
       <div className="stack">
         <section className="panel">
-          <h3>Servidor</h3>
+          <h3>{t('settings.language')}</h3>
+          <p className="muted">{t('settings.languageHint')}</p>
+          <div className="seg" role="radiogroup" aria-label={t('settings.language')}>
+            {LANGS.map((l) => (
+              <button
+                key={l}
+                role="radio"
+                aria-checked={l === lang}
+                className={l === lang ? 'on' : ''}
+                onClick={() => setLang(l)}
+              >
+                {LANG_NAMES[l]}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <h3>{t('settings.server')}</h3>
           {health.data && (
             <dl className="kv">
               <div>
-                <dt>Estado</dt>
+                <dt>{t('settings.status')}</dt>
                 <dd>
-                  <span className="dot" /> En línea
+                  <span className="dot" /> {t('settings.online')}
                 </dd>
               </div>
               <div>
-                <dt>Versión</dt>
+                <dt>{t('settings.version')}</dt>
                 <dd>{health.data.version}</dd>
               </div>
               <div>
-                <dt>Hora del servidor</dt>
+                <dt>{t('settings.serverTime')}</dt>
                 <dd>{fmtDateTime(health.data.time)}</dd>
               </div>
               <div>
-                <dt>Epoch de datos</dt>
+                <dt>{t('settings.epoch')}</dt>
                 <dd className="mono">{health.data.epoch.slice(0, 8)}</dd>
               </div>
             </dl>
@@ -59,22 +80,24 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
         </section>
 
         <section className="panel">
-          <h3>Sesiones y dispositivos</h3>
-          <p className="muted">
-            Cada navegador y cada móvil tienen su propio acceso. Si pierdes el teléfono, revócalo aquí.
-          </p>
+          <h3>{t('settings.sessions')}</h3>
+          <p className="muted">{t('settings.sessionsHint')}</p>
           <ul className="list">
             {devices.data?.items.map((d) => (
               <li key={d.id}>
                 <div>
-                  <b>{d.name}</b> {d.current && <span className="badge accent">esta sesión</span>}
+                  <b>{d.kind === 'web' ? t('settings.browser') : d.name}</b>{' '}
+                  {d.current && <span className="badge accent">{t('settings.thisSession')}</span>}
                   <div className="muted small">
-                    {d.kind === 'device' ? `Dispositivo ${d.platform}` : 'Navegador'} · creado{' '}
-                    {fmtDateTime(d.createdAt)} · último uso {fmtDateTime(d.lastSeenAt)}
+                    {d.kind === 'device'
+                      ? t('settings.device', { platform: d.platform })
+                      : t('settings.browser')}{' '}
+                    · {t('settings.created', { date: fmtDateTime(d.createdAt) })} ·{' '}
+                    {t('settings.lastUsed', { date: fmtDateTime(d.lastSeenAt) })}
                   </div>
                 </div>
                 <button className="btn sm ghost danger" onClick={() => void revoke(d)}>
-                  Revocar
+                  {t('settings.revoke')}
                 </button>
               </li>
             ))}
@@ -88,6 +111,7 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
 }
 
 function ChangePassword() {
+  const { t } = useI18n();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [repeat, setRepeat] = useState('');
@@ -95,24 +119,24 @@ function ChangePassword() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (next !== repeat) return setMsg({ ok: false, text: 'Las contraseñas nuevas no coinciden.' });
+    if (next !== repeat) return setMsg({ ok: false, text: t('settings.passwordsDiffer') });
     try {
       await api.changePassword({ current, next });
-      setMsg({ ok: true, text: 'Contraseña cambiada. Se han cerrado las demás sesiones y dispositivos.' });
+      setMsg({ ok: true, text: t('settings.passwordChanged') });
       setCurrent('');
       setNext('');
       setRepeat('');
     } catch (err) {
-      setMsg({ ok: false, text: errorText(err) });
+      setMsg({ ok: false, text: errorText(err, t) });
     }
   }
 
   return (
     <form className="panel" onSubmit={submit}>
-      <h3>Cambiar contraseña</h3>
+      <h3>{t('settings.changePassword')}</h3>
       <div className="fgrid three">
         <label>
-          Actual
+          {t('settings.currentPassword')}
           <input
             type="password"
             autoComplete="current-password"
@@ -122,7 +146,7 @@ function ChangePassword() {
           />
         </label>
         <label>
-          Nueva (mín. {PASSWORD_MIN_LENGTH})
+          {t('settings.newPassword', { min: PASSWORD_MIN_LENGTH })}
           <input
             type="password"
             autoComplete="new-password"
@@ -133,7 +157,7 @@ function ChangePassword() {
           />
         </label>
         <label>
-          Repítela
+          {t('settings.repeatPassword')}
           <input
             type="password"
             autoComplete="new-password"
@@ -144,7 +168,7 @@ function ChangePassword() {
         </label>
       </div>
       {msg && <p className={msg.ok ? 'ok' : 'err'}>{msg.text}</p>}
-      <button className="btn">Cambiar contraseña</button>
+      <button className="btn">{t('settings.changePassword')}</button>
     </form>
   );
 }

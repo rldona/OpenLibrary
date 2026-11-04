@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Atajo para la CLI de administración dentro del contenedor:
-#   ol set-password | ol status | ol check | ol backup /data/backups/x.db
+# Shortcut for the admin CLI inside the container:
+#   ol set-password | ol status | ol check | ol demo-data es | ol backup /data/backups/x.db
 source "$(dirname "$(readlink -f "$0")")/common.sh"
 TTY=(-T); [ -t 0 ] && TTY=()
 exec "${COMPOSE[@]}" exec "${TTY[@]}" app node dist/cli.js "$@"

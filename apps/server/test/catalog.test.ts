@@ -7,7 +7,7 @@ const ISBN_1984 = withCheckDigit('978849989103');
 async function setup() {
   const ctx = await makeApp();
   const c = await webClient(ctx.app);
-  // Casa › Salón › Estantería › Balda 3 ; Casa › Despacho
+  // Casa › Salón › Estantería principal › Balda 3 ; Casa › Despacho (sample data in Spanish)
   const mk = async (name: string, parentId: string | null, kind = 'other') => {
     const id = uuidv7();
     const r = await c.post('/locations', { id, parentId, name, kind });
@@ -28,8 +28,8 @@ const book1984 = (locationId: string | null) => ({
   copy: { locationId, condition: 'used', acquiredOn: '2024-12-01', priceCents: 945 },
 });
 
-describe('criterios de aceptación F1', () => {
-  it('alta manual SIN ISBN (libro antiguo)', async () => {
+describe('F1 acceptance criteria', () => {
+  it('manual creation WITHOUT ISBN (old book)', async () => {
     const { c, loc } = await setup();
     const r = await c.post('/books', {
       work: { title: 'La Regenta', authors: ['Leopoldo Alas «Clarín»'] },
@@ -44,20 +44,20 @@ describe('criterios de aceptación F1', () => {
     });
   });
 
-  it('solo el título es obligatorio', async () => {
+  it('only the title is required', async () => {
     const { c } = await setup();
     expect((await c.post('/books', { work: { title: '' }, edition: {}, copy: {} })).status).toBe(400);
     expect((await c.post('/books', { work: { title: 'Mínimo' }, edition: {}, copy: {} })).status).toBe(201);
   });
 
-  it('ISBN: se normaliza (ISBN-10 o con guiones) y se rechaza si no es válido', async () => {
+  it('ISBN: normalised (ISBN-10 or hyphenated) and rejected when invalid', async () => {
     const { c } = await setup();
     const ok = await c.post('/books', {
       work: { title: 'X' },
       edition: { isbn13: '84-9989-103-?'.replace('?', '') },
       copy: {},
     });
-    expect(ok.status).toBe(400); // 9 dígitos: inválido
+    expect(ok.status).toBe(400); // 9 digits: invalid
     const issn = await c.post('/books', {
       work: { title: 'Revista' },
       edition: { isbn13: '9770212345007' },
@@ -73,12 +73,12 @@ describe('criterios de aceptación F1', () => {
     });
   });
 
-  it('varios ejemplares de una misma edición sin duplicar la edición', async () => {
+  it('several copies of one edition without duplicating the edition', async () => {
     const { c, loc } = await setup();
     const first = await c.post('/books', book1984(loc.balda3));
     const editionId = first.body.created.editionId;
 
-    // Volver a dar de alta el mismo ISBN se bloquea y se ofrece la edición existente.
+    // Creating the same ISBN again is blocked and the existing edition is offered.
     const dup = await c.post('/books', book1984(loc.despacho));
     expect(dup.status).toBe(409);
     expect(dup.body.existing).toMatchObject({ editionId, copies: 1 });
@@ -96,7 +96,7 @@ describe('criterios de aceptación F1', () => {
     expect(lib.body.items[0].copies).toHaveLength(2);
   });
 
-  it('localizar ejemplares por ubicación (incluye subdivisiones) y por texto de la ubicación', async () => {
+  it('finds copies by location (sub-locations included) and by location text', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     await c.post('/books', {
@@ -119,8 +119,8 @@ describe('criterios de aceptación F1', () => {
   });
 });
 
-describe('búsqueda, filtros y orden', () => {
-  it('busca por título, autor sin tildes, ISBN, editorial y género', async () => {
+describe('search, filters and sorting', () => {
+  it('searches by title, author without accents, ISBN, publisher and subject', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     await c.post('/books', {
@@ -144,7 +144,7 @@ describe('búsqueda, filtros y orden', () => {
     expect(await q('"; DROP TABLE works; --')).toEqual([]);
   });
 
-  it('filtra por género e idioma, y ordena por autor y por fecha de adquisición', async () => {
+  it('filters by subject and language, sorts by author and acquisition date', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     await c.post('/books', {
@@ -168,7 +168,7 @@ describe('búsqueda, filtros y orden', () => {
     expect(facets.languages).toEqual(['en', 'es']);
   });
 
-  it('pagina con limit/offset y devuelve el total', async () => {
+  it('paginates with limit/offset and returns the total', async () => {
     const { c } = await setup();
     for (let i = 0; i < 5; i++)
       await c.post('/books', { work: { title: `Libro ${i}` }, edition: {}, copy: {} });
@@ -178,17 +178,17 @@ describe('búsqueda, filtros y orden', () => {
   });
 });
 
-describe('modificaciones con versión y fusión por campo', () => {
-  it('cambios en campos distintos se fusionan; en el mismo campo, conflicto sin sobrescribir', async () => {
+describe('versioned updates and field-level merge', () => {
+  it('changes to different fields merge; same field conflicts without overwriting', async () => {
     const { c, loc } = await setup();
     const r = await c.post('/books', book1984(loc.balda3));
     const copy = r.body.editions[0].copies[0];
     const v1 = copy.version;
 
-    // «Web» mueve el ejemplar con la versión 1.
+    // "Web" moves the copy using version 1.
     const a = await c.patch(`/copies/${copy.id}`, { baseVersion: v1, fields: { locationId: loc.despacho } });
     expect(a.status).toBe(200);
-    // «Móvil» (que aún tenía la versión 1) cambia las notas → se fusiona.
+    // "Phone" (still on version 1) changes the notes → merged.
     const b = await c.patch(`/copies/${copy.id}`, { baseVersion: v1, fields: { notes: 'Subrayado' } });
     expect(b.status).toBe(200);
     expect(b.body.editions[0].copies[0]).toMatchObject({
@@ -196,7 +196,7 @@ describe('modificaciones con versión y fusión por campo', () => {
       notes: 'Subrayado',
       version: 3,
     });
-    // «Móvil» con versión 1 intenta cambiar la ubicación a otro sitio → conflicto.
+    // "Phone" on version 1 tries to change the location elsewhere → conflict.
     const conflict = await c.patch(`/copies/${copy.id}`, {
       baseVersion: v1,
       fields: { locationId: loc.salon },
@@ -207,7 +207,7 @@ describe('modificaciones con versión y fusión por campo', () => {
       current: loc.despacho,
       yours: loc.salon,
     });
-    // Mismo valor que el actual: convergente, sin conflicto.
+    // Same value as the current one: convergent, no conflict.
     const same = await c.patch(`/copies/${copy.id}`, {
       baseVersion: v1,
       fields: { locationId: loc.despacho },
@@ -215,7 +215,7 @@ describe('modificaciones con versión y fusión por campo', () => {
     expect(same.status).toBe(200);
   });
 
-  it('editar la obra reindexa la búsqueda y el orden', async () => {
+  it('editing the work reindexes search and sort keys', async () => {
     const { c } = await setup();
     const r = await c.post('/books', { work: { title: 'Titulo provisional' }, edition: {}, copy: {} });
     const w = r.body.work;
@@ -227,7 +227,7 @@ describe('modificaciones con versión y fusión por campo', () => {
     expect((await c.get('/library?q=provisional')).body.total).toBe(0);
   });
 
-  it('retirar un ejemplar lo saca de la colección pero conserva el registro', async () => {
+  it('retiring a copy removes it from the collection but keeps the record', async () => {
     const { c, loc } = await setup();
     const r = await c.post('/books', book1984(loc.balda3));
     const copy = r.body.editions[0].copies[0];
@@ -246,7 +246,7 @@ describe('modificaciones con versión y fusión por campo', () => {
     ).toBe(0);
   });
 
-  it('nueva edición de una obra existente', async () => {
+  it('new edition of an existing work', async () => {
     const { c, loc } = await setup();
     const r = await c.post('/books', book1984(loc.balda3));
     const en = await c.post('/books', {
@@ -259,7 +259,7 @@ describe('modificaciones con versión y fusión por campo', () => {
     expect(lib.body.items.every((i: { editionCount: number }) => i.editionCount === 2)).toBe(true);
   });
 
-  it('borrar la única edición borra también la obra (lápida)', async () => {
+  it('deleting the only edition deletes the work too (tombstone)', async () => {
     const { c } = await setup();
     const r = await c.post('/books', { work: { title: 'Error' }, edition: {}, copy: {} });
     const d = await c.del(`/editions/${r.body.created.editionId}`);
@@ -268,8 +268,8 @@ describe('modificaciones con versión y fusión por campo', () => {
   });
 });
 
-describe('ubicaciones', () => {
-  it('árbol con conteos acumulados y ejemplares sin ubicación', async () => {
+describe('locations', () => {
+  it('tree with cumulative counts and unassigned copies', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     await c.post('/books', { work: { title: 'Suelto' }, edition: {}, copy: {} });
@@ -280,7 +280,7 @@ describe('ubicaciones', () => {
     expect(t.unassigned).toBe(1);
   });
 
-  it('renombrar reindexa la búsqueda; mover dentro de sí misma se rechaza', async () => {
+  it('renaming reindexes search; moving inside itself is rejected', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     const t = (await c.get('/locations')).body;
@@ -298,7 +298,7 @@ describe('ubicaciones', () => {
     expect(cyc.status).toBe(400);
   });
 
-  it('no se borra una ubicación con ejemplares o subdivisiones', async () => {
+  it('a location with copies or sub-locations cannot be deleted', async () => {
     const { c, loc } = await setup();
     await c.post('/books', book1984(loc.balda3));
     expect((await c.del(`/locations/${loc.balda3}`)).status).toBe(409);
@@ -307,8 +307,8 @@ describe('ubicaciones', () => {
   });
 });
 
-describe('seguridad del catálogo', () => {
-  it('todo requiere sesión', async () => {
+describe('catalog security', () => {
+  it('everything requires a session', async () => {
     const { app } = await setup();
     for (const url of ['/api/v1/library', '/api/v1/locations', `/api/v1/lookup/isbn/${ISBN_1984}`]) {
       expect((await app.inject(url)).statusCode).toBe(401);

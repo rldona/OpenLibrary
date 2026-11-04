@@ -19,7 +19,7 @@ declare module 'fastify' {
   }
 }
 
-/** Extrae el token: Authorization: Bearer (dispositivos) o cookie (web). */
+/** Extracts the token: Authorization: Bearer (devices) or cookie (web). */
 function tokenOf(req: FastifyRequest): string | undefined {
   const h = req.headers.authorization;
   if (h?.startsWith('Bearer ')) return h.slice(7).trim();
@@ -31,7 +31,7 @@ export function requireAuth(req: FastifyRequest): SessionRow {
   return req.session;
 }
 
-/** Resuelve la sesión de cada petición. Se instala en la raíz para que la vean todos los módulos. */
+/** Resolves the session of every request. Installed at the root so every module sees it. */
 export function installSessionHook(app: FastifyInstance, auth: AuthService): void {
   app.decorateRequest('session', null);
   app.addHook('onRequest', async (req) => {
@@ -49,23 +49,17 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
     sameSite: 'strict' as const,
   };
 
-  /** Comprueba contraseña aplicando el bloqueo progresivo por IP. */
+  /** Checks the password, applying the progressive per-IP lockout. */
   async function verifyWithThrottle(req: FastifyRequest, password: string) {
-    if (!auth.isConfigured()) {
-      throw new HttpError(
-        503,
-        'not-configured',
-        'La biblioteca aún no tiene contraseña. Ejecuta «ol set-password» en el servidor.',
-      );
-    }
+    if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
     const wait = auth.retryAfter(req.ip);
     if (wait > 0) throw tooMany(wait);
     if (!(await auth.checkPassword(password))) {
       auth.recordFailure(req.ip);
-      req.log.warn({ ip: req.ip }, 'login fallido');
+      req.log.warn({ ip: req.ip }, 'failed login');
       const after = auth.retryAfter(req.ip);
       if (after > 0) throw tooMany(after);
-      throw unauthorized('Contraseña incorrecta.');
+      throw unauthorized('errors.wrongPassword');
     }
     auth.recordSuccess(req.ip);
   }
@@ -73,16 +67,17 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
   const strict = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
   app.post('/auth/login', strict, async (req, reply: FastifyReply) => {
-    const body = parse(LoginRequest, req.body);
+    const body = parse(LoginRequest, req.body, req.lang);
     await verifyWithThrottle(req, body.password);
+    // The name is a neutral identifier: clients render "Browser"/"Navegador" for web sessions.
     const s = auth.createSession({
       kind: 'web',
-      name: 'Navegador',
+      name: 'Browser',
       platform: 'web',
       userAgent: req.headers['user-agent'],
     });
     reply.setCookie(SESSION_COOKIE, s.token, { ...cookieOpts, expires: new Date(s.expiresAt!) });
-    req.log.info({ session: s.id }, 'login correcto');
+    req.log.info({ session: s.id }, 'login ok');
     return {
       authenticated: true,
       kind: 'web',
@@ -107,9 +102,9 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
     } satisfies SessionInfo;
   });
 
-  /** Alta de un dispositivo (Android): contraseña → token de larga duración que se muestra una vez. */
+  /** Device registration (Android): password → long-lived token shown only once. */
   app.post('/auth/devices', strict, async (req, reply) => {
-    const body = parse(DeviceRegisterRequest, req.body);
+    const body = parse(DeviceRegisterRequest, req.body, req.lang);
     await verifyWithThrottle(req, body.password);
     const s = auth.createSession({
       kind: 'device',
@@ -117,7 +112,7 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
       platform: body.platform,
       userAgent: req.headers['user-agent'],
     });
-    req.log.info({ session: s.id, name: body.name }, 'dispositivo registrado');
+    req.log.info({ session: s.id, name: body.name }, 'device registered');
     reply.code(201);
     return { deviceId: s.id, token: s.token } satisfies DeviceRegisterResponse;
   });
@@ -138,19 +133,18 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
 
   app.delete<{ Params: { id: string } }>('/auth/devices/:id', async (req, reply) => {
     requireAuth(req);
-    if (!auth.revoke(req.params.id))
-      throw notFound('Esa sesión o dispositivo no existe o ya estaba revocado.');
-    req.log.info({ session: req.params.id }, 'sesión revocada');
+    if (!auth.revoke(req.params.id)) throw notFound('errors.sessionNotFound');
+    req.log.info({ session: req.params.id }, 'session revoked');
     return reply.code(204).send();
   });
 
-  /** Cambiar contraseña: exige la actual y cierra el resto de sesiones y dispositivos. */
+  /** Change password: requires the current one and signs out every other session and device. */
   app.post('/auth/password', strict, async (req, reply) => {
     const me = requireAuth(req);
-    const body = parse(ChangePasswordRequest, req.body);
+    const body = parse(ChangePasswordRequest, req.body, req.lang);
     await verifyWithThrottle(req, body.current);
     await auth.setPassword(body.next, me.id);
-    req.log.info('contraseña cambiada; resto de sesiones revocadas');
+    req.log.info('password changed; other sessions revoked');
     return reply.code(204).send();
   });
 }

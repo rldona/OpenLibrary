@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { coverUrl } from '../api';
+import { useI18n } from '../i18n';
 
-// ---------- Iconos (trazos 24×24) ----------
+// ---------- Icons (24×24 strokes) ----------
 const PATHS: Record<string, string> = {
   book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
   tree: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h6',
@@ -41,7 +42,7 @@ export function Icon({ name, size = 18 }: { name: keyof typeof PATHS | string; s
   );
 }
 
-// ---------- Portada ----------
+// ---------- Cover ----------
 const PALETTES = [
   ['#7a2e2e', '#e8c07d', '#fdf6e9'],
   ['#1f3a5f', '#e9b44c', '#f4efe6'],
@@ -62,8 +63,8 @@ const hash = (s: string) => {
 };
 
 /**
- * Portada real si existe; si no, una portada generada a partir del título (sin imagen no se rompe nada).
- * Los libros provisionales llevan un borde discontinuo.
+ * The real cover if there is one; otherwise a cover generated from the title (no image never breaks the UI).
+ * Provisional books get a dashed outline.
  */
 export function Cover(props: {
   assetId?: string | null;
@@ -74,13 +75,19 @@ export function Cover(props: {
   seed?: string;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [broken, setBroken] = useState(false);
   const src = props.src ?? (props.assetId ? coverUrl(props.assetId) : null);
   const author = props.authors.join(', ');
   if (src && !broken) {
     return (
       <div className={`cover img ${props.provisional ? 'prov' : ''} ${props.className ?? ''}`}>
-        <img src={src} alt={`Portada de ${props.title}`} loading="lazy" onError={() => setBroken(true)} />
+        <img
+          src={src}
+          alt={t('cover.alt', { title: props.title })}
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
       </div>
     );
   }
@@ -92,12 +99,12 @@ export function Cover(props: {
       className={`cover gen s${style} ${props.provisional ? 'prov' : ''} ${props.className ?? ''}`}
       style={{ '--bg': bg, '--ac': ac, '--ink': ink } as React.CSSProperties}
       role="img"
-      aria-label={`Portada generada: ${props.title}`}
+      aria-label={t('cover.generated', { title: props.title })}
     >
       <i className="deco" />
       <span className="ct">{props.title}</span>
       <span className="ca">{author}</span>
-      {props.provisional && <span className="tag">Provisional</span>}
+      {props.provisional && <span className="tag">{t('book.provisional')}</span>}
     </div>
   );
 }
@@ -116,6 +123,7 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -136,7 +144,7 @@ export function Modal({
       >
         <header>
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Cerrar">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="x" />
           </button>
         </header>
@@ -157,7 +165,7 @@ export function Banner({ kind, children }: { kind: 'info' | 'warn' | 'ok' | 'err
   );
 }
 
-// ---------- Avisos ----------
+// ---------- Toasts ----------
 const ToastCtx = createContext<(msg: string) => void>(() => undefined);
 export const useToast = () => useContext(ToastCtx);
 export function ToastProvider({ children }: { children: ReactNode }) {

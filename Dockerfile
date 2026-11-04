@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-# Imagen única: API + web compilada. El estado vive en el volumen /data.
+# Single image: API + built web app. State lives in the /data volume.
 
 ARG NODE_IMAGE=node:24-bookworm-slim
 
-# ---------- Compilación ----------
+# ---------- Build ----------
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
-# Herramientas por si better-sqlite3 no tiene binario precompilado para la arquitectura.
+# Build tools in case better-sqlite3 has no prebuilt binary for this architecture.
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY packages/contracts/package.json packages/contracts/
@@ -16,7 +16,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ---------- Dependencias de producción ----------
+# ---------- Production dependencies ----------
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
@@ -26,7 +26,7 @@ COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev -w @openlibrary/server
 
-# ---------- Ejecución ----------
+# ---------- Runtime ----------
 FROM ${NODE_IMAGE}
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

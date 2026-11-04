@@ -9,21 +9,21 @@ import { hashPassword, newToken, sha256, verifyPassword } from './crypto.js';
 export type Clock = () => Date;
 export type SessionRow = typeof sessions.$inferSelect;
 
-/** Política de bloqueo ante fuerza bruta. */
+/** Brute-force lockout policy. */
 export const THROTTLE = {
-  /** Al llegar a este número de fallos seguidos por IP empieza el bloqueo. */
+  /** Lockout starts once an IP reaches this many consecutive failures. */
   freeFailures: 5,
-  /** Primer bloqueo; se duplica con cada fallo adicional. */
+  /** First lockout; doubles with every further failure. */
   baseLockMs: 60_000,
   maxLockMs: 60 * 60_000,
-  /** Ventana tras la que se olvidan los fallos de una IP. */
+  /** Window after which an IP's failures are forgotten. */
   windowMs: 15 * 60_000,
-  /** Límite global (todas las IP) por hora: frena ataques distribuidos. */
+  /** Global limit (all IPs) per hour: slows down distributed attacks. */
   globalMaxPerHour: 100,
   globalLockMs: 15 * 60_000,
 } as const;
 
-/** Cada cuánto se actualiza last_seen/caducidad deslizante (evita una escritura por petición). */
+/** How often last_seen / sliding expiry are updated (avoids one write per request). */
 const TOUCH_EVERY_MS = 5 * 60_000;
 
 export class AuthService {
@@ -33,15 +33,15 @@ export class AuthService {
     private readonly now: Clock = () => new Date(),
   ) {}
 
-  // ---------- Propietario ----------
+  // ---------- Owner ----------
   isConfigured(): boolean {
     return !!this.db.select({ id: owner.id }).from(owner).get();
   }
 
-  /** Crea o cambia la contraseña. Cierra todas las sesiones salvo la indicada. */
+  /** Creates or changes the password. Revokes every session except the given one. */
   async setPassword(password: string, keepSessionId?: string): Promise<void> {
     if (password.length < PASSWORD_MIN_LENGTH) {
-      throw badRequest(`La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`);
+      throw badRequest('errors.passwordTooShort', { min: PASSWORD_MIN_LENGTH });
     }
     const ts = this.now().toISOString();
     const passwordHash = await hashPassword(password);
@@ -63,8 +63,8 @@ export class AuthService {
     return verifyPassword(row.passwordHash, password);
   }
 
-  // ---------- Fuerza bruta ----------
-  /** Devuelve los segundos que faltan para poder intentarlo, o 0 si está permitido. */
+  // ---------- Brute force ----------
+  /** Seconds until the next attempt is allowed, or 0 if allowed now. */
   retryAfter(ip: string): number {
     const t = this.now().getTime();
     const wait = [this.failureRow(`ip:${ip}`), this.failureRow('global')]
@@ -108,7 +108,7 @@ export class AuthService {
       .run();
   }
 
-  // ---------- Sesiones y dispositivos ----------
+  // ---------- Sessions and devices ----------
   createSession(input: { kind: 'web' | 'device'; name: string; platform: string; userAgent?: string }): {
     id: string;
     token: string;
@@ -135,7 +135,7 @@ export class AuthService {
     return { id, token, expiresAt };
   }
 
-  /** Valida un token y devuelve su sesión activa (renovando la caducidad deslizante de las web). */
+  /** Validates a token and returns its active session (renewing the sliding expiry of web sessions). */
   authenticate(token: string | undefined): SessionRow | null {
     if (!token || token.length > 200) return null;
     const row = this.db

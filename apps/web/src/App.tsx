@@ -5,6 +5,7 @@ import { api, ApiError, errorText } from './api';
 import { Icon } from './components/ui';
 import { navigate, setParams, useLocation } from './lib/router';
 import { useLocations } from './lib/queries';
+import { LanguageSwitch, useI18n } from './i18n';
 import { Library } from './pages/Library';
 import { Locations } from './pages/Locations';
 import { Settings } from './pages/Settings';
@@ -15,6 +16,7 @@ import { CopyForm, type CopyMode } from './pages/CopyForm';
 type State = { phase: 'loading' } | { phase: 'anon' } | { phase: 'in' } | { phase: 'down'; message: string };
 
 export function App() {
+  const { t } = useI18n();
   const [state, setState] = useState<State>({ phase: 'loading' });
   const qc = useQueryClient();
 
@@ -24,8 +26,9 @@ export function App() {
       setState({ phase: 'in' });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setState({ phase: 'anon' });
-      else setState({ phase: 'down', message: errorText(e) });
+      else setState({ phase: 'down', message: errorText(e, t) });
     }
+    // Only on mount / retry; the message language is not worth a re-check.
   }, []);
   useEffect(() => {
     void refresh();
@@ -36,15 +39,15 @@ export function App() {
     setState({ phase: 'anon' });
   }, [qc]);
 
-  if (state.phase === 'loading') return <p className="muted center pad">Cargando…</p>;
+  if (state.phase === 'loading') return <p className="muted center pad">{t('common.loading')}</p>;
   if (state.phase === 'down')
     return (
       <div className="center-card">
         <div className="panel narrow">
-          <h1>Servidor no disponible</h1>
+          <h1>{t('app.serverDown')}</h1>
           <p className="muted">{state.message}</p>
           <button className="btn" onClick={() => void refresh()}>
-            Reintentar
+            {t('common.retry')}
           </button>
         </div>
       </div>
@@ -57,16 +60,17 @@ type Dialog =
   { kind: 'book'; mode: Parameters<typeof BookForm>[0]['mode'] } | { kind: 'copy'; mode: CopyMode } | null;
 
 function Shell({ onLogout }: { onLogout: () => void }) {
+  const { t } = useI18n();
   const { path, params } = useLocation();
   const [dialog, setDialog] = useState<Dialog>(null);
   const locs = useLocations();
-  const view = path.startsWith('/ubicaciones')
+  const view = path.startsWith('/locations')
     ? 'locations'
-    : path.startsWith('/ajustes')
+    : path.startsWith('/settings')
       ? 'settings'
       : 'library';
 
-  // Si la sesión caduca, cualquier 401 devuelve al login.
+  // If the session expires, any 401 goes back to the login screen.
   const qc = useQueryClient();
   useEffect(
     () =>
@@ -117,15 +121,18 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </span>
           OpenLibrary
         </div>
-        {nav('/', 'library', 'book', 'Biblioteca')}
-        {nav('/ubicaciones', 'locations', 'tree', 'Ubicaciones', locs.data?.items.length)}
+        {nav('/', 'library', 'book', t('nav.library'))}
+        {nav('/locations', 'locations', 'tree', t('nav.locations'), locs.data?.items.length)}
         <div className="sep" />
-        {nav('/ajustes', 'settings', 'gear', 'Ajustes')}
+        {nav('/settings', 'settings', 'gear', t('nav.settings'))}
         <button className="nav" onClick={() => void logout()}>
           <Icon name="logout" />
-          <span>Cerrar sesión</span>
+          <span>{t('nav.logout')}</span>
         </button>
-        <div className="foot">Próximamente: lectura, deseos, estadísticas e importación.</div>
+        <div className="foot">
+          <LanguageSwitch />
+          <p>{t('nav.comingSoon')}</p>
+        </div>
       </aside>
       <main>
         <header className="top">
@@ -139,7 +146,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           />
           <button className="btn primary" onClick={addBook}>
             <Icon name="plus" size={16} />
-            <span className="hide-sm">Añadir libro</span>
+            <span className="hide-sm">{t('book.add')}</span>
           </button>
         </header>
         <section className="view">
@@ -153,12 +160,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <BookForm
           mode={dialog.mode}
           onClose={() => setDialog(null)}
-          onAddCopy={(id) =>
-            setDialog({
-              kind: 'copy',
-              mode: { kind: 'add', editionId: id, title: 'la edición que ya tienes' },
-            })
-          }
+          onAddCopy={(id) => setDialog({ kind: 'copy', mode: { kind: 'add', editionId: id } })}
         />
       )}
       {dialog?.kind === 'copy' && <CopyForm mode={dialog.mode} onClose={() => setDialog(null)} />}
@@ -166,12 +168,13 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-/** Búsqueda con espera de 250 ms para no lanzar una petición por tecla. Atajo: «/». */
+/** Search with a 250 ms debounce so typing does not fire one request per key. Shortcut: "/". */
 function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) => void }) {
+  const { t } = useI18n();
   const [text, setText] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
   const timer = useRef<number>(undefined);
-  // La URL manda (atrás/adelante, «Limpiar filtros»), salvo mientras escribes en el buscador.
+  // The URL wins (back/forward, "Clear filters"), except while you are typing in the box.
   useEffect(() => {
     if (document.activeElement !== ref.current) setText(value);
   }, [value]);
@@ -192,8 +195,8 @@ function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) =
         ref={ref}
         type="search"
         value={text}
-        placeholder="Busca por título, autor, ISBN, editorial, género o ubicación…"
-        aria-label="Buscar en la biblioteca"
+        placeholder={t('search.placeholder')}
+        aria-label={t('search.label')}
         onChange={(e) => {
           setText(e.target.value);
           clearTimeout(timer.current);
@@ -207,6 +210,7 @@ function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) =
 }
 
 function Login({ onDone }: { onDone: () => void }) {
+  const { t } = useI18n();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -219,7 +223,7 @@ function Login({ onDone }: { onDone: () => void }) {
       await api.login({ password });
       onDone();
     } catch (err) {
-      setError(errorText(err));
+      setError(errorText(err, t));
       setPassword('');
     } finally {
       setBusy(false);
@@ -229,16 +233,19 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="center-card">
       <form className="panel narrow" onSubmit={submit}>
-        <div className="brand">
-          <span className="logo" aria-hidden>
-            <Icon name="book" size={18} />
-          </span>
-          OpenLibrary
+        <div className="row-between">
+          <div className="brand">
+            <span className="logo" aria-hidden>
+              <Icon name="book" size={18} />
+            </span>
+            OpenLibrary
+          </div>
+          <LanguageSwitch />
         </div>
-        <h1>Tu biblioteca</h1>
-        <p className="muted">Biblioteca privada. Introduce tu contraseña para continuar.</p>
+        <h1>{t('login.title')}</h1>
+        <p className="muted">{t('login.subtitle')}</p>
         <label>
-          Contraseña
+          {t('login.password')}
           <input
             type="password"
             autoComplete="current-password"
@@ -254,7 +261,7 @@ function Login({ onDone }: { onDone: () => void }) {
           </p>
         )}
         <button className="btn primary block" disabled={busy || !password}>
-          {busy ? 'Entrando…' : 'Entrar'}
+          {busy ? t('login.signingIn') : t('login.signIn')}
         </button>
       </form>
     </div>

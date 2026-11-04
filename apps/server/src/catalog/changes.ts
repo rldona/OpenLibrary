@@ -1,12 +1,12 @@
 /**
- * Motor de cambios: versiones por entidad, historial (change_log) y fusión por campo.
+ * Change engine: per-entity versions, change log and field-level merging.
  *
- * Una modificación llega con `baseVersion` (la versión que el cliente tenía):
- *  - base == actual  → se aplica todo.
- *  - base <  actual  → para cada campo enviado se mira si alguien lo cambió después de base:
- *        no → se aplica (fusión sin pérdida);  sí y mismo valor → convergente;  sí y distinto → CONFLICTO.
- *  - base >  actual  → petición inválida.
- * Esta misma lógica servirá a la sincronización de Android (F3).
+ * An update arrives with `baseVersion` (the version the client had):
+ *  - base == current → everything is applied.
+ *  - base <  current → for each field sent, check whether someone changed it after base:
+ *        no → applied (lossless merge);  yes, same value → convergent;  yes, different value → CONFLICT.
+ *  - base >  current → invalid request.
+ * Android sync (F3) reuses this very logic.
  */
 import { and, eq, gt } from 'drizzle-orm';
 import type { ConflictProblem } from '@openlibrary/contracts';
@@ -35,7 +35,7 @@ export function recordChange(
   tx.insert(changeLog).values({ entity, entityId, op, version, fields, at, sessionId }).run();
 }
 
-/** Campos modificados en una entidad después de una versión dada. */
+/** Fields of an entity modified after a given version. */
 export function changedSince(tx: Tx, entity: EntityName, id: string, version: number): Set<string> {
   const rows = tx
     .select({ fields: changeLog.fields })
@@ -50,19 +50,14 @@ export class ConflictError extends HttpError {
     super(
       409,
       'conflict',
-      `Otro dispositivo cambió ${body.conflicts.map((c) => c.field).join(', ')} de este ${LABEL[entity]} mientras lo editabas. No se ha sobrescrito nada.`,
+      `errors.conflict.${entity}`,
+      { fields: body.conflicts.map((c) => c.field).join(', ') },
       body,
     );
   }
 }
-const LABEL: Record<EntityName, string> = {
-  work: 'libro',
-  edition: 'edición',
-  copy: 'ejemplar',
-  location: 'ubicación',
-};
 
-/** Aplica una modificación parcial con fusión por campo. Devuelve la fila resultante y los campos aplicados. */
+/** Applies a partial update with field-level merging. Returns the resulting row and the applied fields. */
 export function patchEntity<R extends { id: string; version: number; deletedAt: string | null }>(
   tx: Tx,
   entity: EntityName,
@@ -74,7 +69,7 @@ export function patchEntity<R extends { id: string; version: number; deletedAt: 
   const table = TABLES[entity] as AnyTable;
   const row = tx.select().from(table).where(eq(table.id, id)).get() as R | undefined;
   if (!row || row.deletedAt) throw notFound();
-  if (baseVersion > row.version) throw badRequest('baseVersion es mayor que la versión actual.');
+  if (baseVersion > row.version) throw badRequest('errors.baseVersionAhead');
 
   const current = row as unknown as Record<string, unknown>;
   const changed = Object.keys(fields).filter((k) => fields[k] !== undefined && !same(current[k], fields[k]));
@@ -103,7 +98,7 @@ export function patchEntity<R extends { id: string; version: number; deletedAt: 
   return { row: { ...merged, ...derived }, applied };
 }
 
-/** Borrado lógico (lápida) para que la baja también se sincronice. */
+/** Soft delete (tombstone) so that deletions are synced too. */
 export function softDelete(tx: Tx, entity: EntityName, id: string, now: string, sessionId: string | null) {
   const table = TABLES[entity] as AnyTable;
   const row = tx.select().from(table).where(eq(table.id, id)).get();
