@@ -34,4 +34,4 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 
 - F0 foundations ✔, F1 web catalog ✔, bilingual UI ✔ (2026-11-04).
 - Next: deploy on the Ubuntu PC (runbook), then F2 — Android browsing + sync pull.
-- The Docker image has not been run on a real machine yet (it was built on a Mac without Docker); check the CI `docker` job and the first Ubuntu deploy.
+- The Docker image builds and runs healthy on the Ubuntu PC (2026-11-04). The lockfile must resolve from registry.npmjs.org (never a work registry).
