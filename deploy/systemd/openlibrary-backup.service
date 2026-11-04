@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenLibrary: copia de seguridad (base de datos y portadas) con restic
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/openlibrary/deploy/scripts/backup.sh
+Nice=10
+IOSchedulingClass=idle

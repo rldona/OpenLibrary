@@ -1,0 +1,18 @@
+# OpenLibrary en el PC Ubuntu.
+# La app solo escucha en 127.0.0.1: el acceso desde fuera lo da «tailscale serve» (HTTPS, solo tu tailnet).
+name: openlibrary
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: openlibrary:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - ${OL_DATA:-/srv/openlibrary/data}:/data
+    ports:
+      - '127.0.0.1:8080:8080'
+    stop_grace_period: 20s

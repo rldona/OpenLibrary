@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenLibrary · Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../shared/data.js"></script>
+<style>
+:root{--bg:#f6f3ee;--panel:#fffdf9;--ink:#1d1b18;--muted:#6f685f;--line:#e6e0d6;--accent:#8a3b12;--accent-ink:#fff;--accent-soft:#f5e6d8;--chip:#efe9df;
+  --ok:#2f6b4f;--ok-soft:#e1efe6;--warn:#9a6212;--warn-soft:#f8ecd6;--err:#a83232;--err-soft:#f7e1df;--info:#285a87;--info-soft:#e2ecf6;--shadow:0 1px 2px rgba(40,30,20,.06),0 10px 30px -12px rgba(40,30,20,.18)}
+@media (prefers-color-scheme:dark){:root{--bg:#151311;--panel:#1e1b18;--ink:#eee8df;--muted:#a69e93;--line:#34302b;--accent:#e2925f;--accent-ink:#1a120c;--accent-soft:#3a281c;--chip:#2a2622;
+  --ok:#7cc19c;--ok-soft:#1d3428;--warn:#e5b05c;--warn-soft:#3a2d17;--err:#ec8a83;--err-soft:#3d1f1d;--info:#8ab8e6;--info-soft:#1c2c3c;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -12px rgba(0,0,0,.6)}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.01em;margin:0}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+/* sidebar */
+.side{border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:2px;background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 10px 18px;font-family:Fraunces,serif;font-size:19px;font-weight:700}
+.brand .logo{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:0;background:none;cursor:pointer;text-align:left;color:var(--muted);font-weight:500}
+.nav:hover{background:var(--chip);color:var(--ink)}
+.nav.on{background:var(--accent-soft);color:var(--accent)}
+.nav svg{width:18px;height:18px;flex:none}
+.nav .n{margin-left:auto;font-size:12px;opacity:.8}
+.side .sep{height:1px;background:var(--line);margin:10px 6px}
+.side .foot{margin-top:auto;font-size:12px;color:var(--muted);padding:10px;line-height:1.4}
+/* top */
+main{min-width:0}
+.top{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;padding:14px 28px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.search{flex:1;max-width:620px;position:relative}
+.search input{width:100%;padding:10px 14px 10px 38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);outline:none}
+.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{position:absolute;left:12px;top:50%;width:17px;transform:translateY(-50%);color:var(--muted)}
+.search kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--muted)}
+.sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding:6px 10px;border-radius:99px;background:var(--panel);border:1px solid var(--line);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);padding:8px 13px;border-radius:9px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:none;border-color:transparent}
+.btn.sm{padding:5px 9px;font-size:12.5px;border-radius:7px}
+.btn.danger{color:var(--err)}
+.btn svg{width:16px;height:16px}
+.icon-btn{border:0;background:none;padding:6px;border-radius:8px;cursor:pointer;color:var(--muted);display:inline-grid;place-items:center}
+.icon-btn:hover{background:var(--chip);color:var(--ink)}
+.icon-btn svg{width:18px;height:18px}
+#view{padding:24px 28px 60px}
+.vh{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.vh h1{font-size:30px}
+.sub{color:var(--muted);margin:2px 0 0}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:20px}
+.filters select,.field{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);max-width:230px}
+.filters label.ck{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;margin-left:4px;cursor:pointer}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;padding:7px 10px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:6px}
+.seg button.on{background:var(--accent-soft);color:var(--accent)}
+.seg svg{width:16px;height:16px}
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:28px 22px}
+.card{border:0;background:none;padding:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:10px;color:inherit}
+.card .olc{transition:transform .18s ease,box-shadow .18s}
+.card:hover .olc{transform:translateY(-3px) rotate(-.4deg)}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:6px;border-radius:4px}
+.ct{font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ca{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.cl{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl svg{width:13px;flex:none}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-p{background:var(--chip);color:var(--muted)} .st-r{background:var(--info-soft);color:var(--info)} .st-d{background:var(--ok-soft);color:var(--ok)}
+.badge{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+/* table */
+.tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tbl th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg)}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--accent-soft)}
+.tbl .mini{width:30px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.muted{color:var(--muted)}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+.empty h3{color:var(--ink);margin-bottom:6px}
+/* drawer */
+#scrim{position:fixed;inset:0;background:rgba(20,14,8,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+#scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100vw);background:var(--panel);z-index:21;transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);overflow-y:auto;box-shadow:-20px 0 50px -20px rgba(0,0,0,.3)}
+.drawer.on{transform:none}
+.dh{display:flex;gap:22px;padding:28px 28px 20px;position:relative}
+.dh .olc{width:150px}
+.dh .x{position:absolute;top:14px;right:14px}
+.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.dh h2{font-size:26px;line-height:1.15;margin:4px 0 2px}
+.dh .subt{color:var(--muted);font-family:Fraunces,serif;font-style:italic;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
+.chip{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sec{padding:18px 28px;border-top:1px solid var(--line)}
+.sec h3{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec h3 .badge{font-family:Inter}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:none;padding:6px 11px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)}
+.tab.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+.kv div span{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kv div b{font-weight:500}
+.desc{color:var(--muted);margin:14px 0 0;font-family:Fraunces,serif;font-size:15px}
+.copy{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--bg)}
+.copy-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.where{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:500}
+.where svg{width:20px;color:var(--accent);flex:none}
+.where .crumb{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.where .crumb i{font-style:normal;color:var(--muted)}
+.where.none{color:var(--warn);border-style:dashed}
+.copy-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin-top:10px}
+.copy-meta b{color:var(--ink);font-weight:500}
+.reading{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+.reading select{padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel)}
+.stars{display:inline-flex;gap:1px}
+.stars button{border:0;background:none;padding:1px;cursor:pointer;color:#d9cfbf;font-size:18px;line-height:1}
+.stars button.on{color:#d4921c}
+.stars.ro button{cursor:default;font-size:14px}
+.note{font-size:13px;margin-top:10px;padding:8px 10px;border-left:3px solid var(--accent-soft);color:var(--muted)}
+.hist{font-size:12.5px;color:var(--muted);margin-top:8px}
+.quote{font-family:Fraunces,serif;font-size:15.5px;border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:0 0 12px}
+.quote small{display:block;font-family:Inter;font-size:12px;color:var(--muted);margin-top:3px}
+.banner{display:flex;gap:10px;align-items:flex-start;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.banner svg{width:18px;flex:none;margin-top:1px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)} .banner.info{background:var(--info-soft);color:var(--info)} .banner.ok{background:var(--ok-soft);color:var(--ok)} .banner.err{background:var(--err-soft);color:var(--err)}
+.banner .grow{flex:1}
+.banner b{color:inherit}
+/* modal */
+#modal{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:rgba(20,14,8,.4);padding:20px}
+#modal.on{display:grid}
+.mform{background:var(--panel);border-radius:16px;width:min(720px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden}
+.mform.narrow{width:min(460px,100%)}
+.mform header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line)}
+.mform header h2{font-size:20px}
+.mbody{padding:18px 22px;overflow-y:auto}
+.mform footer{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--line);background:var(--bg)}
+.mform footer .hint{margin-right:auto;font-size:12px;color:var(--muted)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.fgrid label,.mbody>label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.fgrid input,.fgrid select,.fgrid textarea,.mbody>label input,.mbody>label select,.mbody>label textarea{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-weight:400;color:var(--ink);outline:none}
+.fgrid input:focus,.fgrid select:focus,.fgrid textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.fgrid input:disabled{opacity:.6}
+.span2{grid-column:span 2}
+fieldset{border:1px solid var(--line);border-radius:12px;padding:12px 14px 14px;margin:18px 0 0}
+legend{font-weight:600;padding:0 6px;font-family:Fraunces,serif;font-size:15px}
+.isbnrow{display:flex;gap:8px;align-items:flex-end;margin-bottom:12px}
+.isbnrow label{flex:1;display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.isbnrow input{padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-family:ui-monospace,Menlo,monospace;color:var(--ink)}
+.prop td{vertical-align:top}
+.prop .old{color:var(--muted);text-decoration:line-through}
+/* locations */
+.loc-wrap{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+.tree{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;position:sticky;top:80px}
+.tnode{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;border-radius:7px;cursor:pointer;text-align:left;color:inherit}
+.tnode:hover{background:var(--chip)}
+.tnode.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tnode svg{width:16px;flex:none;color:var(--muted)}
+.tnode.on svg{color:var(--accent)}
+.tnode .n{margin-left:auto;font-size:12px;color:var(--muted)}
+.tchildren{margin-left:14px;border-left:1px solid var(--line);padding-left:4px}
+.crumbs{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px;margin-bottom:4px;flex-wrap:wrap}
+.crumbs button{border:0;background:none;color:inherit;cursor:pointer;padding:0}
+.crumbs button:hover{color:var(--accent);text-decoration:underline}
+.row{display:flex;align-items:center;gap:14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer;margin-bottom:8px;width:100%;text-align:left;color:inherit}
+.row:hover{border-color:var(--accent)}
+.row .olc{width:38px}
+.row .grow{flex:1;min-width:0}
+.subloc{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:14px 0 22px}
+.subloc button{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px;text-align:left;cursor:pointer;color:inherit}
+.subloc button:hover{border-color:var(--accent)}
+.subloc b{display:block}
+.subloc span{font-size:12px;color:var(--muted)}
+/* wishlist */
+.wish{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.wcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.wcard h3{font-size:17px}
+.wcard .actions{margin-top:auto;padding-top:8px}
+.pri-alta{background:var(--err-soft);color:var(--err)} .pri-media{background:var(--warn-soft);color:var(--warn)} .pri-baja{background:var(--chip);color:var(--muted)}
+/* stats */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.kpi span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.kpi b{display:block;font-family:Fraunces,serif;font-size:30px;font-weight:600;line-height:1.2}
+.kpi small{color:var(--muted)}
+.cards2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.panel h3{font-size:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.bar{display:grid;grid-template-columns:140px 1fr 34px;gap:10px;align-items:center;font-size:13px;margin-bottom:7px}
+.bar .tr{height:10px;background:var(--chip);border-radius:99px;overflow:hidden}
+.bar .tr i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.bar .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .v{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.stack{display:flex;height:16px;border-radius:99px;overflow:hidden;margin:6px 0 12px}
+.stack i{display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.cols{display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:10px}
+.cols div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;font-size:11px;color:var(--muted)}
+.cols i{display:block;width:100%;max-width:26px;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px}
+.cols b{font-weight:600;color:var(--ink);font-size:11px}
+/* io & sync */
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:22px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:30px;text-align:center;color:var(--muted);transition:.15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop svg{width:34px;color:var(--accent)}
+.summary{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+.conf{border:1px solid var(--warn);background:var(--warn-soft);border-radius:12px;padding:14px;margin-bottom:10px}
+.conf .vs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.conf .vs div{background:var(--panel);border-radius:8px;padding:10px;font-size:13px}
+.conf .vs small{display:block;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.05em;margin-bottom:3px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:10px;opacity:0;transition:.25s;z-index:40;font-size:13.5px;pointer-events:none;max-width:90vw;box-shadow:var(--shadow)}
+#toast.on{opacity:1;transform:translateX(-50%)}
+.proto{position:fixed;right:14px;bottom:14px;font-size:11px;background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:4px 9px;border-radius:99px;z-index:4}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{position:static;height:auto;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+  .side .sep,.side .foot,.nav .n{display:none}
+  .brand{padding:4px 8px}
+  .top{padding:10px 16px;flex-wrap:wrap}
+  #view{padding:18px 16px 60px}
+  .loc-wrap{grid-template-columns:1fr} .tree{position:static}
+  .kv{grid-template-columns:1fr 1fr} .fgrid{grid-template-columns:1fr} .span2{grid-column:auto}
+  .dh{flex-direction:column} .dh .olc{width:120px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:22px 14px}
+  .sync span.lbl{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <main>
+    <header class="top">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Busca por título, autor, ISBN, editorial, género o ubicación…" autocomplete="off" aria-label="Buscar en la biblioteca">
+        <kbd>/</kbd>
+      </div>
+      <div class="sync" title="La web trabaja siempre contra el servidor"><span class="dot"></span><span class="lbl">Servidor en línea · sincronizado</span></div>
+      <button class="btn primary" data-act="add-book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Añadir libro</button>
+    </header>
+    <section id="view"></section>
+  </main>
+</div>
+<div id="scrim" data-act="close-drawer"></div>
+<aside id="drawer" class="drawer" aria-label="Ficha del libro"></aside>
+<div id="modal"></div>
+<div id="toast" role="status"></div>
+<div class="proto">Prototipo · datos de ejemplo</div>
+
+<script>
+'use strict';
+let S = OL.createState(), A = OL.api(S);
+const esc = OL.esc;
+const ui = { view: 'library', q: '', f: { status: '', genre: '', loc: '', lang: '' }, sort: 'title', layout: 'grid', byWork: false,
+  locSel: 'L1', locDeep: true, drawer: null, statMode: 'works', form: null, importReport: null,
+  backups: [['2026-11-04 03:00', '42,8 MB'], ['2026-11-03 03:00', '42,6 MB'], ['2026-11-02 08:14', '42,6 MB'], ['2026-10-31 03:00', '42,1 MB'], ['2026-10-30 03:00', '42,1 MB'], ['2026-10-29 09:02', '41,9 MB'], ['2026-10-28 03:00', '41,9 MB']] };
+const STATUS = { pending: ['Pendiente', 'p'], reading: ['Leyendo', 'r'], read: ['Leído', 'd'] };
+const LANGS = { es: 'Español', en: 'Inglés', fr: 'Francés', it: 'Italiano', pt: 'Portugués', de: 'Alemán', ca: 'Catalán' };
+const CONDS = ['Como nuevo', 'Excelente', 'Bueno', 'Usado', 'Aceptable', 'Deteriorado'];
+const I = {
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.6"/></svg>',
+  tree: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h6"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="9" rx="1"/><rect x="3" y="15" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 20h18M5 20V8M9 20V5M13 20V9M17 20l2-12"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
+};
+const LOC_ICON = { home: I.home, room: I.folder, bookcase: I.tree, shelf: I.shelf, box: I.folder, other: I.folder };
+const pill = st => `<span class="pill st-${STATUS[st][1]}">${STATUS[st][0]}</span>`;
+const fmtDate = d => d ? new Date(d + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const eur = n => n == null ? '—' : n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+const lastName = n => (n || '').replace(/«.*»/, '').trim().split(/\s+/).pop();
+const crumb = id => { const p = A.locPath(id); return p.length ? p.map(esc).join(' <i>›</i> ') : ''; };
+const stars = (n, cid, ro) => `<span class="stars ${ro ? 'ro' : ''}" aria-label="Valoración ${n} de 5">${[1, 2, 3, 4, 5].map(i => `<button type="button" class="${i <= n ? 'on' : ''}" ${ro ? 'tabindex="-1"' : `data-act="rate" data-id="${cid}" data-v="${i}"`} aria-label="${i} estrellas">★</button>`).join('')}</span>`;
+const locOptions = (sel, withNone = true) => (withNone ? `<option value="">Sin ubicación</option>` : '') +
+  S.locations.filter(l => l.parent).map(l => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${esc(A.locPath(l.id).join(' › '))}</option>`).join('');
+function toast(msg) { const t = document.getElementById('toast'); t.innerHTML = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 3200); }
+
+// ---------- sidebar ----------
+function renderSide() {
+  const reading = A.ownedWorks().filter(w => A.workStatus(w.id) === 'reading').length;
+  const nav = (v, icon, label, n, on) => `<button class="nav ${on ? 'on' : ''}" data-act="nav" data-v="${v}">${icon}<span>${label}</span>${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
+  const lib = ui.view === 'library';
+  document.getElementById('side').innerHTML = `
+    <div class="brand"><span class="logo">${I.open.replace('stroke-width="1.9"', 'stroke-width="2" width="18"')}</span>OpenLibrary</div>
+    ${nav('library', I.book, 'Biblioteca', S.copies.filter(c => !c.retired).length, lib && ui.f.status !== 'reading')}
+    ${nav('reading', I.open, 'Leyendo', reading, lib && ui.f.status === 'reading')}
+    ${nav('locations', I.tree, 'Ubicaciones', null, ui.view === 'locations')}
+    ${nav('wishlist', I.heart, 'Lista de deseos', S.wishlist.filter(w => !w.acquired).length, ui.view === 'wishlist')}
+    ${nav('stats', I.chart, 'Estadísticas', null, ui.view === 'stats')}
+    <div class="sep"></div>
+    ${nav('io', I.swap, 'Importar y exportar', null, ui.view === 'io')}
+    ${nav('sync', I.shield, 'Sincronización y copias', S.conflicts.length || null, ui.view === 'sync')}
+    <div class="foot">Servidor: PC Ubuntu<br>openlibrary.tail-casa.ts.net<br>Última copia: hoy 03:00</div>`;
+}
+
+// ---------- library ----------
+function libItems() {
+  const eds = A.search(A.ownedEditions(), ui.q).filter(e => {
+    const w = A.work(e.workId);
+    if (ui.f.status && A.edStatus(e.id) !== ui.f.status) return false;
+    if (ui.f.genre && !w.genres.includes(ui.f.genre)) return false;
+    if (ui.f.lang && e.lang !== ui.f.lang) return false;
+    if (ui.f.loc) {
+      const set = ui.f.loc === 'none' ? null : new Set(A.locDesc(ui.f.loc));
+      if (!A.copiesOfEd(e.id).some(c => set ? set.has(c.locationId) : !c.locationId)) return false;
+    }
+    return true;
+  });
+  let list;
+  if (ui.byWork) {
+    const m = new Map();
+    eds.forEach(e => { if (!m.has(e.workId)) m.set(e.workId, { work: A.work(e.workId), eds: [] }); m.get(e.workId).eds.push(e); });
+    list = [...m.values()];
+  } else list = eds.map(e => ({ work: A.work(e.workId), eds: [e] }));
+  list.forEach(it => { it.copies = it.eds.flatMap(e => A.copiesOfEd(e.id)); it.status = A.agg(it.copies); });
+  const ord = { reading: 0, pending: 1, read: 2 };
+  const keyAcq = it => it.copies.map(c => c.acquired || '').sort().pop() || '';
+  const keyLoc = it => (it.copies.map(c => A.locPath(c.locationId).join(' ')).filter(Boolean).sort()[0]) || '~';
+  const cmp = {
+    title: (a, b) => a.work.title.localeCompare(b.work.title, 'es'),
+    author: (a, b) => lastName(a.work.authors[0]).localeCompare(lastName(b.work.authors[0]), 'es') || a.work.title.localeCompare(b.work.title, 'es'),
+    acquired: (a, b) => keyAcq(b).localeCompare(keyAcq(a)),
+    status: (a, b) => ord[a.status] - ord[b.status] || a.work.title.localeCompare(b.work.title, 'es'),
+    location: (a, b) => keyLoc(a).localeCompare(keyLoc(b), 'es'),
+  }[ui.sort];
+  return list.sort(cmp);
+}
+function viewLibrary() {
+  const genres = [...new Set(A.ownedWorks().flatMap(w => w.genres))].sort((a, b) => a.localeCompare(b, 'es'));
+  const langs = [...new Set(A.ownedEditions().map(e => e.lang))];
+  const sel = (k, label, opts) => `<select data-f="${k}" aria-label="${label}"><option value="">${label}</option>${opts}</select>`;
+  return `
+  <div class="vh"><div><h1>${ui.f.status === 'reading' ? 'Leyendo ahora' : 'Biblioteca'}</h1><p class="sub" id="count"></p></div>
+    <div class="seg" role="group" aria-label="Vista">
+      <button class="${ui.layout === 'grid' ? 'on' : ''}" data-act="layout" data-v="grid">${I.grid}Portadas</button>
+      <button class="${ui.layout === 'table' ? 'on' : ''}" data-act="layout" data-v="table">${I.list}Tabla</button></div></div>
+  <div class="filters">
+    ${sel('status', 'Estado de lectura', Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${ui.f.status === k ? 'selected' : ''}>${v[0]}</option>`).join(''))}
+    ${sel('genre', 'Género', genres.map(g => `<option ${ui.f.genre === g ? 'selected' : ''}>${esc(g)}</option>`).join(''))}
+    ${sel('loc', 'Ubicación', `<option value="none" ${ui.f.loc === 'none' ? 'selected' : ''}>— Sin ubicación —</option>` + S.locations.filter(l => l.parent).map(l => `<option value="${l.id}" ${ui.f.loc === l.id ? 'selected' : ''}>${'  '.repeat(A.locPath(l.id).length - 1)}${esc(l.name)}</option>`).join(''))}
+    ${sel('lang', 'Idioma', langs.map(l => `<option value="${l}" ${ui.f.lang === l ? 'selected' : ''}>${LANGS[l] || l}</option>`).join(''))}
+    <select data-f="sort" aria-label="Ordenar">${[['title', 'Título'], ['author', 'Autor'], ['acquired', 'Adquirido (recientes)'], ['status', 'Estado de lectura'], ['location', 'Ubicación']].map(([k, l]) => `<option value="${k}" ${ui.sort === k ? 'selected' : ''}>Ordenar: ${l}</option>`).join('')}</select>
+    <label class="ck"><input type="checkbox" data-f="byWork" ${ui.byWork ? 'checked' : ''}> Agrupar ediciones por obra</label>
+    <button class="btn ghost sm" data-act="clear-filters">Limpiar</button>
+  </div>
+  <div id="results"></div>`;
+}
+function renderResults() {
+  const el = document.getElementById('results'); if (!el) return;
+  const list = libItems();
+  const nCopies = list.reduce((t, it) => t + it.copies.length, 0);
+  document.getElementById('count').textContent = `${list.length} ${ui.byWork ? 'obras' : 'ediciones'} · ${nCopies} ejemplares${ui.q ? ` · búsqueda «${ui.q}»` : ''}`;
+  if (!list.length) { el.innerHTML = `<div class="empty"><h3>Nada por aquí</h3>No hay libros que coincidan. Prueba otra búsqueda o <button class="btn sm" data-act="add-book">añade uno a mano</button></div>`; return; }
+  if (ui.layout === 'grid') {
+    el.innerHTML = `<div class="grid">${list.map(it => {
+      const e = it.eds[0], c0 = it.copies[0];
+      const where = c0 && c0.locationId ? A.locPath(c0.locationId).slice(-2).join(' › ') : 'Sin ubicación';
+      return `<button class="card" data-act="open" data-id="${e.id}">${OL.cover(e, it.work)}
+        <div><div class="ct">${esc(it.work.title)}</div><div class="ca">${esc(it.work.authors.join(', '))}</div>
+        <div class="cx">${pill(it.status)}${it.copies.length > 1 ? `<span class="badge">×${it.copies.length}</span>` : ''}${it.eds.length > 1 ? `<span class="badge">${it.eds.length} ediciones</span>` : ''}${e.metaStatus === 'provisional' ? '<span class="badge warn">Provisional</span>' : ''}</div>
+        <div class="cl">${I.pin}${esc(where)}${it.copies.length > 1 ? ' …' : ''}</div></div></button>`;
+    }).join('')}</div>`;
+  } else {
+    el.innerHTML = `<table class="tbl"><thead><tr><th></th><th>Título</th><th>Editorial</th><th>ISBN</th><th>Ej.</th><th>Ubicación</th><th>Estado</th><th>Adquirido</th></tr></thead><tbody>${list.map(it => {
+      const e = it.eds[0];
+      const locs = [...new Set(it.copies.map(c => A.locPath(c.locationId).join(' › ') || 'Sin ubicación'))];
+      return `<tr data-act="open" data-id="${e.id}"><td class="mini">${OL.cover(e, it.work)}</td>
+        <td><b>${esc(it.work.title)}</b><div class="muted">${esc(it.work.authors.join(', '))}</div></td>
+        <td>${esc(e.publisher || '—')}${e.year ? ` · ${e.year}` : ''}${it.eds.length > 1 ? `<div class="muted">+${it.eds.length - 1} edición</div>` : ''}</td>
+        <td class="mono">${e.isbn13 ? OL.fmtIsbn(e.isbn13) : '<span class="muted">sin ISBN</span>'}</td>
+        <td>${it.copies.length}</td><td>${locs.map(esc).join('<br>')}</td><td>${pill(it.status)}</td>
+        <td class="muted">${fmtDate(it.copies.map(c => c.acquired).sort().pop())}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
+}
+
+// ---------- detail drawer ----------
+function openDetail(edId) { ui.drawer = edId; renderDrawer(); document.getElementById('drawer').classList.add('on'); document.getElementById('scrim').classList.add('on'); }
+function closeDetail() { ui.drawer = null; document.getElementById('drawer').classList.remove('on'); document.getElementById('scrim').classList.remove('on'); }
+function renderDrawer() {
+  if (!ui.drawer) return;
+  const e = A.ed(ui.drawer), w = A.work(e.workId), eds = A.edsOfWork(w.id).filter(x => A.copiesOfEd(x.id).length || x.id === e.id);
+  const copies = A.copiesOfEd(e.id), allCopies = A.copiesOfWork(w.id);
+  const quotes = S.quotes.filter(q => q.workId === w.id);
+  document.getElementById('drawer').innerHTML = `
+  <div class="dh">${OL.cover(e, w)}
+    <div style="flex:1;min-width:0">
+      <div class="kicker">Obra · ${eds.length} ${eds.length > 1 ? 'ediciones' : 'edición'} · ${allCopies.length} ${allCopies.length > 1 ? 'ejemplares' : 'ejemplar'}</div>
+      <h2>${esc(w.title)}</h2>${w.subtitle || e.subtitle ? `<div class="subt">${esc(e.subtitle || w.subtitle)}</div>` : ''}
+      <div>${esc(w.authors.join(', ') || 'Autor desconocido')}</div>
+      <div class="chips">${pill(A.workStatus(w.id))}${w.genres.map(g => `<span class="chip">${esc(g)}</span>`).join('')}${w.series ? `<span class="chip">Serie: ${esc(w.series)}</span>` : ''}</div>
+      ${A.rating(allCopies) ? stars(A.rating(allCopies), '', true) : ''}
+      <div class="actions"><button class="btn sm" data-act="edit-book" data-id="${e.id}">Editar ficha</button><button class="btn sm" data-act="add-copy" data-id="${e.id}">+ Ejemplar</button><button class="btn sm" data-act="add-edition" data-id="${w.id}">+ Otra edición</button></div>
+    </div>
+    <button class="icon-btn x" data-act="close-drawer" aria-label="Cerrar">${I.x}</button>
+  </div>
+  ${e.metaStatus === 'provisional' ? `<div style="padding:0 28px"><div class="banner warn">${I.warn}<div class="grow"><b>Registro provisional.</b> Se dio de alta desde Android sin conexión y solo tiene ISBN y título.</div><button class="btn sm" data-act="lookup-prov" data-id="${e.id}">Buscar metadatos</button></div></div>` : ''}
+  <div class="sec">
+    <h3>Edición</h3>
+    ${eds.length > 1 ? `<div class="tabs">${eds.map(x => `<button class="tab ${x.id === e.id ? 'on' : ''}" data-act="open" data-id="${x.id}">${esc(x.publisher || 'Sin editorial')} ${x.year || ''} · ${LANGS[x.lang] || x.lang}</button>`).join('')}</div>` : ''}
+    <div class="kv">
+      <div><span>Editorial</span><b>${esc(e.publisher || '—')}</b></div><div><span>Año</span><b>${e.year || '—'}</b></div>
+      <div><span>Idioma</span><b>${LANGS[e.lang] || e.lang || '—'}</b></div><div><span>Páginas</span><b>${e.pages || '—'}</b></div>
+      <div><span>Formato</span><b>${esc(e.format || '—')}</b></div><div><span>ISBN-13</span><b class="mono">${e.isbn13 ? OL.fmtIsbn(e.isbn13) : '—'}</b></div>
+      <div><span>ISBN-10</span><b class="mono">${e.isbn10 || '—'}</b></div><div><span>Datos</span><b>${esc(e.source)}</b></div>
+    </div>
+    ${w.description ? `<p class="desc">${esc(w.description)}</p>` : ''}
+  </div>
+  <div class="sec">
+    <h3>Ejemplares de esta edición <span class="badge">${copies.length}</span></h3>
+    ${copies.map(c => {
+      const ss = A.sessions(c.id), last = A.latest(c.id), st = A.copyStatus(c.id);
+      return `<div class="copy">
+        <div class="copy-top"><b class="mono">${c.code}</b><div class="actions" style="margin:0"><button class="btn sm" data-act="move-copy" data-id="${c.id}">Mover</button><button class="btn sm ghost danger" data-act="retire-copy" data-id="${c.id}">Retirar</button></div></div>
+        <div class="where ${c.locationId ? '' : 'none'}">${I.pin}<span class="crumb">${c.locationId ? crumb(c.locationId) : 'Sin ubicación asignada'}</span></div>
+        <div class="copy-meta"><span>Conservación <b>${esc(c.condition)}</b></span><span>Adquirido <b>${fmtDate(c.acquired)}</b></span><span>Precio <b>${eur(c.price)}</b></span></div>
+        <div class="reading"><select data-status="${c.id}" aria-label="Estado de lectura">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === st ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
+          ${stars(last ? last.rating : 0, c.id)}
+          <span class="muted" style="font-size:12.5px">${last && last.start ? `Empezado ${fmtDate(last.start)}` : ''}${last && last.end ? ` · terminado ${fmtDate(last.end)}` : ''}</span></div>
+        ${last && last.notes ? `<div class="note">${esc(last.notes)}</div>` : ''}
+        ${c.notes ? `<div class="note">${esc(c.notes)}</div>` : ''}
+        ${ss.length > 1 ? `<div class="hist">Historial: ${ss.map((s, i) => `lectura ${i + 1} (${STATUS[s.status][0].toLowerCase()}${s.end ? ', ' + fmtDate(s.end) : ''})`).join(' · ')}</div>` : ''}
+      </div>`;
+    }).join('') || '<p class="muted">No quedan ejemplares activos de esta edición.</p>'}
+  </div>
+  <div class="sec">
+    <h3>Citas favoritas <span class="badge">${quotes.length}</span></h3>
+    ${quotes.map(q => `<blockquote class="quote">${esc(q.text)}${q.page ? `<small>p. ${q.page}</small>` : ''}</blockquote>`).join('')}
+    <form data-form="quote" style="display:flex;gap:8px"><input class="field" name="text" placeholder="Añadir una cita…" style="flex:1;max-width:none" required><input class="field" name="page" placeholder="Pág." style="width:70px"><button class="btn sm">Guardar</button></form>
+  </div>`;
+}
+
+// ---------- modals ----------
+function openModal(html) { const m = document.getElementById('modal'); m.innerHTML = html; m.classList.add('on'); const f = m.querySelector('input:not([type=hidden]):not(:disabled),select'); f && f.focus(); }
+function closeModal() { const m = document.getElementById('modal'); m.classList.remove('on'); m.innerHTML = ''; ui.form = null; }
+const copyFields = (d = {}) => `
+  <fieldset><legend>Tu ejemplar</legend><div class="fgrid">
+    <label class="span2">Ubicación<select name="locationId">${locOptions(d.locationId)}</select></label>
+    <label>Conservación<select name="condition">${CONDS.map(c => `<option ${c === (d.condition || 'Bueno') ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label>Estado de lectura<select name="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></label>
+    <label>Fecha de adquisición<input type="date" name="acquired" value="${OL.TODAY}"></label>
+    <label>Precio (€)<input type="number" name="price" step="0.01" min="0" placeholder="Opcional"></label>
+    <label class="span2">Notas personales<input name="notes" placeholder="Dedicatoria, de dónde viene, estado…"></label>
+  </div></fieldset>`;
+function bookForm(mode, pre = {}) {
+  ui.form = { mode, edId: pre.edId || null, wishId: pre.wishId || null, hasCover: !!pre.hasCover, source: pre.source || 'Manual' };
+  const e = pre.edId ? A.ed(pre.edId) : null, w = e ? A.work(e.workId) : (pre.workId ? A.work(pre.workId) : null);
+  const v = k => esc(pre[k] ?? '');
+  const val = {
+    isbn: e ? e.isbn13 || '' : v('isbn13'), title: w ? w.title : v('title'), subtitle: e ? e.subtitle : v('subtitle'), authors: w ? w.authors.join('; ') : v('authors'),
+    publisher: e ? e.publisher : '', year: e ? e.year || '' : '', lang: e ? e.lang : 'es', pages: e ? e.pages || '' : '', format: e ? e.format : '', genres: w ? w.genres.join('; ') : '', description: w ? w.description : '',
+  };
+  const lockWork = mode !== 'edit' && w;
+  openModal(`<form data-form="book" class="mform">
+    <header><h2>${mode === 'edit' ? 'Editar ficha' : mode === 'edition' ? `Nueva edición de «${esc(w.title)}»` : 'Añadir libro'}</h2><button type="button" class="icon-btn" data-act="modal-close" aria-label="Cerrar">${I.x}</button></header>
+    <div class="mbody">
+      <div class="isbnrow"><label>ISBN (opcional)<input name="isbn" value="${esc(val.isbn)}" placeholder="978-84-… o ISBN-10" inputmode="numeric"></label><button type="button" class="btn" data-act="form-lookup">Buscar metadatos</button></div>
+      <div id="fmsg"></div>
+      <div class="fgrid">
+        ${mode === 'add' ? `<label class="span2">Obra<select name="workId"><option value="">Nueva obra</option>${S.works.slice().sort((a, b) => a.title.localeCompare(b.title, 'es')).map(x => `<option value="${x.id}" ${pre.workId === x.id ? 'selected' : ''}>Otra edición de: ${esc(x.title)} — ${esc(x.authors.join(', '))}</option>`).join('')}</select></label>` : `<input type="hidden" name="workId" value="${w ? w.id : ''}">`}
+        <label class="span2">Título *<input name="title" value="${esc(val.title)}" required ${lockWork ? 'disabled' : ''}></label>
+        <label class="span2">Subtítulo<input name="subtitle" value="${esc(val.subtitle)}"></label>
+        <label class="span2">Autor/es<input name="authors" value="${esc(val.authors)}" placeholder="Separa varios con ;" ${lockWork ? 'disabled' : ''}></label>
+        <label>Editorial<input name="publisher" value="${esc(val.publisher)}"></label>
+        <label>Año<input name="year" type="number" value="${val.year}" min="1400" max="2100"></label>
+        <label>Idioma<select name="lang">${Object.entries(LANGS).map(([k, l]) => `<option value="${k}" ${k === val.lang ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>Páginas<input name="pages" type="number" value="${val.pages}" min="1"></label>
+        <label>Formato<input name="format" value="${esc(val.format)}" placeholder="Bolsillo, tapa dura…"></label>
+        <label>Géneros<input name="genres" value="${esc(val.genres)}" placeholder="Separa con ;" ${lockWork ? 'disabled' : ''}></label>
+        <label class="span2">Sinopsis<textarea name="description" rows="3" ${lockWork ? 'disabled' : ''}>${esc(val.description)}</textarea></label>
+      </div>
+      ${mode !== 'edit' ? copyFields() : ''}
+    </div>
+    <footer><span class="hint">Ningún campo salvo el título es obligatorio. Los datos externos son solo propuestas.</span><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">${mode === 'edit' ? 'Guardar cambios' : 'Añadir a la biblioteca'}</button></footer>
+  </form>`);
+  if (pre.autoLookup) formLookup();
+}
+function setMsg(kind, html) { const el = document.getElementById('fmsg'); if (el) el.innerHTML = html ? `<div class="banner ${kind}">${kind === 'ok' ? I.check : kind === 'info' ? I.info : I.warn}<div class="grow">${html}</div></div>` : ''; }
+function formLookup() {
+  const f = document.querySelector('[data-form=book]'); const raw = f.isbn.value.trim();
+  if (!raw) return setMsg('info', 'Introduce un ISBN para buscar metadatos. Sin ISBN puedes rellenar la ficha a mano.');
+  const n = OL.normalizeIsbn(raw);
+  if (!n.ok) return setMsg('err', `<b>No es un ISBN válido.</b> ${n.reason}`);
+  f.isbn.value = n.isbn13;
+  const dup = A.findByIsbn(n.isbn13);
+  if (dup && dup.id !== ui.form.edId) {
+    const cs = A.copiesOfEd(dup.id);
+    return setMsg('warn', `<b>Ya tienes esta edición</b> («${esc(A.work(dup.workId).title)}», ${cs.length} ${cs.length === 1 ? 'ejemplar' : 'ejemplares'}: ${cs.map(c => esc(A.locPath(c.locationId).join(' › ') || 'sin ubicación')).join('; ')}). <button type="button" class="btn sm" data-act="dup-add-copy" data-id="${dup.id}">Añadir otro ejemplar</button>`);
+  }
+  setMsg('info', 'Buscando en Open Library y Google Books…');
+  setTimeout(() => {
+    const p = A.lookup(n.isbn13); const wish = A.wishByIsbn(n.isbn13);
+    if (!p) return setMsg('warn', '<b>Sin resultados</b> en los proveedores. Completa los datos que conozcas; puedes volver a buscar más tarde.');
+    const set = (k, v) => { if (f[k] && !f[k].disabled && v != null && v !== '') f[k].value = v; };
+    set('title', p.title); set('subtitle', p.subtitle); set('authors', p.authors.join('; ')); set('publisher', p.publisher); set('year', p.year);
+    set('lang', p.lang); set('pages', p.pages); set('genres', p.genres.join('; ')); set('description', p.description);
+    ui.form.hasCover = p.hasCover; ui.form.source = p.source;
+    if (wish && !ui.form.wishId) ui.form.wishId = wish.id;
+    setMsg('ok', `<b>Propuesta de ${p.source}</b> con portada. Revisa y corrige lo que haga falta antes de guardar.${wish ? ' <br>Este libro está en tu <b>lista de deseos</b>: se marcará como adquirido.' : ''}`);
+  }, 650);
+}
+function saveBook(f) {
+  const fd = Object.fromEntries(new FormData(f));
+  const list = s => (s || '').split(';').map(x => x.trim()).filter(Boolean);
+  const isbnN = fd.isbn ? OL.normalizeIsbn(fd.isbn) : null;
+  if (isbnN && !isbnN.ok) return setMsg('err', `<b>ISBN no válido.</b> ${isbnN.reason} Déjalo vacío si el libro no tiene ISBN.`);
+  if (ui.form.mode === 'edit') {
+    const e = A.ed(ui.form.edId), w = A.work(e.workId);
+    Object.assign(w, { title: fd.title.trim(), authors: list(fd.authors), genres: list(fd.genres), description: fd.description });
+    Object.assign(e, { subtitle: fd.subtitle, publisher: fd.publisher, year: +fd.year || null, lang: fd.lang, pages: +fd.pages || null, format: fd.format,
+      isbn13: isbnN ? isbnN.isbn13 : null, isbn10: isbnN ? isbnN.isbn10 : null, source: e.source === 'Manual' ? 'Manual' : e.source + ' + manual' });
+    if (ui.form.hasCover) e.hasCover = true;
+    if (e.metaStatus === 'provisional' && e.publisher) e.metaStatus = 'complete';
+    closeModal(); refresh(); toast('Ficha actualizada');
+    return;
+  }
+  const work = fd.workId ? A.work(fd.workId) : null;
+  const res = A.addBook({ workId: fd.workId || null, title: work ? work.title : fd.title.trim(), subtitle: fd.subtitle, authors: work ? work.authors : list(fd.authors), genres: work ? work.genres : list(fd.genres),
+    description: fd.description || '', publisher: fd.publisher, year: +fd.year || null, lang: fd.lang, pages: +fd.pages || null, format: fd.format,
+    isbn13: isbnN ? isbnN.isbn13 : null, hasCover: ui.form.hasCover, source: ui.form.source, wishId: ui.form.wishId },
+    { locationId: fd.locationId || null, condition: fd.condition, acquired: fd.acquired, price: fd.price ? +fd.price : null, notes: fd.notes, status: fd.status });
+  closeModal(); refresh(); openDetail(res.ed.id);
+  toast(`Añadido <b>${esc(res.work.title)}</b> · ${res.copy.code}${res.copy.locationId ? ' en ' + esc(A.locPath(res.copy.locationId).join(' › ')) : ' (sin ubicación)'}`);
+}
+function copyForm(edId) {
+  const e = A.ed(edId), w = A.work(e.workId);
+  ui.form = { mode: 'copy', edId };
+  openModal(`<form data-form="copy" class="mform narrow"><header><h2>Nuevo ejemplar</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+    <div class="mbody"><div class="banner info">${I.info}<div class="grow">Se añadirá a la edición existente <b>${esc(w.title)}</b> (${esc(e.publisher || 'sin editorial')}${e.year ? ', ' + e.year : ''}) sin duplicar sus datos bibliográficos.</div></div>${copyFields()}</div>
+    <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Añadir ejemplar</button></footer></form>`);
+}
+function moveForm(cid) {
+  const c = A.copy(cid);
+  openModal(`<form data-form="move" data-id="${cid}" class="mform narrow"><header><h2>Mover ${c.code}</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+    <div class="mbody"><label>Nueva ubicación<select name="locationId">${locOptions(c.locationId)}</select></label></div>
+    <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Mover</button></footer></form>`);
+}
+function retireForm(cid) {
+  const c = A.copy(cid);
+  openModal(`<form data-form="retire" data-id="${cid}" class="mform narrow"><header><h2>Retirar ${c.code}</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+    <div class="mbody"><p class="muted" style="margin-top:0">El ejemplar deja de contar en tu colección, pero se conserva su historial de lectura. Podrás recuperarlo desde la papelera.</p>
+    <label>Motivo<select name="reason"><option>Regalado</option><option>Vendido</option><option>Perdido</option><option>Deteriorado</option><option>Otro</option></select></label></div>
+    <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Retirar ejemplar</button></footer></form>`);
+}
+function proposalForm(edId) {
+  const e = A.ed(edId), w = A.work(e.workId), p = A.lookup(e.isbn13);
+  if (!p) return toast('Sin resultados en los proveedores. Completa la ficha a mano.');
+  const rows = [['title', 'Título', w.title, p.title], ['authors', 'Autores', w.authors.join(', '), p.authors.join(', ')], ['publisher', 'Editorial', e.publisher, p.publisher],
+    ['year', 'Año', e.year, p.year], ['pages', 'Páginas', e.pages, p.pages], ['genres', 'Géneros', w.genres.join(', '), p.genres.join(', ')], ['description', 'Sinopsis', w.description, p.description], ['cover', 'Portada', e.hasCover ? 'Sí' : 'Sin portada', 'Disponible']]
+    .filter(r => String(r[2] ?? '') !== String(r[3] ?? ''));
+  openModal(`<form data-form="proposal" data-id="${edId}" class="mform"><header><h2>Propuesta de ${p.source}</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+    <div class="mbody"><p class="muted" style="margin-top:0">Elige qué campos aplicar. Los datos que hayas escrito a mano no se sobrescriben salvo que lo marques.</p>
+    <table class="tbl prop"><thead><tr><th></th><th>Campo</th><th>Actual</th><th>Propuesto</th></tr></thead><tbody>
+    ${rows.map(([k, l, a, b]) => `<tr><td><input type="checkbox" name="${k}" ${!a || a === 'Sin portada' ? 'checked' : ''}></td><td><b>${l}</b></td><td class="${a ? 'old' : 'muted'}">${esc(a || 'vacío')}</td><td>${esc(b)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Aplicar seleccionados</button></footer></form>`);
+}
+function wishForm() {
+  openModal(`<form data-form="wish" class="mform narrow"><header><h2>Añadir a la lista de deseos</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+    <div class="mbody" style="display:grid;gap:12px">
+      <label>Título *<input name="title" required></label><label>Autor<input name="author"></label>
+      <label>ISBN (si buscas una edición concreta)<input name="isbn"></label>
+      <label>Relacionar con una obra que ya tienes<select name="workId"><option value="">— Ninguna —</option>${A.ownedWorks().map(w => `<option value="${w.id}">${esc(w.title)}</option>`).join('')}</select></label>
+      <label>Prioridad<select name="priority"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baja">Baja</option></select></label>
+      <label>Notas<input name="notes"></label></div>
+    <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Añadir deseo</button></footer></form>`);
+}
+
+// ---------- locations ----------
+function viewLocations() {
+  const sel = ui.locSel;
+  const node = (l) => {
+    const kids = A.locChildren(l.id);
+    return `<button class="tnode ${sel === l.id ? 'on' : ''}" data-act="loc-sel" data-id="${l.id}">${LOC_ICON[l.kind] || I.folder}<span>${esc(l.name)}</span><span class="n">${A.copiesIn(l.id).length}</span></button>
+      ${kids.length ? `<div class="tchildren">${kids.map(node).join('')}</div>` : ''}`;
+  };
+  const root = S.locations.find(l => !l.parent);
+  const none = A.copiesIn('none').length;
+  const copies = sel === 'none' ? A.copiesIn('none') : A.copiesIn(sel, ui.locDeep);
+  const loc = sel === 'none' ? null : A.loc(sel);
+  const path = []; let p = loc; while (p) { path.unshift(p); p = p.parent ? A.loc(p.parent) : null; }
+  const kids = loc ? A.locChildren(loc.id) : [];
+  return `<div class="vh"><div><h1>Ubicaciones</h1><p class="sub">Representa tu casa tal como es: habitación › mueble › balda.</p></div></div>
+  <div class="loc-wrap">
+    <div class="tree">${node(root)}<div class="sep" style="height:1px;background:var(--line);margin:8px 4px"></div>
+      <button class="tnode ${sel === 'none' ? 'on' : ''}" data-act="loc-sel" data-id="none">${I.warn}<span>Sin ubicación</span><span class="n">${none}</span></button></div>
+    <div>
+      <div class="crumbs">${loc ? path.map((x, i) => `${i ? '›' : ''}<button data-act="loc-sel" data-id="${x.id}">${esc(x.name)}</button>`).join(' ') : 'Ejemplares pendientes de colocar'}</div>
+      <div class="vh" style="margin-bottom:6px"><h2 style="font-size:24px">${loc ? esc(loc.name) : 'Sin ubicación'}</h2>
+        ${loc ? `<div class="actions" style="margin:0"><button class="btn sm" data-act="loc-add">+ Sububicación</button><button class="btn sm" data-act="loc-rename">Renombrar</button></div>` : ''}</div>
+      ${kids.length ? `<div class="subloc">${kids.map(k => `<button data-act="loc-sel" data-id="${k.id}"><b>${esc(k.name)}</b><span>${A.copiesIn(k.id).length} ejemplares${A.locChildren(k.id).length ? ` · ${A.locChildren(k.id).length} subdivisiones` : ''}</span></button>`).join('')}</div>` : ''}
+      ${loc && kids.length ? `<label class="ck muted" style="display:flex;gap:6px;align-items:center;margin-bottom:12px;font-size:13px"><input type="checkbox" data-f="locDeep" ${ui.locDeep ? 'checked' : ''}> Incluir lo que hay dentro de las subdivisiones</label>` : ''}
+      ${copies.length ? copies.map(c => { const e = A.ed(c.editionId), w = A.work(e.workId); return `<button class="row" data-act="open" data-id="${e.id}">${OL.cover(e, w)}<div class="grow"><b>${esc(w.title)}</b> <span class="mono muted">${c.code}</span><div class="muted">${esc(w.authors.join(', '))} · ${esc(A.locPath(c.locationId).join(' › ') || 'Sin ubicación')}</div></div>${pill(A.copyStatus(c.id))}</button>`; }).join('')
+        : `<div class="empty">Aquí no hay ejemplares todavía.</div>`}
+    </div>
+  </div>`;
+}
+
+// ---------- wishlist ----------
+function viewWishlist() {
+  const open = S.wishlist.filter(w => !w.acquired), done = S.wishlist.filter(w => w.acquired);
+  const card = d => {
+    const w = d.workId ? A.work(d.workId) : null;
+    return `<div class="wcard"><div style="display:flex;justify-content:space-between;gap:8px"><h3>${esc(d.title)}</h3><span class="badge pri-${d.priority}">${d.priority}</span></div>
+      <div class="muted">${esc(d.author || '')}${d.isbn13 ? ` · <span class="mono">${OL.fmtIsbn(d.isbn13)}</span>` : ''}</div>
+      ${w ? `<div class="banner info" style="margin:4px 0">${I.info}<div class="grow">Ya tienes otra edición de esta obra (${A.copiesOfWork(w.id).length} ejemplares).</div></div>` : ''}
+      ${d.notes ? `<div class="note" style="margin-top:2px">${esc(d.notes)}</div>` : ''}
+      <div class="actions">${d.acquired ? `<span class="pill st-d">Adquirido</span>${d.copyId ? `<button class="btn sm" data-act="open" data-id="${A.copy(d.copyId).editionId}">Ver ejemplar</button>` : ''}` : `<button class="btn sm primary" data-act="wish-buy" data-id="${d.id}">Lo he comprado</button><button class="btn sm ghost danger" data-act="wish-del" data-id="${d.id}">Quitar</button>`}</div></div>`;
+  };
+  return `<div class="vh"><div><h1>Lista de deseos</h1><p class="sub">Libros que quieres pero aún no forman parte de tu colección. No cuentan en estadísticas ni búsquedas de la biblioteca.</p></div><button class="btn primary" data-act="wish-add">+ Añadir deseo</button></div>
+  <div class="wish">${open.map(card).join('') || '<div class="empty">Tu lista de deseos está vacía.</div>'}</div>
+  ${done.length ? `<h2 style="font-size:18px;margin:28px 0 12px">Adquiridos</h2><div class="wish">${done.map(card).join('')}</div>` : ''}`;
+}
+
+// ---------- stats ----------
+function viewStats() {
+  const st = A.stats();
+  const bars = (rows, max = 8) => { const m = Math.max(...rows.map(r => r[1]), 1); return rows.slice(0, max).map(([l, n]) => `<div class="bar"><span class="lbl" title="${esc(l)}">${esc(l)}</span><span class="tr"><i style="width:${(n / m) * 100}%"></i></span><span class="v">${n}</span></div>`).join(''); };
+  const bs = ui.statMode === 'works' ? st.byStatusWorks : st.byStatusCopies, tot = bs.pending + bs.reading + bs.read || 1;
+  const colors = { read: 'var(--ok)', reading: 'var(--info)', pending: 'var(--muted)' };
+  const maxM = Math.max(...st.added.map(a => a[1]), 1);
+  const mname = m => new Date(m + '-01T00:00').toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+  return `<div class="vh"><div><h1>Estadísticas</h1><p class="sub">Calculadas con tus datos, sin servicios externos.</p></div></div>
+  <div class="kpis">
+    <div class="kpi"><span>Obras</span><b>${st.works}</b><small>títulos distintos</small></div>
+    <div class="kpi"><span>Ediciones</span><b>${st.editions}</b><small>publicaciones concretas</small></div>
+    <div class="kpi"><span>Ejemplares</span><b>${st.copies}</b><small>libros físicos</small></div>
+    <div class="kpi"><span>Autores</span><b>${st.authors}</b></div>
+    <div class="kpi"><span>Páginas leídas</span><b>${st.pages.toLocaleString('es-ES')}</b></div>
+    <div class="kpi"><span>Valor de compra</span><b>${Math.round(st.value)} €</b><small>de lo registrado</small></div>
+  </div>
+  <div class="cards2">
+    <div class="panel"><h3>Lectura <span class="seg"><button class="${ui.statMode === 'works' ? 'on' : ''}" data-act="stat-mode" data-v="works">Por obra</button><button class="${ui.statMode === 'copies' ? 'on' : ''}" data-act="stat-mode" data-v="copies">Por ejemplar</button></span></h3>
+      <div class="stack">${['read', 'reading', 'pending'].map(k => `<i style="width:${bs[k] / tot * 100}%;background:${colors[k]}"></i>`).join('')}</div>
+      <div class="legend">${['read', 'reading', 'pending'].map(k => `<span><i style="background:${colors[k]}"></i>${STATUS[k][0]}: <b>${bs[k]}</b></span>`).join('')}</div>
+      <p class="muted" style="font-size:12.5px;margin:12px 0 0">${ui.statMode === 'works' ? 'Una obra cuenta como leída si has terminado cualquiera de sus ejemplares o ediciones.' : 'Cada ejemplar físico cuenta por separado (p. ej., tus dos copias de 1984).'}</p></div>
+    <div class="panel"><h3>Incorporaciones · últimos 12 meses</h3><div class="cols">${st.added.map(([m, n]) => `<div>${n ? `<b>${n}</b>` : ''}<i style="height:${n / maxM * 100}%"></i><span>${mname(m)}</span></div>`).join('')}</div></div>
+    <div class="panel"><h3>Géneros</h3>${bars(st.byGenre)}</div>
+    <div class="panel"><h3>Autores con más obras</h3>${bars(st.byAuthor, 6)}</div>
+    <div class="panel"><h3>Ejemplares por habitación</h3>${bars(st.byRoom)}</div>
+  </div>`;
+}
+
+// ---------- import / export ----------
+function viewIO() {
+  const r = ui.importReport;
+  return `<div class="vh"><div><h1>Importar y exportar</h1><p class="sub">Tus datos son tuyos: puedes sacarlos en formatos abiertos en cualquier momento.</p></div></div>
+  <div class="io">
+    <div class="panel"><h3>CSV de ejemplares</h3><p class="muted">Una fila por ejemplar con obra, edición, ubicación y lectura. Ideal para hojas de cálculo.</p><button class="btn" data-act="export-csv">${I.down}Descargar CSV</button></div>
+    <div class="panel"><h3>Exportación completa</h3><p class="muted">JSON con obras, ediciones, ejemplares, ubicaciones, lecturas, citas y deseos con todas sus relaciones. En el servidor real se descarga un <b>.zip</b> con <span class="mono">library.json</span> y la carpeta <span class="mono">assets/</span> de portadas.</p><button class="btn" data-act="export-json">${I.down}Descargar JSON</button></div>
+  </div>
+  <div class="panel"><h3>Importar una colección</h3>
+    <div class="drop" id="drop">${I.up}<p><b>Arrastra un fichero</b> CSV (OpenLibrary o Goodreads) o un .zip de exportación completa</p><p style="margin:0"><button class="btn sm" data-act="import-demo">Probar con un CSV de ejemplo</button></p></div>
+    ${r ? `<h3 style="margin-top:18px">Informe de validación · <span class="mono" style="font-size:14px">${esc(r.file)}</span></h3>
+      <div class="summary"><span class="badge">${r.total} filas</span><span class="pill st-d">${r.ok} nuevas</span><span class="badge warn">${r.dup} duplicadas (se añadirán como ejemplar o se omitirán)</span><span class="pill" style="background:var(--err-soft);color:var(--err)">${r.err} con errores</span></div>
+      <div class="banner info">${I.info}<div class="grow">Simulación (<i>dry-run</i>): todavía no se ha escrito nada. Revisa el informe y confirma.</div></div>
+      <table class="tbl" style="cursor:default"><thead><tr><th>Fila</th><th>Título</th><th>ISBN</th><th>Resultado</th></tr></thead><tbody>
+      ${r.rows.map(x => `<tr style="cursor:default"><td>${x[0]}</td><td>${esc(x[1])}</td><td class="mono">${esc(x[2])}</td><td class="${x[3]}">${esc(x[4])}</td></tr>`).join('')}</tbody></table>
+      <div class="actions"><button class="btn primary" data-act="import-confirm">Importar ${r.ok} nuevas</button><button class="btn" data-act="import-report">Descargar informe</button><button class="btn ghost" data-act="import-cancel">Descartar</button></div>` : ''}
+  </div>`;
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+function exportCSV() {
+  const q = v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const head = ['ejemplar', 'titulo', 'subtitulo', 'autores', 'editorial', 'anio', 'idioma', 'paginas', 'isbn13', 'isbn10', 'generos', 'ubicacion', 'conservacion', 'fecha_adquisicion', 'precio_eur', 'estado_lectura', 'valoracion', 'notas', 'obra_id', 'edicion_id'];
+  const rows = S.copies.filter(c => !c.retired).map(c => { const e = A.ed(c.editionId), w = A.work(e.workId), l = A.latest(c.id);
+    return [c.code, w.title, e.subtitle || w.subtitle, w.authors.join('; '), e.publisher, e.year, e.lang, e.pages, e.isbn13, e.isbn10, w.genres.join('; '), A.locPath(c.locationId).join(' > '), c.condition, c.acquired, c.price, A.copyStatus(c.id), l ? l.rating || '' : '', c.notes, w.id, e.id].map(q).join(','); });
+  download(`openlibrary-ejemplares-${OL.TODAY}.csv`, '﻿' + [head.join(','), ...rows].join('\n'), 'text/csv');
+  toast('CSV descargado');
+}
+function exportJSON() {
+  const data = { format_version: 1, exported_at: new Date().toISOString(), works: S.works, editions: S.editions, copies: S.copies, locations: S.locations, reading_sessions: S.sessions, quotes: S.quotes, wishlist: S.wishlist };
+  download(`openlibrary-export-${OL.TODAY}.json`, JSON.stringify(data, null, 2), 'application/json');
+  toast('Exportación completa descargada');
+}
+function importDemo(file) {
+  ui.importReport = { file: file || 'goodreads_library_export.csv', total: 312, ok: 298, dup: 9, err: 5, rows: [
+    [2, 'El infinito en un junco', '9788498381443', 'ok', 'Nueva obra + edición + ejemplar'],
+    [14, '1984', '9788499891033', 'warn', 'Duplicado: la edición ya existe → se propondrá como 3.er ejemplar'],
+    [27, 'Pedro Páramo', '9788437604497', 'warn', 'Duplicado exacto (mismo ejemplar importado antes) → se omitirá'],
+    [58, 'Antología poética', '84-376-0X95-1', 'err', 'ISBN con formato inválido → se importará sin ISBN si confirmas'],
+    [103, '', '9788420412146', 'err', 'Sin título → fila omitida'],
+    [190, 'La tregua', '', 'ok', 'Nueva obra sin ISBN'],
+    [244, 'Rayuela', '9788437604749', 'warn', 'Ya existe; el CSV trae valoración 5 → se aplicará a tu ejemplar'],
+    [301, 'Diccionario de dudas', '9788467041897', 'err', 'Fecha de lectura «31/02/2019» no válida → se ignorará la fecha'],
+  ] };
+  render();
+}
+
+// ---------- sync & backups ----------
+function viewSync() {
+  return `<div class="vh"><div><h1>Sincronización y copias</h1><p class="sub">El servidor en tu PC es la referencia. Android guarda una copia local y sincroniza al conectarse.</p></div></div>
+  <div class="cards2">
+    <div class="panel"><h3>Servidor</h3>
+      <div class="banner ok">${I.check}<div class="grow"><b>En línea</b> · PC Ubuntu · <span class="mono">openlibrary.tail-casa.ts.net</span><br>Solo accesible dentro de tu red Tailscale. v0.1.0</div></div>
+      <div class="kv" style="grid-template-columns:1fr 1fr"><div><span>Base de datos</span><b>4,2 MB</b></div><div><span>Portadas</span><b>38,6 MB · ${S.editions.filter(e => e.hasCover).length} imágenes</b></div><div><span>Cursor de cambios</span><b class="mono">#18 422</b></div><div><span>Arrancado</span><b>hoy, 08:57</b></div></div></div>
+    <div class="panel"><h3>Dispositivos</h3>
+      <div class="row" style="cursor:default"><div class="grow"><b>Pixel 8</b> · Android<div class="muted">Última sincronización hace 6 min · 0 cambios pendientes</div></div><button class="btn sm ghost danger" data-act="revoke">Revocar acceso</button></div>
+      <div class="row" style="cursor:default"><div class="grow"><b>Este navegador</b> · Firefox en Ubuntu<div class="muted">Sesión actual</div></div></div>
+      <div class="actions"><button class="btn sm" data-act="pwd">Cambiar contraseña</button></div></div>
+  </div>
+  <h2 style="font-size:20px;margin:26px 0 12px">Conflictos de sincronización</h2>
+  ${S.conflicts.length ? S.conflicts.map(k => `<div class="conf"><b>${esc(k.entity)}</b> · campo <b>${esc(k.field)}</b> modificado en dos sitios a la vez. No se ha sobrescrito nada.
+    <div class="vs"><div><small>Web · ${esc(k.remoteAt)}</small>${esc(k.web)}</div><div><small>Android (sin conexión) · ${esc(k.localAt)}</small>${esc(k.android)}</div></div>
+    <div class="actions" style="margin:0"><button class="btn sm" data-act="conflict" data-id="${k.id}" data-v="web">Mantener versión web</button><button class="btn sm" data-act="conflict" data-id="${k.id}" data-v="android">Mantener versión Android</button><button class="btn sm" data-act="conflict" data-id="${k.id}" data-v="both">Combinar ambas</button></div></div>`).join('')
+    : `<div class="banner ok">${I.check}<div class="grow">No hay conflictos pendientes.</div></div>`}
+  <h2 style="font-size:20px;margin:26px 0 12px">Copias de seguridad</h2>
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><span class="muted">Automáticas cada noche y al arrancar el PC si se perdió alguna. Destinos: disco USB y Backblaze B2 (cifrado con restic). Retención 7 diarias · 4 semanales · 12 mensuales.</span><button class="btn" data-act="backup-now">Crear copia ahora</button></div>
+    <table class="tbl" style="cursor:default"><thead><tr><th>Fecha</th><th>Tamaño</th><th>Destinos</th><th></th></tr></thead><tbody>
+    ${ui.backups.map(([d, s], i) => `<tr style="cursor:default"><td>${d}${i === 0 ? ' <span class="badge">última</span>' : ''}</td><td>${s}</td><td class="ok">USB ✓ · B2 ✓</td><td style="text-align:right"><button class="btn sm" data-act="restore" data-v="${d}">Restaurar…</button></td></tr>`).join('')}</tbody></table>
+  </div>`;
+}
+function seedConflict() {
+  const c = S.copies.find(x => A.work(A.ed(x.editionId).workId).title === 'Rayuela');
+  S.conflicts = [{ id: 'k1', copyId: c.id, entity: `Ejemplar ${c.code} · Rayuela`, field: 'Notas', remoteAt: '3 nov, 22:10', localAt: '3 nov, 23:41',
+    web: 'Leer en el orden del tablero de dirección.', android: 'Voy por el capítulo 73; seguir el orden saltado.' }];
+}
+
+// ---------- render ----------
+function render() {
+  renderSide();
+  const v = document.getElementById('view');
+  v.innerHTML = ({ library: viewLibrary, locations: viewLocations, wishlist: viewWishlist, stats: viewStats, io: viewIO, sync: viewSync })[ui.view]();
+  if (ui.view === 'library') renderResults();
+  const drop = document.getElementById('drop');
+  if (drop) {
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; importDemo(f ? f.name : null); };
+  }
+}
+function refresh() { render(); renderDrawer(); }
+
+// ---------- events ----------
+document.getElementById('q').addEventListener('input', e => {
+  ui.q = e.target.value;
+  if (ui.view !== 'library') { ui.view = 'library'; render(); } else renderResults();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); document.getElementById('q').focus(); }
+  if (e.key === 'Escape') { if (document.getElementById('modal').classList.contains('on')) closeModal(); else if (ui.drawer) closeDetail(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.f) {
+    const k = t.dataset.f;
+    if (k === 'sort') ui.sort = t.value; else if (k === 'byWork') ui.byWork = t.checked; else if (k === 'locDeep') { ui.locDeep = t.checked; return render(); } else ui.f[k] = t.value;
+    if (k === 'status') renderSide();
+    return renderResults();
+  }
+  if (t.dataset.status) {
+    const r = A.setStatus(t.dataset.status, t.value);
+    refresh(); toast(r === 'reread' ? 'Nueva lectura iniciada (relectura) · el historial se conserva' : `Estado: ${STATUS[t.value][0]}`);
+  }
+  if (t.name === 'workId' && t.closest('[data-form=book]')) {
+    const f = t.form, w = A.work(t.value);
+    ['title', 'authors', 'genres', 'description'].forEach(k => { f[k].disabled = !!w; });
+    if (w) { f.title.value = w.title; f.authors.value = w.authors.join('; '); f.genres.value = w.genres.join('; '); f.description.value = w.description; }
+  }
+});
+document.addEventListener('submit', e => {
+  const f = e.target, kind = f.dataset.form; if (!kind) return; e.preventDefault();
+  const fd = Object.fromEntries(new FormData(f));
+  if (kind === 'book') return saveBook(f);
+  if (kind === 'copy') { const c = A.addCopy(ui.form.edId, { locationId: fd.locationId, condition: fd.condition, acquired: fd.acquired, price: fd.price ? +fd.price : null, notes: fd.notes, status: fd.status }); closeModal(); refresh(); return toast(`Ejemplar ${c.code} añadido a la misma edición`); }
+  if (kind === 'move') { const c = A.copy(f.dataset.id); c.locationId = fd.locationId || null; closeModal(); refresh(); return toast(`${c.code} → ${esc(A.locPath(c.locationId).join(' › ') || 'Sin ubicación')}`); }
+  if (kind === 'retire') { const c = A.copy(f.dataset.id); c.retired = true; c.retiredReason = fd.reason; closeModal(); const e2 = A.ed(c.editionId); if (!A.copiesOfEd(e2.id).length) closeDetail(); refresh(); return toast(`${c.code} retirado (${fd.reason.toLowerCase()})`); }
+  if (kind === 'quote') { S.quotes.push({ id: OL.uid('q'), workId: A.ed(ui.drawer).workId, text: fd.text, page: fd.page }); renderDrawer(); return toast('Cita guardada'); }
+  if (kind === 'wish') { S.wishlist.unshift({ id: OL.uid('d'), title: fd.title, author: fd.author, isbn13: fd.isbn ? (OL.normalizeIsbn(fd.isbn).isbn13 || null) : null, workId: fd.workId || null, notes: fd.notes, priority: fd.priority, acquired: false }); closeModal(); render(); return toast('Añadido a la lista de deseos'); }
+  if (kind === 'proposal') {
+    const ed = A.ed(f.dataset.id), w = A.work(ed.workId), p = A.lookup(ed.isbn13), on = k => f[k] && f[k].checked;
+    if (on('title')) w.title = p.title; if (on('authors')) w.authors = p.authors; if (on('genres')) w.genres = p.genres; if (on('description')) w.description = p.description;
+    if (on('publisher')) ed.publisher = p.publisher; if (on('year')) ed.year = p.year; if (on('pages')) ed.pages = p.pages; if (on('cover')) { ed.hasCover = true; ed.coverOrigin = 'provider'; }
+    ed.metaStatus = 'complete'; ed.source = p.source; closeModal(); refresh(); return toast('Metadatos aplicados · ya no es provisional');
+  }
+  if (kind === 'restore') {
+    if (fd.confirm !== 'RESTAURAR') return toast('Escribe RESTAURAR para confirmar');
+    closeModal(); toast(`Restaurando copia del ${esc(f.dataset.v)}… (simulado) · los dispositivos harán una resincronización completa`);
+  }
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const { act, id, v } = el.dataset;
+  switch (act) {
+    case 'nav':
+      if (v === 'reading') { ui.view = 'library'; ui.f.status = 'reading'; }
+      else { ui.view = v; if (v === 'library') ui.f.status = ''; }
+      closeDetail(); render(); window.scrollTo(0, 0); break;
+    case 'open': openDetail(id); break;
+    case 'close-drawer': closeDetail(); break;
+    case 'layout': ui.layout = v; render(); break;
+    case 'clear-filters': ui.f = { status: '', genre: '', loc: '', lang: '' }; ui.byWork = false; ui.q = ''; document.getElementById('q').value = ''; render(); break;
+    case 'add-book': bookForm('add'); break;
+    case 'add-edition': bookForm('edition', { workId: id }); break;
+    case 'edit-book': bookForm('edit', { edId: id }); break;
+    case 'add-copy': copyForm(id); break;
+    case 'dup-add-copy': closeModal(); copyForm(id); break;
+    case 'form-lookup': formLookup(); break;
+    case 'move-copy': moveForm(id); break;
+    case 'retire-copy': retireForm(id); break;
+    case 'rate': A.setRating(id, +v); refresh(); toast(`Valoración: ${'★'.repeat(+v)}`); break;
+    case 'lookup-prov': proposalForm(id); break;
+    case 'modal-close': closeModal(); break;
+    case 'loc-sel': ui.locSel = id; render(); break;
+    case 'loc-add': { const n = prompt('Nombre de la nueva sububicación (p. ej. «Balda 4»):'); if (n) { const l = { id: OL.uid('L'), name: n.trim(), parent: ui.locSel, kind: 'shelf' }; S.locations.push(l); ui.locSel = l.id; render(); toast('Ubicación creada'); } break; }
+    case 'loc-rename': { const l = A.loc(ui.locSel); const n = prompt('Nuevo nombre:', l.name); if (n) { l.name = n.trim(); render(); } break; }
+    case 'wish-add': wishForm(); break;
+    case 'wish-del': S.wishlist = S.wishlist.filter(w => w.id !== id); render(); toast('Quitado de la lista de deseos'); break;
+    case 'wish-buy': { const d = S.wishlist.find(w => w.id === id); bookForm('add', { title: d.title, authors: d.author, isbn13: d.isbn13 || '', workId: d.workId, wishId: d.id, autoLookup: !!d.isbn13 }); break; }
+    case 'stat-mode': ui.statMode = v; render(); break;
+    case 'export-csv': exportCSV(); break;
+    case 'export-json': exportJSON(); break;
+    case 'import-demo': importDemo(); break;
+    case 'import-cancel': ui.importReport = null; render(); break;
+    case 'import-confirm': ui.importReport = null; render(); toast('Importación simulada: 298 registros añadidos · informe guardado en el historial'); break;
+    case 'import-report': download('informe-importacion.csv', 'fila,titulo,isbn,resultado\n' + ui.importReport.rows.map(r => [r[0], r[1], r[2], r[4]].map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv'); break;
+    case 'conflict': {
+      const k = S.conflicts.find(x => x.id === id), c = A.copy(k.copyId);
+      c.notes = v === 'web' ? k.web : v === 'android' ? k.android : `${k.web}\n${k.android}`;
+      S.conflicts = S.conflicts.filter(x => x.id !== id); render(); toast('Conflicto resuelto · se sincronizará con Android'); break;
+    }
+    case 'backup-now': el.disabled = true; el.textContent = 'Creando copia…'; setTimeout(() => { ui.backups.unshift([new Date().toISOString().slice(0, 16).replace('T', ' '), '42,9 MB']); render(); toast('Copia creada y verificada en USB y B2'); }, 1200); break;
+    case 'restore': openModal(`<form data-form="restore" data-v="${esc(v)}" class="mform narrow"><header><h2>Restaurar copia</h2><button type="button" class="icon-btn" data-act="modal-close">${I.x}</button></header>
+      <div class="mbody"><div class="banner warn">${I.warn}<div class="grow">Se sustituirá la biblioteca del servidor por la copia del <b>${esc(v)}</b>. Antes se hará una copia del estado actual. Android detectará la restauración y reenviará sus cambios pendientes; si chocan, aparecerán como conflictos.</div></div>
+      <label>Escribe <b>RESTAURAR</b> para confirmar<input name="confirm" autocomplete="off"></label></div>
+      <footer><button type="button" class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn primary">Restaurar</button></footer></form>`); break;
+    case 'revoke': toast('Prototipo: revocaría el token del Pixel 8; tendría que volver a iniciar sesión.'); break;
+    case 'pwd': toast('Prototipo: abriría el cambio de contraseña (requiere la actual).'); break;
+  }
+});
+document.getElementById('modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') closeModal(); });
+
+seedConflict();
+render();
+</script>
+</body>
+</html>

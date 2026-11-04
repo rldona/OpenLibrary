@@ -1,0 +1,4 @@
+prototypes/
+docs/
+apps/server/drizzle/
+package-lock.json

@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenLibrary · Android</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="../shared/data.js"></script>
+<style>
+:root{--page:#e9e4dc;--bg:#fbf8f3;--surf:#fff;--surf2:#f3eee6;--ink:#1f1b16;--muted:#6f675d;--line:#e4ddd2;--accent:#8a3b12;--on-accent:#fff;--accent-soft:#f6e4d4;
+  --ok:#2f6b4f;--ok-soft:#dff0e5;--warn:#93600f;--warn-soft:#fbecd2;--err:#a83232;--err-soft:#f8e0dd;--info:#285a87;--info-soft:#e1ecf7}
+@media (prefers-color-scheme:dark){:root{--page:#0e0d0c;--bg:#17140f;--surf:#211d18;--surf2:#2a2520;--ink:#efe8de;--muted:#a79e92;--line:#3a342d;--accent:#eb9a66;--on-accent:#24160c;--accent-soft:#3d2a1d;
+  --ok:#86c9a3;--ok-soft:#1c3327;--warn:#e9b866;--warn-soft:#3a2c16;--err:#f08b84;--err-soft:#3e1f1c;--info:#93c0ec;--info-soft:#1b2c3d}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;gap:40px;padding:28px 16px;flex-wrap:wrap;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
+/* phone */
+.phone{width:390px;height:844px;border-radius:54px;background:#0d0d0d;padding:11px;box-shadow:0 0 0 2px #2b2b2b,0 30px 80px -20px rgba(0,0,0,.45);position:relative;flex:none}
+.screen{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+.sbar{height:40px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:4px 28px 0;font-size:13.5px;font-weight:600;position:relative;z-index:3}
+.sbar .punch{position:absolute;left:50%;top:11px;width:13px;height:13px;border-radius:50%;background:#0d0d0d;transform:translateX(-50%)}
+.sbar .ic{display:flex;gap:6px;align-items:center}
+.sbar svg{width:15px;height:15px}
+.screen.dark{background:#0b0b0b;color:#fff}
+#content{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;scrollbar-width:none}
+#content::-webkit-scrollbar{display:none}
+/* app bar */
+.abar{display:flex;align-items:center;gap:4px;padding:6px 8px 6px 4px;min-height:56px;position:sticky;top:0;background:var(--bg);z-index:2}
+.abar h2{font-size:19px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
+.abar.big{padding:8px 16px 4px;align-items:flex-end}
+.abar.big h2{font-size:30px;padding-left:0}
+.ib{width:44px;height:44px;border:0;background:none;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:inherit;flex:none}
+.ib:active{background:var(--surf2)}
+.ib svg{width:22px;height:22px}
+.schip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surf);border-radius:99px;padding:6px 11px 6px 9px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.schip svg{width:16px;height:16px}
+.schip.ok{color:var(--ok)} .schip.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent} .schip.off{color:var(--muted)} .schip.err{color:var(--err);background:var(--err-soft);border-color:transparent} .schip.sync{color:var(--info)}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pad{padding:0 16px}
+.banner{display:flex;gap:10px;align-items:flex-start;border-radius:14px;padding:11px 12px;font-size:12.8px;margin:6px 16px 10px;line-height:1.4}
+.banner svg{width:18px;height:18px;flex:none;margin-top:1px}
+.banner.warn{background:var(--warn-soft);color:var(--warn)} .banner.info{background:var(--info-soft);color:var(--info)} .banner.ok{background:var(--ok-soft);color:var(--ok)} .banner.err{background:var(--err-soft);color:var(--err)} .banner.off{background:var(--surf2);color:var(--muted)}
+.banner b{color:inherit}
+.banner .lnk{border:0;background:none;padding:0;font-weight:700;color:inherit;text-decoration:underline;cursor:pointer}
+/* search + chips */
+.searchbox{margin:6px 16px 10px;display:flex;align-items:center;gap:10px;background:var(--surf2);border-radius:99px;padding:0 16px;height:50px}
+.searchbox svg{width:20px;color:var(--muted);flex:none}
+.searchbox input{flex:1;border:0;background:none;outline:none;font-size:15px;min-width:0}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:0 16px 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--line);background:var(--surf);border-radius:9px;padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;color:var(--muted)}
+.chip.on{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:600}
+/* list */
+.li{display:flex;gap:14px;align-items:center;padding:10px 16px;border:0;background:none;width:100%;text-align:left;cursor:pointer;color:inherit}
+.li:active{background:var(--surf2)}
+.li .olc{width:46px}
+.li .grow{flex:1;min-width:0}
+.li .t{font-weight:600;font-size:15px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .a{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .w{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .w svg{width:13px;flex:none}
+.li .chev{width:20px;color:var(--muted);flex:none}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;white-space:nowrap;flex:none}
+.st-p{background:var(--surf2);color:var(--muted)} .st-r{background:var(--info-soft);color:var(--info)} .st-d{background:var(--ok-soft);color:var(--ok)} .pv{background:var(--warn-soft);color:var(--warn)}
+.count{padding:2px 16px 6px;color:var(--muted);font-size:12px}
+.empty{text-align:center;color:var(--muted);padding:40px 30px}
+.empty h3{color:var(--ink);margin-bottom:6px;font-size:18px}
+/* bottom nav */
+.bnav{flex:none;height:78px;display:flex;align-items:flex-start;justify-content:space-around;background:var(--surf);border-top:1px solid var(--line);padding:8px 6px 0;position:relative;z-index:3}
+.bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--muted);cursor:pointer;width:64px}
+.bnav button .ico{width:58px;height:30px;border-radius:99px;display:grid;place-items:center}
+.bnav button svg{width:22px;height:22px}
+.bnav button.on{color:var(--ink)} .bnav button.on .ico{background:var(--accent-soft);color:var(--accent)}
+.bnav .scan .ico{width:58px;height:58px;border-radius:20px;background:var(--accent);color:var(--on-accent);margin-top:-26px;box-shadow:0 8px 20px -6px rgba(138,59,18,.6)}
+.bnav .scan svg{width:28px;height:28px}
+.bnav .badge{position:absolute;margin:-4px 0 0 22px;background:var(--err);color:#fff;border-radius:99px;font-size:10px;padding:0 5px;line-height:16px}
+/* detail */
+.hero{display:flex;gap:16px;padding:6px 16px 16px}
+.hero .olc{width:112px}
+.hero h1{font-size:23px;line-height:1.12;margin-bottom:4px}
+.hero .sub{font-family:Fraunces,serif;font-style:italic;color:var(--muted);font-size:14px;margin-bottom:4px}
+.hero .au{color:var(--muted);font-size:14px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:11.5px;background:var(--surf2);color:var(--muted);padding:3px 8px;border-radius:7px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:18px;margin:0 16px 12px;padding:14px}
+.card h3{font-size:16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h3 small{font-family:Inter;font-size:12px;color:var(--muted);font-weight:500}
+.where{display:flex;gap:12px;align-items:center}
+.where .pin{width:44px;height:44px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.where .pin svg{width:22px}
+.where .path{font-weight:600;font-size:15px;line-height:1.3}
+.where .path i{font-style:normal;color:var(--muted);font-weight:400}
+.where .meta{font-size:12px;color:var(--muted);margin-top:2px}
+.where.none .pin{background:var(--warn-soft);color:var(--warn)}
+.sep{height:1px;background:var(--line);margin:12px 0}
+.segm{display:flex;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:6px 0 10px}
+.segm button{flex:1;border:0;background:none;padding:9px 4px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.segm button+button{border-left:1px solid var(--line)}
+.segm button.on{background:var(--accent-soft);color:var(--accent)}
+.segm svg{width:15px}
+.stars{display:flex;gap:2px}
+.stars button{border:0;background:none;font-size:26px;line-height:1;padding:0 2px;color:#d6cbb9;cursor:pointer}
+.stars button.on{color:#d4921c}
+.dates{font-size:12.5px;color:var(--muted);margin-top:6px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:13.5px}
+.kv span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.tbtn{border:0;background:none;color:var(--accent);font-weight:600;padding:6px 0;cursor:pointer;font-size:13.5px;display:inline-flex;align-items:center;gap:6px}
+.tbtn svg{width:17px}
+textarea.note{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:10px;min-height:64px;resize:none;outline:none;font-size:13.5px}
+textarea.note:focus{border-color:var(--accent)}
+.quote{font-family:Fraunces,serif;font-size:15px;border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:0 0 10px}
+.quote small{display:block;font:500 11.5px Inter;color:var(--muted)}
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:99px;padding:13px 20px;font-weight:600;font-size:14.5px;cursor:pointer;background:var(--accent);color:var(--on-accent)}
+.btn.tonal{background:var(--accent-soft);color:var(--accent)}
+.btn.out{background:none;border:1px solid var(--line);color:var(--ink)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:18px}
+.sticky{position:sticky;bottom:0;padding:12px 16px 16px;background:linear-gradient(transparent,var(--bg) 30%);z-index:2}
+/* form */
+.fld{display:block;margin:0 16px 12px;position:relative}
+.fld input,.fld select{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--surf);padding:20px 13px 7px;font-size:15px;outline:none}
+.fld input:focus,.fld select:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.fld span{position:absolute;left:14px;top:6px;font-size:11px;font-weight:600;color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.row2 .fld:first-child{margin-right:6px} .row2 .fld:last-child{margin-left:6px}
+.sect{font-family:Fraunces,serif;font-size:17px;font-weight:600;margin:18px 16px 10px}
+.pick{display:flex;align-items:center;gap:12px;margin:0 16px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surf);padding:10px 12px;cursor:pointer;width:calc(100% - 32px);text-align:left}
+.pick svg{width:20px;color:var(--accent);flex:none}
+.pick .grow{flex:1}
+.pick small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin:0 16px 12px}
+.revcover{display:flex;gap:14px;align-items:center;padding:4px 16px 14px}
+.revcover .olc{width:92px}
+.src{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--ok-soft);color:var(--ok)}
+/* scanner */
+.cam{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,#3a332b 0,#16130f 65%);overflow:hidden}
+.cam .book{position:absolute;left:50%;top:44%;width:250px;height:330px;transform:translate(-50%,-50%) rotate(-4deg);background:linear-gradient(135deg,#5b4636,#3c2e24);border-radius:4px;filter:blur(1.5px);opacity:.75;box-shadow:0 30px 60px rgba(0,0,0,.6)}
+.cam .bc{position:absolute;left:50%;top:42%;width:120px;height:62px;transform:translate(-50%,-50%) rotate(-4deg);background:#f4f1ea;border-radius:2px;filter:blur(1px);opacity:.85;
+  background-image:repeating-linear-gradient(90deg,#111 0 2px,transparent 2px 4px,#111 4px 5px,transparent 5px 8px,#111 8px 11px,transparent 11px 12px);background-size:100% 70%;background-repeat:no-repeat;background-position:center 30%}
+.finder{position:absolute;left:50%;top:42%;width:270px;height:150px;transform:translate(-50%,-50%);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
+.finder::before,.finder::after{content:'';position:absolute;inset:-2px;border-radius:20px;border:3px solid #fff;-webkit-mask:linear-gradient(#000 0 0) top left/34px 34px no-repeat,linear-gradient(#000 0 0) top right/34px 34px no-repeat,linear-gradient(#000 0 0) bottom left/34px 34px no-repeat,linear-gradient(#000 0 0) bottom right/34px 34px no-repeat;mask:linear-gradient(#000 0 0) top left/34px 34px no-repeat,linear-gradient(#000 0 0) top right/34px 34px no-repeat,linear-gradient(#000 0 0) bottom left/34px 34px no-repeat,linear-gradient(#000 0 0) bottom right/34px 34px no-repeat}
+.finder .laser{position:absolute;left:14px;right:14px;height:2px;background:#ff4d3a;box-shadow:0 0 12px 2px rgba(255,77,58,.7);top:50%;animation:laser 1.8s ease-in-out infinite}
+@keyframes laser{0%,100%{top:20%}50%{top:80%}}
+.finder.hit{box-shadow:0 0 0 2000px rgba(0,0,0,.45),inset 0 0 0 3px #3ddc84}
+.finder.hit .laser{display:none}
+.camtop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:6px 8px;color:#fff;z-index:2}
+.camhint{position:absolute;top:calc(42% + 92px);left:0;right:0;text-align:center;color:#fff;font-size:13.5px;opacity:.9;padding:0 30px}
+.detected{position:absolute;top:calc(42% - 110px);left:50%;transform:translateX(-50%);background:#3ddc84;color:#06361b;font:700 13px ui-monospace,Menlo,monospace;padding:6px 12px;border-radius:99px;white-space:nowrap}
+.cambottom{position:absolute;left:0;right:0;bottom:0;padding:14px 14px 18px;background:linear-gradient(transparent,rgba(0,0,0,.85) 25%)}
+.camact{display:flex;gap:8px;margin-bottom:12px}
+.camact button{flex:1;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;border-radius:99px;padding:10px 8px;font-size:12.5px;font-weight:600;cursor:pointer}
+.sim{border:1.5px dashed rgba(255,255,255,.35);border-radius:16px;padding:10px}
+.sim .h{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffcf9e;font-weight:700;margin-bottom:8px}
+.sim .g{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sim button{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:8px;text-align:left;font-size:12px;font-weight:600;cursor:pointer;line-height:1.25}
+.sim button small{display:block;font-weight:400;opacity:.7;font-size:10.5px}
+.sim button:hover{background:rgba(255,255,255,.2)}
+.scanerr{position:absolute;left:16px;right:16px;top:calc(42% - 140px);background:#3d1513;color:#ffd7d3;border-radius:14px;padding:10px 12px;font-size:12.5px;display:flex;gap:8px}
+.scanerr svg{width:18px;flex:none}
+/* photo */
+.pframe{position:absolute;left:50%;top:44%;width:220px;height:330px;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.9);border-radius:6px;box-shadow:0 0 0 2000px rgba(0,0,0,.5)}
+.pframe .olc{width:100%;height:100%;border-radius:2px}
+.pframe .hd{position:absolute;width:18px;height:18px;border:3px solid #fff;background:none}
+.shutter{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer}
+.shutter:active{background:#fff}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
+.flash.on{animation:fl .35s}
+@keyframes fl{0%{opacity:.95}100%{opacity:0}}
+/* loading */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;padding:40px;text-align:center;color:var(--muted)}
+.loader{width:44px;height:44px;border-radius:50%;border:4px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite}
+/* sheet & snack */
+#scrim{position:absolute;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s;z-index:8}
+#scrim.on{opacity:1;pointer-events:auto}
+#sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surf);border-radius:28px 28px 0 0;z-index:9;transform:translateY(105%);transition:transform .25s cubic-bezier(.2,.8,.2,1);max-height:82%;overflow-y:auto;padding:10px 0 20px;color:var(--ink)}
+#sheet.on{transform:none}
+#sheet .grab{width:36px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 12px}
+#sheet h3{font-size:19px;padding:0 20px 6px}
+#sheet p{padding:0 20px;color:var(--muted);margin:4px 0 12px;font-size:13.5px}
+.sheet-acts{display:flex;flex-direction:column;gap:8px;padding:6px 20px 0}
+#snack{position:absolute;left:12px;right:12px;bottom:90px;background:#2c2620;color:#f6efe6;border-radius:12px;padding:12px 14px;font-size:13px;z-index:7;transform:translateY(20px);opacity:0;transition:.25s;pointer-events:none;display:flex;gap:10px;align-items:center}
+#snack.on{transform:none;opacity:1}
+#snack.nonav{bottom:20px}
+/* stats */
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px 12px}
+.kpi{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+.kpi span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.kpi b{display:block;font-family:Fraunces,serif;font-size:28px;line-height:1.15}
+.bar{display:grid;grid-template-columns:96px 1fr 26px;gap:8px;align-items:center;font-size:12.5px;margin-bottom:7px}
+.bar .tr{height:9px;background:var(--surf2);border-radius:9px;overflow:hidden}
+.bar .tr i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.bar .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .v{text-align:right;color:var(--muted)}
+.stack{display:flex;height:14px;border-radius:9px;overflow:hidden;margin:4px 0 10px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+/* sync */
+.syncbig{display:flex;gap:14px;align-items:center}
+.syncbig .ico{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;flex:none}
+.syncbig .ico svg{width:28px}
+.syncbig b{font-size:16px;display:block}
+.syncbig span{font-size:12.5px;color:var(--muted)}
+.op{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.op:last-child{border-bottom:0}
+.op .dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}
+.op .grow{flex:1;min-width:0}
+.op .mono{color:var(--muted);font-size:11px}
+.log{font:11.5px/1.55 ui-monospace,Menlo,monospace;color:var(--muted);max-height:220px;overflow:auto}
+.log div{padding:2px 0;border-bottom:1px dashed var(--line)}
+.log .e{color:var(--err)} .log .o{color:var(--ok)} .log .w{color:var(--warn)}
+.conf .vs{display:grid;gap:6px;margin:8px 0}
+.conf .vs div{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:13px}
+.conf .vs small{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.05em}
+.menu .li{padding:14px 16px}
+.menu .li .ic{width:40px;height:40px;border-radius:12px;background:var(--surf2);display:grid;place-items:center;color:var(--accent);flex:none}
+.menu .li .ic svg{width:20px}
+.wcard{background:var(--surf);border:1px solid var(--line);border-radius:18px;margin:0 16px 10px;padding:14px}
+.wcard .t{font-family:Fraunces,serif;font-size:17px;font-weight:600}
+.wcard .a{color:var(--muted);font-size:13px}
+.wcard .n{font-size:12.5px;color:var(--muted);margin-top:6px}
+.wcard .acts{display:flex;gap:8px;margin-top:10px}
+.wcard .acts .btn{padding:9px 14px;font-size:13px}
+.fab{position:absolute;right:18px;bottom:96px;width:58px;height:58px;border-radius:18px;border:0;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;cursor:pointer;box-shadow:0 6px 16px -6px rgba(0,0,0,.35);z-index:4}
+.fab svg{width:26px}
+.crumbs{padding:0 16px 8px;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px}
+.crumbs button{border:0;background:none;padding:0;color:var(--accent);font-weight:600;cursor:pointer}
+/* side panel */
+.panel{width:330px;background:var(--surf);border:1px solid var(--line);border-radius:20px;padding:18px;position:sticky;top:28px;flex:none}
+.panel h1{font-size:22px;margin-bottom:2px}
+.panel .lead{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.panel h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.tg b{font-size:13.5px;font-weight:600;display:block}
+.tg small{color:var(--muted);font-size:11.5px}
+.sw{width:44px;height:26px;border-radius:99px;background:var(--line);position:relative;flex:none;transition:.2s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tg.on .sw{background:var(--ok)} .tg.on .sw::after{left:21px}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;padding:6px 0;cursor:pointer}
+.ck input{margin-top:2px;accent-color:var(--accent)}
+.panel .quick{display:flex;flex-wrap:wrap;gap:6px}
+.panel .quick button{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer}
+.panel ol{padding-left:18px;margin:0;font-size:12.5px;color:var(--muted)}
+.panel ol li{margin-bottom:5px}
+.panel ol b{color:var(--ink);font-weight:600}
+.status-line{font-size:12px;border-radius:10px;padding:8px 10px;background:var(--bg);margin-top:10px}
+@media (max-width:760px){body{gap:20px;padding:12px}.panel{position:static;width:100%;max-width:400px}.phone{transform-origin:top center}}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="screen" id="screen">
+    <div class="sbar"><span>9:41</span><span class="punch"></span><span class="ic" id="sicons"></span></div>
+    <div id="content"></div>
+    <nav class="bnav" id="bnav"></nav>
+    <div id="snack" role="status"></div>
+    <div id="scrim" data-act="sheet-close"></div>
+    <div id="sheet"></div>
+    <div class="flash" id="flash"></div>
+  </div>
+</div>
+
+<aside class="panel" id="panel"></aside>
+
+<script>
+'use strict';
+let S = OL.createState(), A = OL.api(S);
+const esc = OL.esc;
+const net = { online: true, server: true };
+const sync = { pending: [], state: 'idle', last: 'hoy 09:12', log: ['09:12:04 PULL desde #18 398 → 24 cambios ✓', '09:12:03 PUSH lote 3f9a (2 ops) → 2 aplicadas ✓'], failNext: false, conflictNext: false, conflicts: [], batch: 0 };
+let stack = [{ s: 'home' }];
+const ui = { q: '', chip: 'all', review: null, picker: null, scanMsg: null, photoTaken: false };
+const STATUS = { pending: ['Pendiente', 'p'], reading: ['Leyendo', 'r'], read: ['Leído', 'd'] };
+const CONDS = ['Como nuevo', 'Excelente', 'Bueno', 'Usado', 'Aceptable', 'Deteriorado'];
+const LANGS = { es: 'Español', en: 'Inglés', fr: 'Francés', it: 'Italiano', pt: 'Portugués', de: 'Alemán', ca: 'Catalán' };
+const I = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>',
+  scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.6"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
+  cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  flash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.3A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>',
+  cloudOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.3A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><path d="m9 14 2 2 4-4"/></svg>',
+  cloudOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 20 20M5.8 5.8A8 8 0 0 0 9 20h9a5 5 0 0 0 2.6-.7M22 15a5 5 0 0 0-4-5h-1.3a8 8 0 0 0-6.2-5.8"/></svg>',
+  sync: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>',
+  wifi: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5 1 8.6a15.5 15.5 0 0 1 22 0z"/></svg>',
+  wifiOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.5 1 8.6a15.5 15.5 0 0 1 22 0z" opacity=".35"/><path d="m3 3 18 18"/></svg>',
+  bat: '<svg viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="6" width="21" height="12" rx="3"/><rect x="3.5" y="8.5" width="13" height="7" rx="1.2" fill="currentColor" stroke="none"/><path d="M24 10v4"/></svg>',
+  keyb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 16h8"/></svg>',
+};
+const serverOK = () => net.online && net.server;
+const cur = () => stack[stack.length - 1];
+const $ = s => document.querySelector(s);
+const pill = st => `<span class="pill st-${STATUS[st][1]}">${STATUS[st][0]}</span>`;
+const fmtDate = d => d ? new Date(d + 'T00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+const now = () => new Date().toTimeString().slice(0, 8);
+const crumbHTML = id => { const p = A.locPath(id); return p.length ? p.map(esc).join(' <i>›</i> ') : 'Sin ubicación'; };
+const opId = () => Math.random().toString(16).slice(2, 6) + '…' + Math.random().toString(16).slice(2, 6);
+
+// ---------- navigation ----------
+function go(s, p = {}) { stack.push({ s, ...p }); render(true); }
+function back() { if (stack.length > 1) stack.pop(); closeSheet(); render(true); }
+function tab(s) { stack = [{ s }]; closeSheet(); render(true); }
+function snack(msg, ms = 2800) { const el = $('#snack'); el.innerHTML = msg; el.classList.toggle('nonav', $('#bnav').style.display === 'none'); el.classList.add('on'); clearTimeout(snack.t); snack.t = setTimeout(() => el.classList.remove('on'), ms); }
+function openSheet(html) { const sh = $('#sheet'); sh.innerHTML = `<div class="grab"></div>${html}`; sh.classList.add('on'); $('#scrim').classList.add('on'); }
+function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ui.picker = null; }
+
+// ---------- sync engine (simulado) ----------
+function queue(label) {
+  sync.pending.push({ id: opId(), label, at: now() });
+  render();
+  if (serverOK()) setTimeout(runSync, 900);
+}
+function runSync(manual) {
+  if (!serverOK()) { if (manual) snack(net.online ? 'El servidor (PC Ubuntu) no responde. Tus cambios siguen guardados en el móvil.' : 'Sin conexión. Tus cambios siguen guardados en el móvil.'); render(); return; }
+  if (sync.state === 'syncing') return;
+  const ops = sync.pending.slice(); const batch = Math.random().toString(16).slice(2, 6);
+  sync.state = 'syncing'; render();
+  const finish = (dupes) => {
+    if (sync.conflictNext && ops.length) {
+      const c = (sync.lastNote && A.copy(sync.lastNote)) || S.copies.find(x => A.work(A.ed(x.editionId).workId).title === 'Rayuela');
+      sync.conflicts.push({ id: 'k' + Date.now(), copyId: c.id, entity: `Notas de ${c.code} · ${A.work(A.ed(c.editionId).workId).title}`, web: c.notes && sync.lastNote === c.id ? 'Nota escrita desde la web anoche (3 nov, 22:10).' : 'Leer en el orden del tablero de dirección.', android: c.notes || 'Voy por el capítulo 73; seguir el orden saltado.' });
+      sync.log.unshift(`${now()} PUSH lote ${batch}: 1 op en conflicto (campo «notas» cambiado también en la web) ⚠`.replace('⚠', '⚠'));
+      sync.conflictNext = false;
+    }
+    sync.log.unshift(`${now()} PUSH lote ${batch} (${ops.length} ops) → ${dupes ? `${ops.length} ya aplicadas (idempotente), 0 duplicados` : `${ops.length} aplicadas`} ✓`);
+    sync.log.unshift(`${now()} PULL desde #18 422 → ${Math.floor(Math.random() * 3)} cambios ✓`);
+    sync.pending = sync.pending.filter(p => !ops.includes(p));
+    sync.state = 'idle'; sync.last = 'hoy ' + now().slice(0, 5);
+    render();
+    snack(sync.conflicts.length ? `${I.warn.replace('<svg', '<svg width="18"')} Sincronizado con 1 conflicto por revisar` : `${I.ok.replace('<svg', '<svg width="18"')} Sincronizado${ops.length ? ` · ${ops.length} cambios enviados` : ''}`);
+  };
+  setTimeout(() => {
+    if (!serverOK()) { sync.state = 'idle'; sync.log.unshift(`${now()} PUSH lote ${batch} → servidor no disponible, se reintentará`); render(); return; }
+    if (sync.failNext && ops.length) {
+      sync.failNext = false;
+      sync.log.unshift(`${now()} PUSH lote ${batch} (${ops.length} ops) → el servidor las aplicó pero la respuesta se perdió (timeout) ✗`);
+      sync.state = 'retry'; render();
+      snack('Fallo de red durante el envío · reintentando en 2 s…');
+      setTimeout(() => { sync.log.unshift(`${now()} Reintento 1 del lote ${batch} con los mismos op_id…`); finish(true); }, 2000);
+      return;
+    }
+    finish(false);
+  }, 1100);
+}
+function syncChip() {
+  let cls = 'ok', ic = I.cloudOk, txt = 'Sincronizado';
+  if (sync.state === 'syncing' || sync.state === 'retry') { cls = 'sync'; ic = I.sync.replace('<svg', '<svg class="spin"'); txt = sync.state === 'retry' ? 'Reintentando' : 'Sincronizando'; }
+  else if (!net.online) { cls = 'off'; ic = I.cloudOff; txt = sync.pending.length ? `Sin red · ${sync.pending.length}` : 'Sin conexión'; }
+  else if (!net.server) { cls = 'warn'; ic = I.cloudOff; txt = sync.pending.length ? `${sync.pending.length} pendientes` : 'Servidor apagado'; }
+  else if (sync.conflicts.length) { cls = 'err'; ic = I.warn; txt = `${sync.conflicts.length} conflicto`; }
+  else if (sync.pending.length) { cls = 'warn'; ic = I.cloud; txt = `${sync.pending.length} pendientes`; }
+  return `<button class="schip ${cls}" data-act="go" data-v="sync" aria-label="Estado de sincronización">${ic}${txt}</button>`;
+}
+function offlineBanner() {
+  if (serverOK()) return '';
+  return `<div class="banner off">${I.cloudOff}<div>${net.online ? '<b>El servidor no está disponible</b> (PC apagado o fuera de alcance).' : '<b>Sin conexión.</b>'} Consultas la copia local sincronizada ${esc(sync.last)}. Los cambios se guardan aquí y se enviarán después.</div></div>`;
+}
+
+// ---------- screens ----------
+const SCREENS = {
+  home() {
+    return { nav: true, html: `
+      <div class="abar big"><h2>Biblioteca</h2>${syncChip()}</div>
+      ${offlineBanner()}
+      <div class="searchbox">${I.search}<input id="hq" placeholder="Título, autor, ISBN, balda…" value="${esc(ui.q)}" autocomplete="off" aria-label="Buscar"></div>
+      <div class="chips">${[['all', 'Todos'], ['reading', 'Leyendo'], ['pending', 'Pendientes'], ['read', 'Leídos'], ['noloc', 'Sin ubicación']].map(([k, l]) => `<button class="chip ${ui.chip === k ? 'on' : ''}" data-act="chip" data-v="${k}">${l}</button>`).join('')}</div>
+      <div id="hlist"></div>` };
+  },
+  detail(p) {
+    const e = A.ed(p.id), w = A.work(e.workId), copies = A.copiesOfEd(e.id), eds = A.edsOfWork(w.id).filter(x => A.copiesOfEd(x.id).length);
+    const quotes = S.quotes.filter(q => q.workId === w.id);
+    return { nav: false, html: `
+      <div class="abar"><button class="ib" data-act="back" aria-label="Atrás">${I.back}</button><h2></h2><button class="ib" data-act="photo" data-id="${e.id}" aria-label="Fotografiar portada">${I.cam}</button></div>
+      <div class="hero">${OL.cover(e, w)}<div style="min-width:0">
+        <h1>${esc(w.title)}</h1>${e.subtitle || w.subtitle ? `<div class="sub">${esc(e.subtitle || w.subtitle)}</div>` : ''}<div class="au">${esc(w.authors.join(', ') || 'Autor desconocido')}</div>
+        <div class="tags">${pill(A.workStatus(w.id))}${w.genres.slice(0, 2).map(g => `<span class="tag">${esc(g)}</span>`).join('')}</div>
+        ${eds.length > 1 ? `<div class="tags"><span class="tag">Tienes ${eds.length} ediciones de esta obra</span></div>` : ''}</div></div>
+      ${e.metaStatus === 'provisional' ? `<div class="banner warn">${I.warn}<div><b>Alta provisional</b> sin metadatos (hecha sin conexión). <button class="lnk" data-act="prov-lookup" data-id="${e.id}">Buscar datos ahora</button></div></div>` : ''}
+      ${copies.map((c, i) => { const st = A.copyStatus(c.id), last = A.latest(c.id);
+        return `<div class="card"><h3>${copies.length > 1 ? `Ejemplar ${i + 1} de ${copies.length}` : 'Dónde está'} <small class="mono">${c.code}</small></h3>
+        <div class="where ${c.locationId ? '' : 'none'}"><div class="pin">${I.pin}</div><div style="flex:1"><div class="path">${crumbHTML(c.locationId)}</div><div class="meta">${esc(c.condition)}${c.acquired ? ' · adquirido ' + fmtDate(c.acquired) : ''}</div></div><button class="tbtn" data-act="move" data-id="${c.id}">Mover</button></div>
+        <div class="sep"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Lectura</div>
+        <div class="segm" role="group">${Object.entries(STATUS).map(([k, v]) => `<button class="${k === st ? 'on' : ''}" data-act="status" data-id="${c.id}" data-v="${k}">${k === st ? I.ok : ''}${v[0]}</button>`).join('')}</div>
+        <div class="stars">${[1, 2, 3, 4, 5].map(n => `<button class="${last && n <= last.rating ? 'on' : ''}" data-act="rate" data-id="${c.id}" data-v="${n}" aria-label="${n} estrellas">★</button>`).join('')}</div>
+        <div class="dates">${last && last.start ? `Empezado el ${fmtDate(last.start)}` : 'Sin fechas de lectura'}${last && last.end ? ` · terminado el ${fmtDate(last.end)}` : ''}${A.sessions(c.id).length > 1 ? ` · ${A.sessions(c.id).length}.ª lectura` : ''}</div>
+        <div class="sep"></div>
+        <textarea class="note" data-note="${c.id}" placeholder="Notas personales sobre este ejemplar…">${esc(c.notes)}</textarea></div>`; }).join('')}
+      <div style="padding:0 16px 12px;display:flex;gap:8px"><button class="btn tonal" style="flex:1" data-act="add-copy" data-id="${e.id}">${I.plus}Otro ejemplar</button></div>
+      <div class="card"><h3>Edición <small>${esc(e.source)}</small></h3><div class="kv">
+        <div><span>Editorial</span>${esc(e.publisher || '—')}</div><div><span>Año</span>${e.year || '—'}</div>
+        <div><span>Idioma</span>${LANGS[e.lang] || e.lang || '—'}</div><div><span>Páginas</span>${e.pages || '—'}</div>
+        <div><span>ISBN-13</span><span class="mono" style="font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:400">${e.isbn13 ? OL.fmtIsbn(e.isbn13) : '—'}</span></div><div><span>Formato</span>${esc(e.format || '—')}</div></div>
+        ${w.description ? `<p style="font-family:Fraunces,serif;color:var(--muted);margin:12px 0 0">${esc(w.description)}</p>` : ''}</div>
+      <div class="card"><h3>Citas <button class="tbtn" data-act="quote" data-id="${w.id}">${I.plus}Añadir</button></h3>
+        ${quotes.map(q => `<blockquote class="quote">${esc(q.text)}${q.page ? `<small>p. ${esc(q.page)}</small>` : ''}</blockquote>`).join('') || '<div style="color:var(--muted);font-size:13px">Aún no has guardado citas de esta obra.</div>'}</div>
+      <div style="height:20px"></div>` };
+  },
+  scan() {
+    const m = ui.scanMsg;
+    return { nav: false, dark: true, html: `
+      <div class="cam"><div class="book"></div><div class="bc"></div></div>
+      <div class="camtop"><button class="ib" data-act="back" aria-label="Cerrar">${I.x}</button><button class="ib" data-act="torch" aria-label="Linterna">${I.flash}</button></div>
+      <div class="finder ${m && m.hit ? 'hit' : ''}" id="finder"><div class="laser"></div></div>
+      ${m && m.code ? `<div class="detected">${esc(m.code)}</div>` : ''}
+      ${m && m.err ? `<div class="scanerr">${I.warn}<div><b>No es un ISBN.</b> ${esc(m.err)} Sigue apuntando al código del libro.</div></div>` : ''}
+      <div class="camhint">Apunta al código de barras de la contracubierta (EAN-13 que empieza por 978 o 979)</div>
+      <div class="cambottom">
+        <div class="camact"><button data-act="type-isbn">${'Teclear ISBN'}</button><button data-act="manual">Sin código · alta manual</button></div>
+        <div class="sim"><div class="h">Simulación · elige qué «lee» la cámara</div><div class="g">
+          ${OL.SCAN_SCENARIOS.map(s => `<button data-act="sim-scan" data-v="${s.code}">${esc(s.label)}<small>${esc(s.hint)}</small></button>`).join('')}</div></div>
+      </div>` };
+  },
+  lookup(p) {
+    return { nav: false, html: `<div class="loading"><div class="loader"></div><div><b style="color:var(--ink);font-size:16px">Buscando datos del libro</b><br><span class="mono">${OL.fmtIsbn(p.isbn)}</span><br>Open Library · Google Books</div></div>` };
+  },
+  review() {
+    const r = ui.review; if (!r) return SCREENS.home();
+    const m = r.meta, c = r.copy;
+    const isCopy = r.mode === 'copy';
+    const e0 = isCopy ? A.ed(r.edId) : null, w0 = e0 ? A.work(e0.workId) : null;
+    const fake = isCopy ? e0 : { id: 'tmp' + (r.isbn13 || 'manual'), title: m.title, hasCover: !!(m.hasCover || r.photo), coverOrigin: r.photo ? 'photo' : 'provider', metaStatus: r.provisional ? 'provisional' : 'complete' };
+    const f = (k, label, type = 'text', extra = '') => `<label class="fld"><span>${label}</span><input data-bind="${k}" type="${type}" value="${esc(m[k] ?? '')}" ${extra}></label>`;
+    let banner = '';
+    if (isCopy) banner = `<div class="banner info">${I.info}<div>Añadirás <b>otro ejemplar</b> de una edición que ya tienes. Sus datos bibliográficos no se duplican.</div></div>`;
+    else if (r.provisional) banner = `<div class="banner warn">${I.cloudOff}<div><b>Sin Internet:</b> no se pueden buscar los datos ahora. Se guardará como <b>provisional</b> y podrás completarlo cuando haya conexión.</div></div>`;
+    else if (r.notFound) banner = `<div class="banner warn">${I.info}<div><b>No se han encontrado datos</b> para este ISBN. Rellena lo que sepas: solo el título es obligatorio.</div></div>`;
+    else if (m.source && r.isbn13) banner = `<div class="banner ok">${I.ok}<div><b>Datos de ${esc(m.source)}.</b> Son una propuesta: revisa y corrige lo que haga falta.</div></div>`;
+    if (r.wishId) banner += `<div class="banner info">${I.heart}<div>Estaba en tu <b>lista de deseos</b>. Se marcará como adquirido.</div></div>`;
+    return { nav: false, html: `
+      <div class="abar"><button class="ib" data-act="back" aria-label="Cancelar">${I.x}</button><h2>${isCopy ? 'Nuevo ejemplar' : r.isbn13 ? 'Revisar libro' : 'Alta manual'}</h2></div>
+      ${banner}
+      <div class="revcover">${OL.cover(fake, isCopy ? w0 : { title: m.title, authors: (m.authors || '').split(';').map(s => s.trim()).filter(Boolean) })}
+        <div style="flex:1">${isCopy ? `<b style="font-family:Fraunces,serif;font-size:17px">${esc(w0.title)}</b><div style="color:var(--muted);font-size:13px">${esc(e0.publisher || '')} ${e0.year || ''} · ${A.copiesOfEd(e0.id).length} ejemplar(es) ya</div>`
+          : `${r.isbn13 ? `<div class="mono" style="color:var(--muted)">ISBN ${OL.fmtIsbn(r.isbn13)}</div>` : '<div style="color:var(--muted);font-size:13px">Sin ISBN</div>'}
+          ${m.source && !r.provisional && !r.notFound ? `<span class="src">${esc(m.source)}</span>` : ''}
+          <div style="margin-top:8px"><button class="btn tonal" style="padding:9px 14px;font-size:13px" data-act="photo" data-v="review">${I.cam}${r.photo || m.hasCover ? 'Cambiar portada' : 'Foto de portada'}</button></div>`}</div></div>
+      ${isCopy ? '' : `
+        ${f('title', 'Título *', 'text', 'required')}${f('subtitle', 'Subtítulo')}${f('authors', 'Autor/es (separa con ;)')}
+        <div class="row2">${f('publisher', 'Editorial')}${f('year', 'Año', 'number', 'inputmode="numeric"')}</div>
+        <div class="row2">${f('pages', 'Páginas', 'number', 'inputmode="numeric"')}<label class="fld"><span>Idioma</span><select data-bind="lang">${Object.entries(LANGS).map(([k, l]) => `<option value="${k}" ${k === (m.lang || 'es') ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+        ${f('genres', 'Géneros (separa con ;)')}`}
+      <div class="sect">Tu ejemplar</div>
+      <button class="pick" data-act="pick-loc" data-v="review">${I.pin}<div class="grow"><small>Ubicación</small>${c.locationId ? esc(A.locPath(c.locationId).join(' › ')) : 'Sin ubicación (puedes colocarlo luego)'}</div>${I.chev.replace('<svg', '<svg style="width:18px;color:var(--muted)"')}</button>
+      <div style="padding:0 16px 6px;font-size:11px;font-weight:600;color:var(--muted)">Conservación</div>
+      <div class="opts">${CONDS.map(k => `<button class="chip ${c.condition === k ? 'on' : ''}" data-act="cbind" data-k="condition" data-v="${k}">${k}</button>`).join('')}</div>
+      <div style="padding:0 16px;font-size:11px;font-weight:600;color:var(--muted)">Lectura</div>
+      <div class="pad"><div class="segm">${Object.entries(STATUS).map(([k, v]) => `<button class="${c.status === k ? 'on' : ''}" data-act="cbind" data-k="status" data-v="${k}">${v[0]}</button>`).join('')}</div></div>
+      <div class="row2"><label class="fld"><span>Fecha de adquisición</span><input type="date" data-cbind="acquired" value="${c.acquired}"></label><label class="fld"><span>Precio (€)</span><input type="number" step="0.01" data-cbind="price" value="${c.price ?? ''}" inputmode="decimal"></label></div>
+      <label class="fld"><span>Notas</span><input data-cbind="notes" value="${esc(c.notes || '')}" placeholder="Opcional"></label>
+      <div class="sticky"><button class="btn block" data-act="save-review">${I.ok}${isCopy ? 'Añadir ejemplar' : 'Añadir a mi biblioteca'}</button></div>` };
+  },
+  photo(p) {
+    const taken = ui.photoTaken;
+    const r = ui.review;
+    const ed = p.target === 'review' ? { id: 'tmp' + (r && r.isbn13), title: r ? r.meta.title : '', hasCover: true, coverOrigin: 'provider' } : A.ed(p.target);
+    const w = p.target === 'review' ? { title: r ? r.meta.title : '', authors: r ? (r.meta.authors || '').split(';') : [] } : A.work(ed.workId);
+    return { nav: false, dark: true, html: `
+      <div class="cam"><div class="book" style="width:230px;height:340px;filter:${taken ? 'none' : 'blur(1.5px)'}"></div></div>
+      <div class="camtop"><button class="ib" data-act="back" aria-label="Cerrar">${I.x}</button><span style="align-self:center;font-weight:600">${taken ? 'Ajusta el recorte' : 'Portada'}</span><span style="width:44px"></span></div>
+      <div class="pframe">${taken ? OL.cover({ ...ed, hasCover: true, coverOrigin: null, metaStatus: 'complete' }, w) : ''}
+        ${taken ? '<i class="hd" style="left:-4px;top:-4px;border-right:0;border-bottom:0"></i><i class="hd" style="right:-4px;top:-4px;border-left:0;border-bottom:0"></i><i class="hd" style="left:-4px;bottom:-4px;border-right:0;border-top:0"></i><i class="hd" style="right:-4px;bottom:-4px;border-left:0;border-top:0"></i>' : ''}</div>
+      ${taken ? `<div class="cambottom" style="padding-bottom:28px"><div style="color:#ddd;font-size:12.5px;text-align:center;margin-bottom:12px">Recorte automático y corrección de perspectiva · 1200×1800 px · 212 KB</div><div class="camact"><button data-act="retake">Repetir</button><button data-act="use-photo" data-v="${p.target}" style="background:#fff;color:#111;border-color:#fff">Usar como portada</button></div></div>`
+        : `<div class="camhint" style="top:calc(44% + 180px)">Encuadra la portada dentro del marco</div><button class="shutter" data-act="shutter" aria-label="Hacer foto"></button>`}` };
+  },
+  locs(p) {
+    const id = p.id || 'L1';
+    const loc = A.loc(id); const kids = A.locChildren(id);
+    const here = A.copiesIn(id, false);
+    const path = []; let x = loc; while (x) { path.unshift(x); x = x.parent ? A.loc(x.parent) : null; }
+    return { nav: !p.id, html: `
+      <div class="abar ${p.id ? '' : 'big'}">${p.id ? `<button class="ib" data-act="back">${I.back}</button>` : ''}<h2>${p.id ? esc(loc.name) : 'Ubicaciones'}</h2>${p.id ? '' : syncChip()}</div>
+      ${p.id ? `<div class="crumbs">${path.slice(0, -1).map(l => `<button data-act="loc-jump" data-id="${l.id}">${esc(l.name)}</button> ›`).join(' ')} <span>${esc(loc.name)}</span></div>` : offlineBanner()}
+      ${kids.map(k => `<button class="li" data-act="loc" data-id="${k.id}"><div class="where" style="flex:1;min-width:0"><div class="pin">${I.pin}</div><div style="min-width:0"><div class="path">${esc(k.name)}</div><div class="meta">${A.copiesIn(k.id).length} ejemplares${A.locChildren(k.id).length ? ` · ${A.locChildren(k.id).length} subdivisiones` : ''}</div></div></div>${I.chev.replace('<svg', '<svg class="chev"')}</button>`).join('')}
+      ${!p.id ? `<button class="li" data-act="loc" data-id="none"><div class="where none" style="flex:1"><div class="pin">${I.warn}</div><div><div class="path">Sin ubicación</div><div class="meta">${A.copiesIn('none').length} por colocar</div></div></div>${I.chev.replace('<svg', '<svg class="chev"')}</button>` : ''}
+      ${here.length ? `<div class="sect">En ${esc(loc.name)}</div>${here.map(c => bookRow(A.ed(c.editionId), c)).join('')}` : (kids.length ? '' : '<div class="empty">No hay libros aquí.</div>')}
+      <div style="height:20px"></div>` };
+  },
+  nolocs() {
+    const cs = A.copiesIn('none');
+    return { nav: false, html: `<div class="abar"><button class="ib" data-act="back">${I.back}</button><h2>Sin ubicación</h2></div>
+      <div class="banner info">${I.info}<div>Ejemplares que todavía no has colocado. Ábrelos y pulsa <b>Mover</b> para asignarles un sitio.</div></div>
+      ${cs.map(c => bookRow(A.ed(c.editionId), c)).join('') || '<div class="empty"><h3>Todo en su sitio</h3>Todos tus ejemplares tienen ubicación.</div>'}` };
+  },
+  wish() {
+    const open = S.wishlist.filter(w => !w.acquired);
+    return { nav: true, html: `
+      <div class="abar big"><h2>Deseos</h2>${syncChip()}</div>
+      <div class="banner info" style="margin-top:2px">${I.heart}<div>Libros que quieres conseguir. No cuentan como parte de tu colección.</div></div>
+      ${open.map(d => `<div class="wcard"><div class="t">${esc(d.title)}</div><div class="a">${esc(d.author || '')}</div>
+        ${d.workId ? `<div class="n" style="color:var(--info)">Ya tienes otra edición de esta obra.</div>` : ''}${d.notes ? `<div class="n">${esc(d.notes)}</div>` : ''}
+        <div class="acts"><button class="btn" data-act="wish-buy" data-id="${d.id}">${I.ok}Lo he comprado</button><button class="btn out" data-act="wish-del" data-id="${d.id}">Quitar</button></div></div>`).join('') || '<div class="empty"><h3>Lista vacía</h3>Añade libros que te gustaría tener.</div>'}
+      <div style="height:80px"></div>
+      <button class="fab" data-act="wish-add" aria-label="Añadir deseo">${I.plus}</button>` };
+  },
+  more() {
+    const item = (act, v, ic, t, s) => `<button class="li" data-act="${act}" data-v="${v}"><div class="ic">${ic}</div><div class="grow"><div class="t" style="font-size:15px">${t}</div><div class="a">${s}</div></div>${I.chev.replace('<svg', '<svg class="chev"')}</button>`;
+    return { nav: true, html: `<div class="abar big"><h2>Más</h2>${syncChip()}</div><div class="menu">
+      ${item('go', 'sync', I.sync, 'Sincronización', sync.pending.length ? `${sync.pending.length} cambios pendientes` : `Última: ${sync.last}`)}
+      ${item('go', 'stats', I.chart, 'Estadísticas', 'Obras, ejemplares, lectura, géneros')}
+      ${item('go', 'nolocs', I.pin, 'Sin ubicación', `${A.copiesIn('none').length} ejemplares por colocar`)}
+      ${item('export', '', I.share, 'Exportar colección', 'CSV o JSON completo (desde la copia local)')}
+      ${item('go', 'settings', I.gear, 'Ajustes', 'Servidor, bloqueo, cuenta')}</div>` };
+  },
+  stats() {
+    const st = A.stats(); const bs = st.byStatusWorks, tot = bs.pending + bs.reading + bs.read || 1;
+    const col = { read: 'var(--ok)', reading: 'var(--info)', pending: 'var(--line)' };
+    const bars = (rows, n = 5) => { const m = Math.max(...rows.map(r => r[1]), 1); return rows.slice(0, n).map(([l, v]) => `<div class="bar"><span class="l">${esc(l)}</span><span class="tr"><i style="width:${v / m * 100}%"></i></span><span class="v">${v}</span></div>`).join(''); };
+    return { nav: false, html: `<div class="abar"><button class="ib" data-act="back">${I.back}</button><h2>Estadísticas</h2></div>
+      <div class="kpis"><div class="kpi"><span>Obras</span><b>${st.works}</b></div><div class="kpi"><span>Ejemplares</span><b>${st.copies}</b></div><div class="kpi"><span>Ediciones</span><b>${st.editions}</b></div><div class="kpi"><span>Autores</span><b>${st.authors}</b></div></div>
+      <div class="card"><h3>Lectura <small>por obra</small></h3><div class="stack">${['read', 'reading', 'pending'].map(k => `<i style="width:${bs[k] / tot * 100}%;background:${col[k]}"></i>`).join('')}</div>
+        <div class="legend">${['read', 'reading', 'pending'].map(k => `<span><i style="background:${col[k]}"></i>${STATUS[k][0]} ${bs[k]}</span>`).join('')}</div>
+        <div class="dates">Por ejemplar: ${st.byStatusCopies.read} leídos · ${st.byStatusCopies.reading} leyendo · ${st.byStatusCopies.pending} pendientes</div></div>
+      <div class="card"><h3>Géneros</h3>${bars(st.byGenre)}</div>
+      <div class="card"><h3>Por habitación</h3>${bars(st.byRoom)}</div>
+      <div class="card"><h3>Incorporados</h3><div class="dates" style="margin:0">Últimos 12 meses: <b style="color:var(--ink)">${st.added.reduce((t, a) => t + a[1], 0)}</b> ejemplares · este mes: <b style="color:var(--ink)">${st.added[st.added.length - 1][1]}</b></div></div>
+      <div class="banner off">${I.info}<div>Calculadas en el móvil con la copia local: funcionan sin conexión.</div></div>` };
+  },
+  sync() {
+    let ic = I.cloudOk, bg = 'var(--ok-soft)', fg = 'var(--ok)', t = 'Todo sincronizado', s = `Última sincronización: ${sync.last}`;
+    if (sync.state !== 'idle') { ic = I.sync.replace('<svg', '<svg class="spin"'); bg = 'var(--info-soft)'; fg = 'var(--info)'; t = sync.state === 'retry' ? 'Reintentando envío…' : 'Sincronizando…'; s = 'Enviando cambios y recibiendo novedades'; }
+    else if (!net.online) { ic = I.cloudOff; bg = 'var(--surf2)'; fg = 'var(--muted)'; t = 'Sin conexión'; s = 'Se sincronizará automáticamente al recuperar la red'; }
+    else if (!net.server) { ic = I.cloudOff; bg = 'var(--warn-soft)'; fg = 'var(--warn)'; t = 'Servidor no disponible'; s = 'openlibrary.tail-casa.ts.net no responde (¿PC apagado?). Reintento automático cada pocos minutos.'; }
+    else if (sync.pending.length) { ic = I.cloud; bg = 'var(--warn-soft)'; fg = 'var(--warn)'; t = `${sync.pending.length} cambios por enviar`; }
+    return { nav: false, html: `<div class="abar"><button class="ib" data-act="back">${I.back}</button><h2>Sincronización</h2></div>
+      <div class="card"><div class="syncbig"><div class="ico" style="background:${bg};color:${fg}">${ic}</div><div><b>${t}</b><span>${esc(s)}</span></div></div>
+        <div style="margin-top:14px"><button class="btn block ${serverOK() ? '' : 'out'}" data-act="sync-now" ${sync.state !== 'idle' ? 'disabled' : ''}>${I.sync}Sincronizar ahora</button></div></div>
+      ${sync.conflicts.map(k => `<div class="card conf" style="border-color:var(--err)"><h3 style="color:var(--err)">Conflicto <small>${esc(k.entity)}</small></h3>
+        <div style="font-size:13px;color:var(--muted)">Cambiaste este campo aquí sin conexión y también desde la web. No se ha perdido nada: elige qué conservar.</div>
+        <div class="vs"><div><small>Web</small>${esc(k.web)}</div><div><small>Este móvil</small>${esc(k.android)}</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn out" style="padding:8px 12px;font-size:12.5px" data-act="resolve" data-id="${k.id}" data-v="web">Web</button><button class="btn out" style="padding:8px 12px;font-size:12.5px" data-act="resolve" data-id="${k.id}" data-v="android">Móvil</button><button class="btn" style="padding:8px 12px;font-size:12.5px" data-act="resolve" data-id="${k.id}" data-v="both">Combinar</button></div></div>`).join('')}
+      <div class="card"><h3>Cambios pendientes <small>${sync.pending.length}</small></h3>
+        ${sync.pending.map(o => `<div class="op"><span class="dot"></span><div class="grow">${esc(o.label)}<div class="mono">op ${o.id} · ${o.at}</div></div></div>`).join('') || '<div style="color:var(--muted);font-size:13px">No hay cambios esperando. Todo lo que hagas se guarda primero en el móvil.</div>'}</div>
+      <div class="card"><h3>Registro</h3><div class="log">${sync.log.map(l => `<div class="${/✗/.test(l) ? 'e' : /⚠|no disponible/.test(l) ? 'w' : /✓/.test(l) ? 'o' : ''}">${esc(l)}</div>`).join('')}</div></div>
+      <div class="card"><h3>Copia local</h3><div class="kv"><div><span>Obras</span>${A.ownedWorks().length}</div><div><span>Portadas</span>${S.editions.filter(e => e.hasCover).length} · 3,1 MB</div><div><span>Base de datos</span>cifrada (SQLCipher)</div><div><span>Dispositivo</span>Pixel 8</div></div></div>` };
+  },
+  settings() {
+    return { nav: false, html: `<div class="abar"><button class="ib" data-act="back">${I.back}</button><h2>Ajustes</h2></div>
+      <div class="card"><h3>Servidor</h3><div class="kv"><div style="grid-column:span 2"><span>Dirección</span><span class="mono" style="text-transform:none;letter-spacing:0;color:var(--ink);font-weight:400">https://openlibrary.tail-casa.ts.net</span></div><div><span>Conexión</span>Tailscale</div><div><span>Sesión</span>Token de dispositivo</div></div></div>
+      <div class="card"><h3>Privacidad</h3><div class="kv"><div><span>Bloqueo de la app</span>Huella dactilar</div><div><span>Datos locales</span>Cifrados</div></div></div>
+      <div class="card"><h3>Escáner</h3><div class="kv"><div><span>Motor</span>ML Kit (en el móvil)</div><div><span>Proveedores</span>Open Library, Google Books</div></div></div>
+      <div class="pad"><button class="btn out block" data-act="logout">Cerrar sesión en este móvil</button></div>` };
+  },
+};
+function bookRow(e, c) {
+  const w = A.work(e.workId), copies = A.copiesOfEd(e.id);
+  const loc = c ? c.locationId : (copies[0] || {}).locationId;
+  const st = c ? A.copyStatus(c.id) : A.edStatus(e.id);
+  return `<button class="li" data-act="open" data-id="${e.id}">${OL.cover(e, w)}<div class="grow"><div class="t">${esc(w.title)}</div><div class="a">${esc(w.authors.join(', ') || '—')}${e.year ? ` · ${e.year}` : ''}</div>
+    <div class="w">${I.pin}${esc(loc ? A.locPath(loc).join(' › ') : 'Sin ubicación')}${!c && copies.length > 1 ? ` · ${copies.length} ejemplares` : ''}</div></div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">${pill(st)}${e.metaStatus === 'provisional' ? '<span class="pill pv">Provisional</span>' : ''}</div></button>`;
+}
+function renderHomeList() {
+  const el = $('#hlist'); if (!el) return;
+  const eds = A.search(A.ownedEditions(), ui.q).filter(e => {
+    if (ui.chip === 'noloc') return A.copiesOfEd(e.id).some(c => !c.locationId);
+    if (ui.chip !== 'all' && A.edStatus(e.id) !== ui.chip) return false;
+    return true;
+  }).sort((a, b) => A.work(a.workId).title.localeCompare(A.work(b.workId).title, 'es'));
+  el.innerHTML = `<div class="count">${eds.length} libros${ui.q ? ` para «${esc(ui.q)}»` : ''}${!serverOK() ? ' · búsqueda local' : ''}</div>` +
+    (eds.map(e => bookRow(e)).join('') || `<div class="empty"><h3>Sin resultados</h3>Prueba con otra palabra: título, autor, ISBN, editorial o el nombre de una balda.</div>`) + '<div style="height:16px"></div>';
+}
+
+// ---------- render ----------
+let lastKey = '';
+function render(nav) {
+  const t = cur(); const scr = SCREENS[t.s](t);
+  const content = $('#content'); const key = JSON.stringify(t);
+  const st = (!nav && key === lastKey) ? content.scrollTop : 0;
+  $('#screen').classList.toggle('dark', !!scr.dark);
+  content.innerHTML = scr.html;
+  content.scrollTop = st; lastKey = key;
+  if (t.s === 'home') renderHomeList();
+  const nb = $('#bnav'); nb.style.display = scr.nav ? '' : 'none';
+  const navs = [['home', 'Biblioteca', I.book], ['locs', 'Ubicaciones', I.home], ['scan', 'Escanear', I.scan], ['wish', 'Deseos', I.heart], ['more', 'Más', I.more]];
+  const root = stack[0].s;
+  nb.innerHTML = navs.map(([s, l, ic]) => `<button class="${s === 'scan' ? 'scan' : ''} ${root === s ? 'on' : ''}" data-act="${s === 'scan' ? 'go' : 'tab'}" data-v="${s}"><span class="ico">${ic}</span>${l}${s === 'more' && (sync.pending.length || sync.conflicts.length) ? `<span class="badge">${sync.pending.length + sync.conflicts.length}</span>` : ''}</button>`).join('');
+  $('#sicons').innerHTML = (net.online ? I.wifi : I.wifiOff) + I.bat;
+  renderPanel();
+}
+
+// ---------- flows ----------
+function handleCode(code) {
+  const n = OL.normalizeIsbn(code);
+  ui.scanMsg = { code: n.ok ? OL.fmtIsbn(n.isbn13) : code, hit: n.ok, err: n.ok ? null : n.reason };
+  render();
+  if (!n.ok) return;
+  setTimeout(() => {
+    ui.scanMsg = null;
+    const dup = A.findByIsbn(n.isbn13);
+    if (dup && A.copiesOfEd(dup.id).length) {
+      const w = A.work(dup.workId), cs = A.copiesOfEd(dup.id);
+      openSheet(`<div style="display:flex;gap:14px;padding:0 20px 8px"><div style="width:64px">${OL.cover(dup, w)}</div><div><h3 style="padding:0">Ya tienes esta edición</h3><div style="color:var(--muted);font-size:13px">${esc(w.title)} · ${esc(dup.publisher)} ${dup.year || ''}</div></div></div>
+        <p>${cs.length} ${cs.length > 1 ? 'ejemplares' : 'ejemplar'}:<br>${cs.map(c => `<b style="color:var(--ink)">${c.code}</b> en ${esc(A.locPath(c.locationId).join(' › ') || 'sin ubicación')}`).join('<br>')}</p>
+        <div class="sheet-acts"><button class="btn" data-act="dup-copy" data-id="${dup.id}">${I.plus}Añadir otro ejemplar</button><button class="btn tonal" data-act="dup-open" data-id="${dup.id}">Ver ficha</button><button class="btn out" data-act="sheet-close">Seguir escaneando</button></div>`);
+      render(); return;
+    }
+    const wish = A.wishByIsbn(n.isbn13);
+    const base = { mode: 'new', isbn13: n.isbn13, wishId: wish ? wish.id : null, photo: false, copy: newCopy() };
+    if (!net.online) { ui.review = { ...base, provisional: true, meta: { title: wish ? wish.title : '', authors: wish ? wish.author : '', lang: 'es' } }; stack.pop(); go('review'); return; }
+    stack.pop(); go('lookup', { isbn: n.isbn13 });
+    setTimeout(() => {
+      const p = A.lookup(n.isbn13);
+      ui.review = p ? { ...base, meta: { ...p, authors: p.authors.join('; '), genres: p.genres.join('; ') } }
+        : { ...base, notFound: true, meta: { title: wish ? wish.title : '', authors: wish ? wish.author : '', lang: 'es' } };
+      stack.pop(); go('review');
+    }, 1300);
+  }, 650);
+}
+const newCopy = () => ({ locationId: null, condition: 'Bueno', status: 'pending', acquired: OL.TODAY, price: null, notes: '' });
+function saveReview() {
+  const r = ui.review, m = r.meta, c = r.copy;
+  const list = s => (s || '').split(';').map(x => x.trim()).filter(Boolean);
+  if (r.mode === 'copy') {
+    const copy = A.addCopy(r.edId, { ...c, price: c.price ? +c.price : null, offline: !serverOK() });
+    queue(`Nuevo ejemplar ${copy.code} de «${A.work(A.ed(r.edId).workId).title}»`);
+    ui.review = null; stack = [{ s: 'home' }, { s: 'detail', id: r.edId }]; render(true);
+    return snack(serverOK() ? 'Ejemplar añadido' : 'Ejemplar guardado en el móvil · se enviará al reconectar');
+  }
+  if (!(m.title || '').trim()) { snack('El título es obligatorio'); const el = document.querySelector('[data-bind=title]'); el && el.focus(); return; }
+  const res = A.addBook({ title: m.title.trim(), subtitle: m.subtitle, authors: list(m.authors), genres: list(m.genres), description: m.description, publisher: m.publisher, year: +m.year || null, lang: m.lang,
+    pages: +m.pages || null, isbn13: r.isbn13 || null, hasCover: !!(m.hasCover || r.photo), coverOrigin: r.photo ? 'photo' : (m.hasCover ? 'provider' : null), provisional: !!r.provisional, source: r.provisional ? '—' : (m.source || 'Manual'), wishId: r.wishId },
+    { ...c, price: c.price ? +c.price : null, offline: !serverOK() });
+  queue(`Alta «${res.work.title}» (obra + edición + ${res.copy.code})`);
+  if (r.photo) queue(`Subir portada de «${res.work.title}» (foto, 212 KB)`);
+  if (r.wishId) queue(`Deseo «${res.work.title}» → adquirido`);
+  ui.review = null; stack = [{ s: 'home' }, { s: 'detail', id: res.ed.id }]; render(true);
+  snack(serverOK() ? `${I.ok.replace('<svg', '<svg width="18"')} Añadido a tu biblioteca` : 'Guardado en el móvil · pendiente de sincronizar');
+}
+function locPicker(onPick, cur) {
+  ui.picker = { cur: cur || 'L1', onPick };
+  drawPicker();
+}
+function drawPicker() {
+  const p = ui.picker, loc = A.loc(p.cur), kids = A.locChildren(p.cur);
+  const path = []; let x = loc; while (x) { path.unshift(x); x = x.parent ? A.loc(x.parent) : null; }
+  openSheet(`<h3>Elegir ubicación</h3>
+    <div class="crumbs" style="padding:0 20px 8px">${path.map((l, i) => i < path.length - 1 ? `<button data-act="pk-nav" data-id="${l.id}">${esc(l.name)}</button> ›` : `<b style="color:var(--ink)">${esc(l.name)}</b>`).join(' ')}</div>
+    ${kids.map(k => `<button class="li" data-act="pk-nav" data-id="${k.id}" style="padding:12px 20px"><div class="grow"><div class="t" style="font-size:15px">${esc(k.name)}</div><div class="a">${A.copiesIn(k.id).length} ejemplares</div></div>${I.chev.replace('<svg', '<svg class="chev"')}</button>`).join('') || '<p>No tiene subdivisiones.</p>'}
+    <div class="sheet-acts">${p.cur !== 'L1' ? `<button class="btn" data-act="pk-ok">${I.ok}Guardar en «${esc(loc.name)}»</button>` : ''}<button class="btn out" data-act="pk-none">Sin ubicación por ahora</button></div>`);
+}
+
+// ---------- side panel ----------
+function renderPanel() {
+  const tg = (k, t, s, on) => `<div class="tg ${on ? 'on' : ''}" data-act="net" data-v="${k}" role="switch" aria-checked="${on}"><div><b>${t}</b><small>${s}</small></div><span class="sw"></span></div>`;
+  $('#panel').innerHTML = `<h1>Prototipo Android</h1><p class="lead">OpenLibrary en un Pixel. Cambia las condiciones de red para ver cómo se comporta sin servidor o sin Internet.</p>
+    <h4>Escenario</h4>
+    ${tg('server', 'PC Ubuntu encendido', net.server ? 'El servidor responde por Tailscale' : 'Apagado: solo copia local', net.server)}
+    ${tg('online', 'Red (Wi-Fi / datos)', net.online ? 'Hay Internet: se pueden buscar metadatos' : 'Modo avión: sin metadatos ni sync', net.online)}
+    <label class="ck"><input type="checkbox" data-act="fail" ${sync.failNext ? 'checked' : ''}> Perder la respuesta del servidor en el próximo envío (prueba de reintento sin duplicados)</label>
+    <label class="ck"><input type="checkbox" data-act="conflict" ${sync.conflictNext ? 'checked' : ''}> La web editó lo mismo: generar un conflicto en el próximo envío</label>
+    <div class="status-line">Cola: <b>${sync.pending.length}</b> pendientes · conflictos: <b>${sync.conflicts.length}</b> · estado: <b>${sync.state}</b></div>
+    <h4>Ir a</h4>
+    <div class="quick"><button data-act="go" data-v="scan">Escanear</button><button data-act="tab" data-v="home">Biblioteca</button><button data-act="go" data-v="sync">Sincronización</button><button data-act="open" data-id="${(S.editions.find(e => e.metaStatus === 'provisional') || S.editions[0]).id}">Libro provisional</button><button data-act="reset">Reiniciar datos</button></div>
+    <h4>Prueba los criterios del MVP</h4>
+    <ol>
+      <li><b>Escanea</b> «Libro nuevo con datos», corrige un campo y guárdalo en una balda.</li>
+      <li>Escanea <b>«Edición que ya tienes»</b> → añade otro ejemplar sin duplicar la ficha.</li>
+      <li><b>Apaga el PC</b>, busca «balda 3» o «orwell»: todo sigue funcionando.</li>
+      <li>Quita la <b>red</b>, escanea un libro (queda provisional), cambia estados de lectura… y vuelve a activarla: la cola se envía sola.</li>
+      <li>Marca <b>perder la respuesta</b> y haz un cambio: el reintento no duplica (mira el registro).</li>
+      <li>Marca <b>conflicto</b>, cambia una nota y resuélvelo en Sincronización.</li>
+    </ol>`;
+}
+
+// ---------- events ----------
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'hq') { ui.q = t.value; renderHomeList(); }
+  if (t.dataset.bind && ui.review) { ui.review.meta[t.dataset.bind] = t.value; if (t.dataset.bind === 'title') { const c = document.querySelector('.revcover .olc .olc-t'); if (c) c.textContent = t.value; } }
+  if (t.dataset.cbind && ui.review) ui.review.copy[t.dataset.cbind] = t.value;
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.note) { const c = A.copy(t.dataset.note); if (c.notes !== t.value) { c.notes = t.value; sync.lastNote = c.id; queue(`Notas de ${c.code}`); snack(serverOK() ? 'Nota guardada' : 'Nota guardada en el móvil'); } }
+  if (t.dataset.act === 'fail') { sync.failNext = t.checked; renderPanel(); }
+  if (t.dataset.act === 'conflict') { sync.conflictNext = t.checked; renderPanel(); }
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el || el.tagName === 'INPUT') return;
+  const { act, id, v } = el.dataset;
+  switch (act) {
+    case 'back': back(); break;
+    case 'tab': tab(v); break;
+    case 'go': if (v === 'scan') ui.scanMsg = null; go(v); break;
+    case 'open': if (cur().s === 'detail' && cur().id === id) break; go('detail', { id }); break;
+    case 'chip': ui.chip = v; render(); break;
+    case 'loc': if (id === 'none') go('nolocs'); else go('locs', { id }); break;
+    case 'loc-jump': if (id === 'L1') tab('locs'); else { stack = [{ s: 'locs' }, { s: 'locs', id }]; render(true); } break;
+    case 'status': { const c = A.copy(id); const r = A.setStatus(id, v); queue(`Lectura de ${c.code}: ${STATUS[v][0]}`); if (r === 'reread') snack('Nueva lectura iniciada · el historial se conserva'); break; }
+    case 'rate': { A.setRating(id, +v); queue(`Valoración de ${A.copy(id).code}: ${v}★`); break; }
+    case 'move': locPicker(locId => { const c = A.copy(id); c.locationId = locId; queue(`Mover ${c.code} → ${A.locPath(locId).join(' › ') || 'sin ubicación'}`); snack(`Movido a ${esc(A.locPath(locId).join(' › ') || 'sin ubicación')}`); }, A.copy(id).locationId ? A.loc(A.copy(id).locationId).parent : 'L1'); break;
+    case 'pick-loc': locPicker(locId => { ui.review.copy.locationId = locId; render(); }); break;
+    case 'pk-nav': ui.picker.cur = id; drawPicker(); break;
+    case 'pk-ok': { const p = ui.picker; closeSheet(); p.onPick(p.cur); render(); break; }
+    case 'pk-none': { const p = ui.picker; closeSheet(); p.onPick(null); render(); break; }
+    case 'sheet-close': closeSheet(); break;
+    case 'add-copy': ui.review = { mode: 'copy', edId: id, meta: {}, copy: newCopy() }; go('review'); break;
+    case 'dup-copy': closeSheet(); ui.review = { mode: 'copy', edId: id, meta: {}, copy: newCopy() }; stack.pop(); go('review'); break;
+    case 'dup-open': closeSheet(); stack.pop(); go('detail', { id }); break;
+    case 'sim-scan': handleCode(v); break;
+    case 'torch': snack('Linterna encendida (simulado)'); break;
+    case 'type-isbn': openSheet(`<h3>Teclear ISBN</h3><p>Útil si el código está dañado. Se aceptan ISBN-10 e ISBN-13, con o sin guiones.</p><label class="fld"><span>ISBN</span><input id="tisbn" inputmode="numeric" placeholder="978-84-…"></label><div class="sheet-acts"><button class="btn" data-act="type-ok">Buscar</button></div>`); setTimeout(() => $('#tisbn').focus(), 260); break;
+    case 'type-ok': { const val = $('#tisbn').value; closeSheet(); handleCode(val); break; }
+    case 'manual': ui.review = { mode: 'manual', isbn13: null, meta: { lang: 'es' }, copy: newCopy(), photo: false }; stack.pop(); go('review'); break;
+    case 'cbind': ui.review.copy[el.dataset.k] = v; render(); break;
+    case 'save-review': saveReview(); break;
+    case 'photo': ui.photoTaken = false; go('photo', { target: v === 'review' ? 'review' : id }); break;
+    case 'shutter': $('#flash').classList.remove('on'); void $('#flash').offsetWidth; $('#flash').classList.add('on'); setTimeout(() => { ui.photoTaken = true; render(); }, 250); break;
+    case 'retake': ui.photoTaken = false; render(); break;
+    case 'use-photo':
+      if (v === 'review') { ui.review.photo = true; back(); snack('Portada lista · se subirá al guardar'); }
+      else { const ed = A.ed(v); ed.hasCover = true; ed.coverOrigin = 'photo'; queue(`Subir portada de «${A.work(ed.workId).title}» (foto, 212 KB)`); back(); snack(serverOK() ? 'Portada actualizada' : 'Portada guardada · se subirá al reconectar'); }
+      break;
+    case 'prov-lookup': {
+      if (!net.online) { snack('Necesitas Internet para buscar los datos'); break; }
+      const ed = A.ed(id), p = A.lookup(ed.isbn13);
+      if (!p) { snack('Sin resultados. Completa la ficha a mano.'); break; }
+      openSheet(`<h3>Datos encontrados</h3><p>${esc(p.source)} propone estos datos para <b style="color:var(--ink)">${esc(OL.fmtIsbn(ed.isbn13))}</b>. Solo se rellenarán los campos vacíos.</p>
+        <div class="card" style="margin:0 20px 12px"><div class="kv"><div><span>Título</span>${esc(p.title)}</div><div><span>Autor</span>${esc(p.authors.join(', '))}</div><div><span>Editorial</span>${esc(p.publisher)}</div><div><span>Año</span>${p.year}</div><div><span>Páginas</span>${p.pages}</div><div><span>Portada</span>Disponible</div></div></div>
+        <div class="sheet-acts"><button class="btn" data-act="prov-apply" data-id="${id}">${I.ok}Aplicar</button><button class="btn out" data-act="sheet-close">Ahora no</button></div>`);
+      break;
+    }
+    case 'prov-apply': {
+      const ed = A.ed(id), w = A.work(ed.workId), p = A.lookup(ed.isbn13);
+      if (!w.authors.length) w.authors = p.authors; if (!w.genres.length) w.genres = p.genres; if (!w.description) w.description = p.description;
+      ed.publisher = ed.publisher || p.publisher; ed.year = ed.year || p.year; ed.pages = ed.pages || p.pages; ed.hasCover = true; ed.coverOrigin = 'provider'; ed.metaStatus = 'complete'; ed.source = p.source;
+      closeSheet(); queue(`Completar metadatos de «${w.title}»`); snack('Ficha completada'); break;
+    }
+    case 'quote': openSheet(`<h3>Nueva cita</h3><label class="fld"><span>Texto</span><input id="qtext" placeholder="Copia el fragmento…"></label><label class="fld"><span>Página</span><input id="qpage" inputmode="numeric"></label><div class="sheet-acts"><button class="btn" data-act="quote-ok" data-id="${id}">Guardar</button></div>`); setTimeout(() => $('#qtext').focus(), 260); break;
+    case 'quote-ok': { const tx = $('#qtext').value.trim(); if (!tx) break; S.quotes.push({ id: OL.uid('q'), workId: id, text: tx, page: $('#qpage').value }); closeSheet(); queue('Nueva cita'); break; }
+    case 'wish-add': openSheet(`<h3>Nuevo deseo</h3><label class="fld"><span>Título</span><input id="wt"></label><label class="fld"><span>Autor</span><input id="wa"></label><div class="sheet-acts"><button class="btn" data-act="wish-ok">Añadir</button></div>`); setTimeout(() => $('#wt').focus(), 260); break;
+    case 'wish-ok': { const t = $('#wt').value.trim(); if (!t) break; S.wishlist.unshift({ id: OL.uid('d'), title: t, author: $('#wa').value, notes: '', priority: 'media', acquired: false }); closeSheet(); queue(`Deseo «${t}»`); break; }
+    case 'wish-del': { const d = S.wishlist.find(x => x.id === id); S.wishlist = S.wishlist.filter(x => x.id !== id); queue(`Quitar deseo «${d.title}»`); break; }
+    case 'wish-buy': {
+      const d = S.wishlist.find(x => x.id === id);
+      if (d.isbn13) { go('scan'); handleCode(d.isbn13); }
+      else { ui.review = { mode: 'manual', isbn13: null, wishId: d.id, meta: { title: d.title, authors: d.author, lang: 'es' }, copy: newCopy(), photo: false }; go('review'); }
+      break;
+    }
+    case 'sync-now': runSync(true); break;
+    case 'resolve': {
+      const k = sync.conflicts.find(x => x.id === id), c = A.copy(k.copyId);
+      c.notes = v === 'web' ? k.web : v === 'android' ? k.android : `${k.web}\n${k.android}`;
+      sync.conflicts = sync.conflicts.filter(x => x.id !== id); queue(`Resolver conflicto en ${c.code}`); snack('Conflicto resuelto'); break;
+    }
+    case 'net': {
+      const was = serverOK(); net[v] = !net[v];
+      if (!was && serverOK()) { snack('Conexión con el servidor recuperada · sincronizando…'); setTimeout(runSync, 700); }
+      if (was && !serverOK()) snack(net.online ? 'Servidor no disponible · sigues con la copia local' : 'Sin conexión · sigues con la copia local');
+      render(); break;
+    }
+    case 'export': openSheet(`<h3>Exportar colección</h3><p>Se genera en el móvil a partir de la copia local y se comparte con otra app (Drive, correo…).</p><div class="sheet-acts"><button class="btn" data-act="sheet-close">CSV de ejemplares</button><button class="btn tonal" data-act="sheet-close">JSON completo</button></div>`); break;
+    case 'logout': snack('Prototipo: borraría la copia local tras confirmar que no hay cambios pendientes'); break;
+    case 'reset': S = OL.createState(); A = OL.api(S); sync.pending = []; sync.conflicts = []; net.online = true; net.server = true; stack = [{ s: 'home' }]; ui.q = ''; ui.chip = 'all'; render(true); snack('Datos reiniciados'); break;
+  }
+});
+
+render(true);
+</script>
+</body>
+</html>

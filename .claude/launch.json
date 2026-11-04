@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "prototypes",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "prototypes"],
+      "port": 8765
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file-if-exists=apps/server/.env", "apps/server/dist/server.js"],
+      "env": {
+        "DATA_DIR": "apps/server/.data",
+        "WEB_DIST": "apps/web/dist",
+        "PUBLIC_URL": "http://localhost:8080"
+      },
+      "port": 8080
+    }
+  ]
+}

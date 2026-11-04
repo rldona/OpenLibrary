@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Shellcheck de los scripts de despliegue
+        run: shellcheck -x deploy/scripts/*.sh deploy/scripts/ol
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen
+        run: docker build -t openlibrary:ci .
+      - name: Arrancar y comprobar health + login
+        run: |
+          mkdir -p data && sudo chown 1000:1000 data
+          docker run -d --name ol -p 8080:8080 -v "$PWD/data:/data" -e PUBLIC_URL=http://localhost:8080 openlibrary:ci
+          for i in $(seq 1 30); do curl -fs localhost:8080/api/v1/health && break; sleep 1; done
+          docker exec -e OL_PASSWORD='contraseña de prueba ci' ol node dist/cli.js set-password
+          curl -fs -X POST localhost:8080/api/v1/auth/login -H 'content-type: application/json' \
+            -H 'origin: http://localhost:8080' -d '{"password":"contraseña de prueba ci"}' -o /dev/null
+          curl -fs localhost:8080/ | grep -q '<div id="root">'
+          docker exec ol node dist/cli.js backup /data/backups/library.db
+          docker exec ol node dist/cli.js check

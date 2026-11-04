@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenLibrary: copia de seguridad diaria (y al arrancar si se perdió)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Si el PC estaba apagado a esa hora, se ejecuta al encenderlo.
+Persistent=true
+OnBootSec=15min
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
