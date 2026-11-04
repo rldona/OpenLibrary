@@ -3,7 +3,17 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'prototypes/**', 'apps/server/drizzle/**', '**/.data/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      'apps/android/.gradle/**',
+      '**/node_modules/**',
+      'prototypes/**',
+      'apps/server/drizzle/**',
+      '**/.data/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

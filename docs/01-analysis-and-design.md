@@ -291,17 +291,18 @@ OpenLibrary/
 ├── apps/
 │   ├── server/            # Fastify + Drizzle + SQLite. src/{auth,catalog,lookup,assets,db}, i18n.ts, cli.ts; drizzle/ (migrations); test/
 │   ├── web/               # React + Vite. src/{pages,components,lib,i18n (en/es)}
-│   └── android/           # (F2) Gradle multi-module:
-│       ├── app/           #   navigation, DI (Hilt)
-│       ├── core/{model,database,network,sync,isbn,designsystem}
-│       └── feature/{library,detail,scan,cover,locations,reading,wishlist,stats,settings}
+│   └── android/           # (F2 ✔) Gradle, single `app` module for now: packages core, data (Room), network,
+│                          #   sync, ui/{setup,library,detail,locations,settings}; manual DI (AppContainer).
+│                          #   i18n/ generates res/values{,-es}/strings.xml from the shared + web catalogs.
+│                          #   Split into core/feature modules when F3 makes the build slow enough to matter.
 ├── packages/
-│   └── contracts/         # Zod schemas, ISBN logic, UUIDv7, shared i18n catalog → openapi.yaml (F2)
+│   └── contracts/         # Zod schemas, ISBN logic, UUIDv7, shared i18n catalog; openapi.yaml (Android
+│                          #   surface, checked against real responses) and fixtures/ decoded by Android tests
 ├── deploy/                # docker-compose.yml, .env.example, systemd/openlibrary-backup.{service,timer}, scripts/{backup,restore,update}.sh + ol (CLI)
 ├── docs/                  # this document, deployment runbook
 └── prototypes/            # clickable prototypes (web and Android, Spanish)
 ```
-Monorepo with **npm workspaces** for the TypeScript side; Android uses its own Gradle build and consumes `openapi.yaml` to generate its client.
+Monorepo with **npm workspaces** for the TypeScript side; Android uses its own Gradle build. Its client is small and hand-written (OkHttp + kotlinx.serialization) rather than generated: `openapi.yaml` is the contract, the server test validates real responses against it and writes `fixtures/`, and the Android test decodes those fixtures without ignoring unknown keys, so drift on either side fails CI.
 
 ---
 
@@ -364,7 +365,7 @@ Going from A to B or C: roughly **an afternoon of deployment work**. The API, sy
 |-------|---------|--------------------------------|
 | **F0 · Foundations** (1 wk) | Monorepo, CI (lint, test, build), DB schema + migrations, auth (login, devices), Docker Compose + `tailscale serve`, backup/restore scripts **(done 2026-11-04)** | `docker compose up` on Ubuntu serves `/api/v1/health` over HTTPS on the tailnet; password login; no access from outside the tailnet; backup produces a verifiable restic snapshot |
 | **F1 · Web catalog** (2 wk) | CRUD work/edition/copy/location, manual entry, ISBN lookup (proxy), covers, FTS search + filters + sorting, details view, location tree **(done 2026-11-04)**; bilingual UI EN/ES | Manual entry without ISBN ✔; ISBN → editable proposal ✔; 2 copies of one edition without duplicating it ✔; filtering by "Living room › Bookcase" includes child shelves ✔; search < 150 ms with 10,000 synthetic copies ✔ (4–46 ms) |
-| **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES | With the PC off, the whole library and its covers can be browsed and searched ✔; a change made on the web appears on Android after syncing ✔ |
+| **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES **(done 2026-11-04)** | With the PC off, the whole library and its covers can be browsed and searched ✔ (checked on a Galaxy S26 Ultra; covers by unit test); a change made on the web appears on Android after syncing ✔ |
 | **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts | Full UC01 flow ✔; changes in airplane mode survive killing the app and rebooting the phone ✔; resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
 | **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, quotes, wishlist → acquisition, statistics (works vs copies) | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ |
 | **F5 · Portability and hardening** (1.5 wk) | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |

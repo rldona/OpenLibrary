@@ -15,9 +15,10 @@
     "dev:web": "npm run dev -w @openlibrary/web",
     "build": "npm run build -w @openlibrary/web && npm run build -w @openlibrary/server",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p apps/android/i18n",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "android:strings": "tsx apps/android/i18n/generate.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

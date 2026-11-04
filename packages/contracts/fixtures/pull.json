@@ -1,0 +1,46 @@
+{
+  "epoch": "40ea02ac-34b4-4b0c-943a-342a2333dcae",
+  "works": [
+    {
+      "id": "01a1a749-3133-792f-a940-3b871f8178d3",
+      "version": 2,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "title": "Niebla",
+      "subtitle": "Nivola",
+      "authors": ["Miguel de Unamuno"],
+      "subjects": [],
+      "description": null,
+      "originalTitle": null,
+      "originalLanguage": null,
+      "series": "Nivolas",
+      "seriesIndex": 1
+    }
+  ],
+  "editions": [],
+  "copies": [],
+  "locations": [],
+  "deleted": [
+    {
+      "entity": "work",
+      "id": "01a1a749-3142-7723-a122-6142db78388b",
+      "version": 2,
+      "deletedAt": "2026-11-04T10:00:00.000Z"
+    },
+    {
+      "entity": "edition",
+      "id": "01a1a749-3143-7a50-a54b-65c86fdf5312",
+      "version": 2,
+      "deletedAt": "2026-11-04T10:00:00.000Z"
+    },
+    {
+      "entity": "copy",
+      "id": "01a1a749-3143-77ed-9d63-305f8276ac7a",
+      "version": 2,
+      "deletedAt": "2026-11-04T10:00:00.000Z"
+    }
+  ],
+  "cursor": 12,
+  "hasMore": false,
+  "serverTime": "2026-11-04T10:00:00.000Z"
+}

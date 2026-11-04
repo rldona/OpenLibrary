@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info:
+  title: OpenLibrary API
+  version: 0.2.0
+  description: |
+    Contract between the server and the Android app (F2: browsing and sync pull).
+    The web app uses the TypeScript contracts in `src/` directly; this file covers what Android consumes
+    and is checked against real server responses by `apps/server/test/openapi.test.ts`.
+
+    Errors are RFC 9457 problems (`application/problem+json`) with a stable `code`; `detail` is
+    translated according to `Accept-Language` (en, es).
+servers:
+  - url: https://openlibrary.example.ts.net/api/v1
+security:
+  - deviceToken: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Server status and data epoch.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+  /auth/devices:
+    post:
+      operationId: registerDevice
+      security: []
+      description: Registers this device with the owner's password. The token is shown only once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceRegisterRequest' }
+      responses:
+        '201':
+          description: Registered.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRegisterResponse' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /auth/me:
+    get:
+      operationId: getSession
+      responses:
+        '200':
+          description: The current session (fails with 401 once the device is revoked).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionInfo' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /sync/snapshot:
+    get:
+      operationId: getSnapshot
+      description: Every live entity plus the cursor to continue pulling from. Used on first connection and after a resync.
+      responses:
+        '200':
+          description: Full snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncSnapshot' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /sync/pull:
+    get:
+      operationId: pull
+      description: |
+        Current state of every entity changed after `since`, once each, plus tombstones.
+        Apply a page in one transaction (records are not in dependency order) and keep pulling while `hasMore`.
+        409 `epoch-mismatch` or `cursor-ahead` means the local copy must be replaced by a new snapshot.
+      parameters:
+        - { name: since, in: query, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: epoch, in: query, required: true, schema: { type: string } }
+        - {
+            name: limit,
+            in: query,
+            required: false,
+            schema: { type: integer, minimum: 1, maximum: 1000, default: 500 },
+          }
+      responses:
+        '200':
+          description: One page of changes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPullPage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /assets/{id}:
+    get:
+      operationId: getAsset
+      description: A cover as JPEG. `thumb` is 400 px wide; cache it forever (content addressed).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
+        - {
+            name: size,
+            in: query,
+            required: false,
+            schema: { type: string, enum: [thumb, full], default: thumb },
+          }
+      responses:
+        '200':
+          description: The image.
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    deviceToken:
+      type: http
+      scheme: bearer
+  responses:
+    Problem:
+      description: Error (RFC 9457).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        retryAfterSeconds: { type: integer }
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, version, epoch, time]
+      properties:
+        status: { type: string, const: ok }
+        version: { type: string }
+        epoch: { type: string, description: Changes when a backup is restored. }
+        time: { type: string }
+    DeviceRegisterRequest:
+      type: object
+      required: [password, name]
+      properties:
+        password: { type: string, minLength: 1, maxLength: 256 }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        platform: { type: string, enum: [android, web, other], default: android }
+    DeviceRegisterResponse:
+      type: object
+      additionalProperties: false
+      required: [deviceId, token]
+      properties:
+        deviceId: { type: string }
+        token: { type: string }
+    SessionInfo:
+      type: object
+      additionalProperties: false
+      required: [authenticated, kind, sessionId, expiresAt]
+      properties:
+        authenticated: { type: boolean, const: true }
+        kind: { type: string, enum: [web, device] }
+        sessionId: { type: string }
+        expiresAt: { type: [string, 'null'] }
+    SyncWork:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          version,
+          createdAt,
+          updatedAt,
+          title,
+          subtitle,
+          authors,
+          subjects,
+          description,
+          originalTitle,
+          originalLanguage,
+          series,
+          seriesIndex,
+        ]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        title: { type: string }
+        subtitle: { type: [string, 'null'] }
+        authors: { type: array, items: { type: string } }
+        subjects: { type: array, items: { type: string } }
+        description: { type: [string, 'null'] }
+        originalTitle: { type: [string, 'null'] }
+        originalLanguage: { type: [string, 'null'] }
+        series: { type: [string, 'null'] }
+        seriesIndex: { type: [number, 'null'] }
+    SyncEdition:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          version,
+          createdAt,
+          updatedAt,
+          workId,
+          title,
+          subtitle,
+          publisher,
+          publishedYear,
+          language,
+          pages,
+          format,
+          isbn13,
+          coverAssetId,
+          metadataStatus,
+          metadataSource,
+        ]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        workId: { type: string }
+        title: { type: [string, 'null'], description: Only when it differs from the work's title. }
+        subtitle: { type: [string, 'null'] }
+        publisher: { type: [string, 'null'] }
+        publishedYear: { type: [integer, 'null'] }
+        language: { type: [string, 'null'] }
+        pages: { type: [integer, 'null'] }
+        format: { type: [string, 'null'] }
+        isbn13: { type: [string, 'null'] }
+        coverAssetId: { type: [string, 'null'], description: 'Download with GET /assets/{id}.' }
+        metadataStatus: { type: string, enum: [complete, provisional] }
+        metadataSource: { type: [string, 'null'] }
+    SyncCopy:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          version,
+          createdAt,
+          updatedAt,
+          editionId,
+          code,
+          locationId,
+          condition,
+          acquiredOn,
+          priceCents,
+          priceCurrency,
+          notes,
+          status,
+          retiredReason,
+          retiredOn,
+        ]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        editionId: { type: string }
+        code: { type: string, description: Human-friendly code such as EJ-0001. }
+        locationId: { type: [string, 'null'] }
+        condition: { type: string, enum: [new, fine, good, used, fair, poor] }
+        acquiredOn: { type: [string, 'null'], description: YYYY-MM-DD }
+        priceCents: { type: [integer, 'null'] }
+        priceCurrency: { type: string }
+        notes: { type: string }
+        status: { type: string, enum: [active, retired] }
+        retiredReason: { type: [string, 'null'], enum: [gifted, sold, lost, damaged, other, null] }
+        retiredOn: { type: [string, 'null'] }
+    SyncLocation:
+      type: object
+      additionalProperties: false
+      required: [id, version, createdAt, updatedAt, parentId, name, kind, sortOrder]
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        parentId: { type: [string, 'null'] }
+        name: { type: string }
+        kind: { type: string, enum: [home, room, bookcase, shelf, box, other] }
+        sortOrder: { type: integer }
+    SyncTombstone:
+      type: object
+      additionalProperties: false
+      required: [entity, id, version, deletedAt]
+      properties:
+        entity: { type: string, enum: [work, edition, copy, location] }
+        id: { type: string }
+        version: { type: integer }
+        deletedAt: { type: string }
+    SyncSnapshot:
+      type: object
+      additionalProperties: false
+      required: [epoch, cursor, serverTime, works, editions, copies, locations]
+      properties:
+        epoch: { type: string }
+        cursor: { type: integer, description: Pass it as `since` in the next pull. }
+        serverTime: { type: string }
+        works: { type: array, items: { $ref: '#/components/schemas/SyncWork' } }
+        editions: { type: array, items: { $ref: '#/components/schemas/SyncEdition' } }
+        copies: { type: array, items: { $ref: '#/components/schemas/SyncCopy' } }
+        locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
+    SyncPullPage:
+      type: object
+      additionalProperties: false
+      required: [epoch, cursor, hasMore, serverTime, works, editions, copies, locations, deleted]
+      properties:
+        epoch: { type: string }
+        cursor: { type: integer }
+        hasMore: { type: boolean }
+        serverTime: { type: string }
+        works: { type: array, items: { $ref: '#/components/schemas/SyncWork' } }
+        editions: { type: array, items: { $ref: '#/components/schemas/SyncEdition' } }
+        copies: { type: array, items: { $ref: '#/components/schemas/SyncCopy' } }
+        locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
+        deleted: { type: array, items: { $ref: '#/components/schemas/SyncTombstone' } }

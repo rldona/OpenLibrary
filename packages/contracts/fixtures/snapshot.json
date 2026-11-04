@@ -1,0 +1,123 @@
+{
+  "epoch": "40ea02ac-34b4-4b0c-943a-342a2333dcae",
+  "cursor": 8,
+  "serverTime": "2026-11-04T10:00:00.000Z",
+  "works": [
+    {
+      "id": "01a1a749-3133-792f-a940-3b871f8178d3",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "title": "Niebla",
+      "subtitle": null,
+      "authors": ["Miguel de Unamuno"],
+      "subjects": [],
+      "description": null,
+      "originalTitle": null,
+      "originalLanguage": null,
+      "series": "Nivolas",
+      "seriesIndex": 1
+    },
+    {
+      "id": "01a1a749-3142-7723-a122-6142db78388b",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "title": "Paz en la guerra",
+      "subtitle": null,
+      "authors": [],
+      "subjects": [],
+      "description": null,
+      "originalTitle": null,
+      "originalLanguage": null,
+      "series": null,
+      "seriesIndex": null
+    }
+  ],
+  "editions": [
+    {
+      "id": "01a1a749-3134-70ae-b12e-c5d739ef2364",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "workId": "01a1a749-3133-792f-a940-3b871f8178d3",
+      "title": null,
+      "subtitle": null,
+      "publisher": "Cátedra",
+      "publishedYear": 1914,
+      "language": "es",
+      "pages": 320,
+      "format": null,
+      "isbn13": null,
+      "coverAssetId": null,
+      "metadataStatus": "complete",
+      "metadataSource": null
+    },
+    {
+      "id": "01a1a749-3143-7a50-a54b-65c86fdf5312",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "workId": "01a1a749-3142-7723-a122-6142db78388b",
+      "title": null,
+      "subtitle": null,
+      "publisher": null,
+      "publishedYear": null,
+      "language": null,
+      "pages": null,
+      "format": null,
+      "isbn13": null,
+      "coverAssetId": null,
+      "metadataStatus": "complete",
+      "metadataSource": null
+    }
+  ],
+  "copies": [
+    {
+      "id": "01a1a749-3135-7115-bb61-4923c10e2aa5",
+      "version": 2,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "editionId": "01a1a749-3134-70ae-b12e-c5d739ef2364",
+      "code": "EJ-0001",
+      "locationId": "01a1a749-3129-778b-b4a0-4903b5791b4a",
+      "condition": "good",
+      "acquiredOn": "2020-05-01",
+      "priceCents": 1200,
+      "priceCurrency": "EUR",
+      "notes": "",
+      "status": "retired",
+      "retiredReason": "gifted",
+      "retiredOn": "2026-11-04"
+    },
+    {
+      "id": "01a1a749-3143-77ed-9d63-305f8276ac7a",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "editionId": "01a1a749-3143-7a50-a54b-65c86fdf5312",
+      "code": "EJ-0002",
+      "locationId": null,
+      "condition": "good",
+      "acquiredOn": null,
+      "priceCents": null,
+      "priceCurrency": "EUR",
+      "notes": "",
+      "status": "active",
+      "retiredReason": null,
+      "retiredOn": null
+    }
+  ],
+  "locations": [
+    {
+      "id": "01a1a749-3129-778b-b4a0-4903b5791b4a",
+      "version": 1,
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:00:00.000Z",
+      "parentId": null,
+      "name": "Casa",
+      "kind": "home",
+      "sortOrder": 0
+    }
+  ]
+}
