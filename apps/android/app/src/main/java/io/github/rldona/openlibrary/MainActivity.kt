@@ -39,6 +39,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import io.github.rldona.openlibrary.sync.SyncStatus
 import io.github.rldona.openlibrary.sync.SyncWorker
+import io.github.rldona.openlibrary.ui.book.BookFormScreen
+import io.github.rldona.openlibrary.ui.book.BookFormViewModel
+import io.github.rldona.openlibrary.ui.capture.PhotoScreen
+import io.github.rldona.openlibrary.ui.capture.ScannerScreen
+import io.github.rldona.openlibrary.ui.review.ReviewScreen
+import io.github.rldona.openlibrary.ui.review.ReviewViewModel
 import io.github.rldona.openlibrary.ui.detail.DetailScreen
 import io.github.rldona.openlibrary.ui.detail.DetailViewModel
 import io.github.rldona.openlibrary.ui.library.LibraryScreen
@@ -60,6 +66,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class DetailRoute(val workId: String)
 @Serializable object LocationsRoute
 @Serializable object SettingsRoute
+@Serializable object AddBookRoute
+@Serializable data class EditBookRoute(val workId: String, val editionId: String)
+@Serializable object ScanRoute
+@Serializable object PhotoRoute
+@Serializable object ReviewRoute
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +92,7 @@ private fun App(c: AppContainer, connected: Boolean) {
     val entry by nav.currentBackStackEntryAsState()
     val dest = entry?.destination
     val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "SettingsRoute").any { r.contains(it) } } == true
-    val inDetail = dest?.route?.contains("DetailRoute") == true
+    val inDetail = !inTabs && dest?.route?.contains("SetupRoute") == false
     val status by c.sync.status.collectAsStateWithLifecycle()
 
     // Relative times ("2 min ago") refresh every half minute.
@@ -137,12 +148,45 @@ private fun App(c: AppContainer, connected: Boolean) {
             composable<LibraryRoute> { e ->
                 val route = e.toRoute<LibraryRoute>()
                 val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, route.locationId) } })
-                LibraryScreen(vm, now) { workId -> nav.navigate(DetailRoute(workId)) }
+                LibraryScreen(
+                    vm,
+                    now,
+                    onOpen = { workId -> nav.navigate(DetailRoute(workId)) },
+                    onAdd = { nav.navigate(AddBookRoute) },
+                    onReview = { nav.navigate(ReviewRoute) },
+                )
             }
             composable<DetailRoute> { e ->
                 val route = e.toRoute<DetailRoute>()
                 val vm = viewModel<DetailViewModel>(factory = viewModelFactory { initializer { DetailViewModel(c, route.workId) } })
-                DetailScreen(vm)
+                DetailScreen(vm) { workId, editionId -> nav.navigate(EditBookRoute(workId, editionId)) }
+            }
+            composable<AddBookRoute> { e ->
+                val vm = viewModel<BookFormViewModel>(factory = viewModelFactory { initializer { BookFormViewModel(c, null, null) } })
+                BookForm(vm, e.savedStateHandle, nav) { workId -> nav.navigate(DetailRoute(workId)) { popUpTo<AddBookRoute> { inclusive = true } } }
+            }
+            composable<EditBookRoute> { e ->
+                val route = e.toRoute<EditBookRoute>()
+                val vm = viewModel<BookFormViewModel>(
+                    factory = viewModelFactory { initializer { BookFormViewModel(c, route.workId, route.editionId) } },
+                )
+                BookForm(vm, e.savedStateHandle, nav) { nav.popBackStack() }
+            }
+            composable<ScanRoute> {
+                ScannerScreen { isbn ->
+                    nav.previousBackStackEntry?.savedStateHandle?.set("isbn", isbn)
+                    nav.popBackStack()
+                }
+            }
+            composable<PhotoRoute> {
+                PhotoScreen(c.covers) { id ->
+                    nav.previousBackStackEntry?.savedStateHandle?.set("photo", id)
+                    nav.popBackStack()
+                }
+            }
+            composable<ReviewRoute> {
+                val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })
+                ReviewScreen(vm)
             }
             composable<LocationsRoute> {
                 val vm = viewModel<LocationsViewModel>(factory = viewModelFactory { initializer { LocationsViewModel(c) } })
@@ -152,10 +196,26 @@ private fun App(c: AppContainer, connected: Boolean) {
                 val vm = viewModel<SettingsViewModel>(
                     factory = viewModelFactory { initializer { SettingsViewModel(c) { nav.navigate(SetupRoute) { popUpTo(0) } } } },
                 )
-                SettingsScreen(vm, now, context)
+                SettingsScreen(vm, now, context) { nav.navigate(ReviewRoute) }
             }
         }
     }
+}
+
+/** The scanner and the camera hand their result back through the form's SavedStateHandle. */
+@Composable
+private fun BookForm(vm: BookFormViewModel, state: androidx.lifecycle.SavedStateHandle, nav: NavHostController, onSaved: (String) -> Unit) {
+    val isbn by state.getStateFlow<String?>("isbn", null).collectAsStateWithLifecycle()
+    val photo by state.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
+    BookFormScreen(
+        vm,
+        scannedIsbn = isbn,
+        photoId = photo,
+        onScan = { nav.navigate(ScanRoute) },
+        onPhoto = { nav.navigate(PhotoRoute) },
+        onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
+        onSaved = onSaved,
+    )
 }
 
 @Composable

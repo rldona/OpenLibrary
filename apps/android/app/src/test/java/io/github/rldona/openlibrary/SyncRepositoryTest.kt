@@ -36,26 +36,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private const val T = "2026-11-04T10:00:00.000Z"
-private val COVER = "ab".repeat(32)
-
-private fun work(id: String, title: String, authors: List<String>, version: Int = 1) =
-    SyncWork(id, version, T, T, title, null, authors, listOf("Novela"), null, null, null, null, null)
-
-private fun edition(id: String, workId: String, cover: String? = null) =
-    SyncEdition(id, 1, T, T, workId, null, null, "Cátedra", 1887, "es", 500, null, null, cover, "complete", null)
-
-private fun copy(id: String, editionId: String, locationId: String?, status: String = "active") =
-    SyncCopy(id, 1, T, T, editionId, "EJ-$id", locationId, "good", null, null, "EUR", "", status, if (status == "retired") "gifted" else null, null)
-
-private fun location(id: String, name: String, parentId: String? = null) = SyncLocation(id, 1, T, T, parentId, name, "room", 0)
-
-private class MemorySessions(s: DeviceSession?) : SessionStore {
-    override val session = MutableStateFlow(s)
-    override suspend fun save(session: DeviceSession) { this.session.value = session }
-    override suspend fun clear() { session.value = null }
-}
-
 @RunWith(AndroidJUnit4::class)
 class SyncRepositoryTest {
     private lateinit var server: MockWebServer

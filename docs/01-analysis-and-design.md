@@ -218,6 +218,14 @@ store op_id → result
 ```
 *(Implemented in F1 in `apps/server/src/catalog/changes.ts` and already used by the web; F2 adds the pull endpoints in `apps/server/src/sync/`; F3 adds `applied_ops` and push.)*
 
+**As implemented in F3** (differences from the sketch above, on purpose):
+- Ops are typed (`book.create`, `copy.create`, `location.create`, `work|edition|copy|location.update`) and run through the same catalog service as the web, so validation and merging rules are identical. Copies are retired, not deleted; deleting from the phone is not offered.
+- A conflict applies **nothing** of that op (like the web's 409): the device shows every conflicting field with both values and resolves with a new op ("keep mine" = same fields on `currentVersion`; "keep the server's" = drop it; "combine" for text). Only applied ops are stored in `applied_ops`, so a rejected op can succeed later once its cause is fixed (e.g. its parent location arrives).
+- Changes made by the **same session** never conflict with each other: a phone that edits a field twice offline sends both ops with the same base version and the second wins.
+- After any refused op the phone takes a snapshot instead of a pull, so the optimistic local value is replaced by the server's. Pending ops are re-applied on top of every snapshot and pull page.
+- There is no `/sync/conflicts` endpoint: conflicts live in the device's outbox, where the user resolves them.
+- Cover photos are content addressed (SHA-256 of the bytes = asset id), so a book created offline can reference its photo; the photo is uploaded before the ops in the next sync.
+
 ### Sync cycle (client)
 ```
 1. PUSH   POST /sync/push   { device_id, batch_id, ops[≤100] }  → { results[op_id: applied|duplicate|conflict|rejected] }
@@ -267,7 +275,7 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | GET | `/lookup/isbn/{isbn}` | normalised metadata proposal (provider proxy, 30-day cache) + existing edition | F1 ✔ |
 | POST / GET | `/assets` · `/assets/fetch` · `/assets/{sha256}?size=thumb\|full` | upload / fetch provider cover / download | F1 ✔ |
 | GET | `/sync/snapshot` · `/sync/pull?since=&epoch=&limit=` | full snapshot; state-based incremental pull (§6) | F2 ✔ |
-| POST / GET | `/sync/push` · `/sync/conflicts` | protocol §6 | F3 |
+| POST | `/sync/push` | batch of offline ops, idempotent by `opId` (§6) | F3 ✔ |
 | … | `/reading-sessions`, `/quotes`, `/wishlist`, `/stats` | reading, wishlist, statistics | F4 |
 | … | `/export/csv` · `/export/full` (zip) · `/import` (dry-run + report) · `/admin/backups` | portability and backups | F5 |
 
@@ -366,7 +374,7 @@ Going from A to B or C: roughly **an afternoon of deployment work**. The API, sy
 | **F0 · Foundations** (1 wk) | Monorepo, CI (lint, test, build), DB schema + migrations, auth (login, devices), Docker Compose + `tailscale serve`, backup/restore scripts **(done 2026-11-04)** | `docker compose up` on Ubuntu serves `/api/v1/health` over HTTPS on the tailnet; password login; no access from outside the tailnet; backup produces a verifiable restic snapshot |
 | **F1 · Web catalog** (2 wk) | CRUD work/edition/copy/location, manual entry, ISBN lookup (proxy), covers, FTS search + filters + sorting, details view, location tree **(done 2026-11-04)**; bilingual UI EN/ES | Manual entry without ISBN ✔; ISBN → editable proposal ✔; 2 copies of one edition without duplicating it ✔; filtering by "Living room › Bookcase" includes child shelves ✔; search < 150 ms with 10,000 synthetic copies ✔ (4–46 ms) |
 | **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES **(done 2026-11-04)** | With the PC off, the whole library and its covers can be browsed and searched ✔ (checked on a Galaxy S26 Ultra; covers by unit test); a change made on the web appears on Android after syncing ✔ |
-| **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts | Full UC01 flow ✔; changes in airplane mode survive killing the app and rebooting the phone ✔; resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
+| **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts **(done 2026-11-04; reading status moves to F4)** | Full UC01 flow ✔ (lookup, owned-edition warning, provisional offline entry, provider cover; camera scan and photo pending a check on the phone); changes made offline survive killing the app and rebooting ✔ (emulator); resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
 | **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, quotes, wishlist → acquisition, statistics (works vs copies) | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ |
 | **F5 · Portability and hardening** (1.5 wk) | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |
 

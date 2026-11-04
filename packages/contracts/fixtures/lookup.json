@@ -1,0 +1,20 @@
+{
+  "isbn13": "9788432221477",
+  "isbn10": "8432221473",
+  "existing": null,
+  "found": true,
+  "sources": ["Open Library"],
+  "proposal": {
+    "title": "La ridícula idea de no volver a verte",
+    "subtitle": null,
+    "authors": ["Rosa Montero"],
+    "publisher": "Seix Barral",
+    "publishedYear": 2013,
+    "language": null,
+    "pages": 240,
+    "subjects": [],
+    "description": null,
+    "coverUrl": "https://covers.openlibrary.org/b/id/1-L.jpg"
+  },
+  "errors": ["Google Books: HTTP 404"]
+}

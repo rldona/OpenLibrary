@@ -9,15 +9,31 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import sharp from 'sharp';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parse as parseYaml } from 'yaml';
-import { uuidv7 } from '@openlibrary/contracts';
+import { uuidv7, withCheckDigit } from '@openlibrary/contracts';
+import type { Fetch } from '../src/lookup/providers.js';
 import { bumpEpoch } from '../src/db/client.js';
 import { makeApp, PASSWORD, webClient } from './helpers.js';
 
 const SPEC_FILE = fileURLToPath(new URL('../../../packages/contracts/openapi.yaml', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../../../packages/contracts/fixtures/', import.meta.url));
-const FIXTURE_SCHEMAS = { 'snapshot.json': 'SyncSnapshot', 'pull.json': 'SyncPullPage' } as const;
+const FIXTURE_SCHEMAS = {
+  'snapshot.json': 'SyncSnapshot',
+  'pull.json': 'SyncPullPage',
+  'push.json': 'SyncPushResponse',
+  'lookup.json': 'LookupResult',
+  'asset.json': 'Asset',
+} as const;
+
+const writeFixtures = (files: Record<string, unknown>) => {
+  if (!process.env.UPDATE_FIXTURES) return;
+  fs.mkdirSync(FIXTURES, { recursive: true });
+  for (const [file, body] of Object.entries(files)) {
+    fs.writeFileSync(`${FIXTURES}${file}`, JSON.stringify(body, null, 2) + '\n');
+  }
+};
 const spec = parseYaml(fs.readFileSync(SPEC_FILE, 'utf8')) as {
   paths: Record<string, Record<string, unknown>>;
   components: { schemas: Record<string, object> };
@@ -87,21 +103,106 @@ describe('openapi.yaml', () => {
     expectSchema('SyncPullPage', page.body);
     expect((page.body.deleted as unknown[]).length).toBeGreaterThan(0);
 
-    if (process.env.UPDATE_FIXTURES) {
-      fs.mkdirSync(FIXTURES, { recursive: true });
-      for (const [file, body] of [
-        ['snapshot.json', snap.body],
-        ['pull.json', page.body],
-      ] as const) {
-        fs.writeFileSync(`${FIXTURES}${file}`, JSON.stringify(body, null, 2) + '\n');
-      }
-    }
+    // One result of each kind: applied, duplicate, conflict (the web changed the subtitle) and rejected.
+    const created = {
+      opId: uuidv7(),
+      type: 'location.create',
+      location: { parentId: home, name: 'Mesilla' },
+    };
+    const pushed = await call('/sync/push', {
+      method: 'POST',
+      token,
+      payload: {
+        epoch: snap.body.epoch,
+        ops: [
+          created,
+          created,
+          {
+            opId: uuidv7(),
+            type: 'work.update',
+            id: book.body.work.id,
+            patch: { baseVersion: 1, fields: { subtitle: 'Una nivola' } },
+          },
+          { opId: uuidv7(), type: 'copy.create', copy: { editionId: uuidv7() } },
+        ],
+      },
+    });
+    expectSchema('SyncPushResponse', pushed.body);
+    expect((pushed.body.results as { status: string }[]).map((r) => r.status)).toEqual([
+      'applied',
+      'duplicate',
+      'conflict',
+      'rejected',
+    ]);
+
+    writeFixtures({ 'snapshot.json': snap.body, 'pull.json': page.body, 'push.json': pushed.body });
 
     bumpEpoch(db);
     const stale = await call(`/sync/pull?since=0&epoch=${snap.body.epoch}`, { token });
     expect(stale.status).toBe(409);
     expectSchema('Problem', stale.body);
     expectSchema('Problem', (await call('/auth/me')).body);
+  });
+
+  it('capture endpoints (ISBN lookup, cover upload and provider cover) match the spec', async () => {
+    const jpeg = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#8b3a2b' } })
+      .jpeg()
+      .toBuffer();
+    const isbn = withCheckDigit('978843222147');
+    const fakeProviders = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('openlibrary.org/api/books')) {
+        return Response.json({
+          [`ISBN:${isbn}`]: {
+            title: 'La ridícula idea de no volver a verte',
+            authors: [{ name: 'Rosa Montero' }],
+            publishers: [{ name: 'Seix Barral' }],
+            publish_date: '2013',
+            number_of_pages: 240,
+            cover: { large: 'https://covers.openlibrary.org/b/id/1-L.jpg' },
+          },
+        });
+      }
+      if (url.startsWith('https://covers.openlibrary.org/')) {
+        return new Response(jpeg, { headers: { 'content-type': 'image/jpeg' } });
+      }
+      return new Response('no', { status: 404 });
+    }) as Fetch;
+    const { app } = await makeApp({ fetch: fakeProviders });
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/devices',
+      payload: { password: PASSWORD, name: 'Pixel 8', platform: 'android' },
+    });
+    const auth = { authorization: `Bearer ${reg.json().token}` };
+
+    const lookup = await app.inject({ url: `/api/v1/lookup/isbn/${isbn}`, headers: auth });
+    expect(lookup.json().found).toBe(true);
+    expectSchema('LookupResult', lookup.json());
+    const missing = await app.inject({
+      url: `/api/v1/lookup/isbn/${withCheckDigit('978000000000')}`,
+      headers: auth,
+    });
+    expectSchema('LookupResult', missing.json());
+
+    const upload = await app.inject({
+      method: 'POST',
+      url: '/api/v1/assets',
+      headers: { ...auth, 'content-type': 'image/jpeg' },
+      payload: jpeg,
+    });
+    expect(upload.statusCode).toBe(201);
+    expectSchema('Asset', upload.json());
+    const fetched = await app.inject({
+      method: 'POST',
+      url: '/api/v1/assets/fetch',
+      headers: auth,
+      payload: { url: 'https://covers.openlibrary.org/b/id/1-L.jpg' },
+    });
+    expect(fetched.statusCode).toBe(201);
+    expectSchema('Asset', fetched.json());
+
+    writeFixtures({ 'lookup.json': lookup.json(), 'asset.json': upload.json() });
   });
 
   it('the fixtures used by the Android tests match the spec', () => {

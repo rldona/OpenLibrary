@@ -5,13 +5,17 @@ import androidx.room.Entity
 import androidx.room.Fts4
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /*
- * Local copy of the catalog (read-only in F2). Rows mirror the server records; there are no foreign keys
- * because a sync page is not ordered by dependency (a copy can arrive before its edition).
+ * Local copy of the catalog. Rows mirror the server records; there are no foreign keys because a sync
+ * page is not ordered by dependency (a copy can arrive before its edition). Local edits are applied to
+ * these rows right away and queued in the outbox (F3); `version` stays the last one seen from the server.
+ * The rows are @Serializable so an op's `fields` (server field names) can be applied generically.
  */
 
 @Entity(tableName = "works", indices = [Index("sortTitle")])
+@Serializable
 data class WorkEntity(
     @PrimaryKey val id: String,
     val version: Int,
@@ -31,6 +35,7 @@ data class WorkEntity(
 )
 
 @Entity(tableName = "editions", indices = [Index("workId")])
+@Serializable
 data class EditionEntity(
     @PrimaryKey val id: String,
     val version: Int,
@@ -51,6 +56,7 @@ data class EditionEntity(
 )
 
 @Entity(tableName = "copies", indices = [Index("editionId"), Index("locationId")])
+@Serializable
 data class CopyEntity(
     @PrimaryKey val id: String,
     val version: Int,
@@ -70,6 +76,7 @@ data class CopyEntity(
 )
 
 @Entity(tableName = "locations", indices = [Index("parentId")])
+@Serializable
 data class LocationEntity(
     @PrimaryKey val id: String,
     val version: Int,
@@ -89,6 +96,30 @@ data class BookFts(
     val editionId: String,
     val body: String,
 )
+
+/**
+ * Changes made on this phone waiting for the server, in order. `payload` is the op as sent to
+ * POST /sync/push. `status`: pending → sent on the next sync; conflict / rejected → shown to the user,
+ * who resolves or discards them (they are never sent again as they are).
+ */
+@Entity(tableName = "outbox", indices = [Index(value = ["opId"], unique = true), Index("status")])
+data class OutboxEntity(
+    @PrimaryKey(autoGenerate = true) val seq: Long = 0,
+    val opId: String,
+    val type: String,
+    val entityId: String,
+    val payload: String,
+    val status: String = "pending",
+    val message: String? = null,
+    /** JSON list of {field, current, yours} for conflicts. */
+    val conflicts: String? = null,
+    val currentVersion: Int? = null,
+    val createdAt: Long,
+)
+
+/** Cover photos taken on this phone, uploaded before the ops that reference them. */
+@Entity(tableName = "pending_uploads")
+data class PendingUploadEntity(@PrimaryKey val assetId: String, val createdAt: Long)
 
 /** Single row: where this phone's copy of the library stands. */
 @Entity(tableName = "sync_state")

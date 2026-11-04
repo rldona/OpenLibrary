@@ -1,5 +1,7 @@
 package io.github.rldona.openlibrary.ui.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,14 +13,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.rldona.openlibrary.R
+import io.github.rldona.openlibrary.core.plural
 import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.sync.SyncStatus
 import java.text.DateFormat
 import java.util.Date
 
-/** "Synced · 2 min ago", "Server unavailable — data from 4 Nov 09:12"… */
+/** "Synced · 2 min ago", "Server unavailable — data from 4 Nov 09:12", "3 changes waiting"… */
 @Composable
-fun SyncBar(status: SyncStatus, lastSyncAt: Long?, now: Long, modifier: Modifier = Modifier) {
+fun SyncBar(
+    status: SyncStatus,
+    lastSyncAt: Long?,
+    now: Long,
+    modifier: Modifier = Modifier,
+    pending: Int = 0,
+    problems: Int = 0,
+    onReview: () -> Unit = {},
+) {
     if (status is SyncStatus.Running) {
         LinearProgressIndicator(modifier.fillMaxWidth())
         return
@@ -34,10 +45,20 @@ fun SyncBar(status: SyncStatus, lastSyncAt: Long?, now: Long, modifier: Modifier
             is SyncStatus.Failed -> str(R.string.sync_failed, "error" to status.message)
             else -> if (lastSyncAt == null) str(R.string.sync_never) else str(R.string.sync_synced, "ago" to ago(lastSyncAt, now))
         }
-    val warn = status is SyncStatus.Offline || status is SyncStatus.Revoked || status is SyncStatus.Failed
+    val warn = status is SyncStatus.Offline || status is SyncStatus.Revoked || status is SyncStatus.Failed || problems > 0
     Surface(color = if (warn) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant) {
-        Row(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
             Text(text, style = MaterialTheme.typography.labelMedium)
+            if (pending > 0) Text(plural(R.string.sync_pending_one, R.string.sync_pending_other, pending), style = MaterialTheme.typography.labelMedium)
+            if (problems > 0) {
+                Row(Modifier.clickable(onClick = onReview)) {
+                    Text(
+                        plural(R.string.sync_problems_one, R.string.sync_problems_other, problems) + " ›",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
     }
 }

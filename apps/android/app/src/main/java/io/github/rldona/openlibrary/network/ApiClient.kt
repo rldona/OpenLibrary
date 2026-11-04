@@ -47,6 +47,23 @@ class ApiClient(
             addQueryParameter("limit", limit.toString())
         }
 
+    suspend fun push(epoch: String, ops: List<Op>): SyncPushResponse {
+        val body = SyncPushRequest(epoch, ops.map { OpJson.encodeToJsonElement(Op.serializer(), it) })
+        return post("sync/push", OpJson.encodeToString(SyncPushRequest.serializer(), body))
+    }
+
+    suspend fun lookup(isbn13: String): LookupResult = get("lookup/isbn/$isbn13")
+
+    /** Uploads a cover photo; the returned id is the SHA-256 of [bytes]. */
+    suspend fun uploadAsset(bytes: ByteArray): Asset =
+        execute(request(url("assets")).post(bytes.toRequestBody(JPEG)).build()) {
+            ApiJson.decodeFromString<Asset>(it.body.string())
+        }
+
+    /** Copies a provider's cover to the server. */
+    suspend fun fetchAsset(coverUrl: String): Asset =
+        post("assets/fetch", ApiJson.encodeToString(FetchAssetRequest.serializer(), FetchAssetRequest(coverUrl)))
+
     /** Cover thumbnail (JPEG, 400 px wide). */
     suspend fun asset(id: String, size: String = "thumb"): ByteArray =
         execute(request(url("assets/$id") { addQueryParameter("size", size) }).get().build()) { it.body.bytes() }
@@ -88,6 +105,7 @@ class ApiClient(
 
     companion object {
         private val JSON = "application/json".toMediaType()
+        private val JPEG = "image/jpeg".toMediaType()
 
         fun defaultHttpClient(): OkHttpClient =
             OkHttpClient.Builder()

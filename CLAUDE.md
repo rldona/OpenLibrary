@@ -27,6 +27,7 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 ```
 
 - `apps/android`: Kotlin + Compose + Room, its own Gradle build (JDK 21, SDK in `~/Android/Sdk`). From `apps/android`: `./gradlew :app:testDebugUnitTest :app:assembleDebug`. Strings are generated: `npm run android:strings` after changing any catalog. API changes: update `packages/contracts/openapi.yaml`, regenerate fixtures (`UPDATE_FIXTURES=1 npx vitest run test/openapi.test.ts` in apps/server, then `npm run format`) and the Kotlin DTOs.
+- Testing on the owner's phone: it is connected to the REAL server — never make test edits there; use the emulator (`ol-test` AVD) against the dev server.
 - Dev server for the app: launch config `server-android` (port 8081, demo data in `apps/server/.data`, its password in `.data/dev-password`). Emulator reaches it at `http://10.0.2.2:8081`; a phone over adb at `http://localhost:8081` after `adb reverse tcp:8081 tcp:8081`.
 - `apps/server`: Fastify + Drizzle + SQLite (FTS5). New tables → edit `src/db/schema.ts`, then `npm run db:generate -w @openlibrary/server`.
 - Every catalog entity has `version` + change log; updates send `baseVersion` and merge per field (`src/catalog/changes.ts`). Clients send only the fields the user changed. Zod 4: `.partial()` keeps defaults, use `patchOf()` in contracts.
@@ -36,5 +37,6 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 
 - F0 foundations ✔, F1 web catalog ✔, bilingual UI ✔ (2026-11-04).
 - Deployed on the Ubuntu PC (2026-11-04): `https://openlibrary.<tailnet>.ts.net`, runbook followed.
-- F2 ✔ (2026-11-04): `/sync/snapshot` + `/sync/pull`, `openapi.yaml`, Android app (browse, search, details, locations, offline). Next: F3 — scanner, offline writes, push, conflicts.
+- F2 ✔ (2026-11-04): `/sync/snapshot` + `/sync/pull`, `openapi.yaml`, Android app (browse, search, details, locations, offline).
+- F3 ✔ (2026-11-04): `POST /sync/push` (idempotent ops, `applied_ops`), Android outbox + local writes, add book (scan, ISBN lookup, provisional, cover photo), edit/move/retire copies, conflicts screen. Next: F4 — reading, wishlist, statistics.
 - The Docker image builds and runs healthy on the Ubuntu PC (2026-11-04). The lockfile must resolve from registry.npmjs.org (never a work registry).

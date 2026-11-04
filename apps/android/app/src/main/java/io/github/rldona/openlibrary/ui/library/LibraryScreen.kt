@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -88,6 +92,8 @@ class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewM
 
     val status = c.sync.status
     val covers = c.covers
+    val pending = c.db.outbox().pendingCount()
+    val problems = c.db.outbox().problemCount()
     val syncState = c.db.sync().stateFlow()
 
     fun clearLocation() {
@@ -114,12 +120,16 @@ fun subtree(all: List<LocationEntity>, root: String): List<String> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> Unit) {
+fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> Unit, onAdd: () -> Unit, onReview: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val q by vm.query.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val sync by vm.syncState.collectAsStateWithLifecycle(null)
+    val pending by vm.pending.collectAsStateWithLifecycle(0)
+    val problems by vm.problems.collectAsStateWithLifecycle(0)
     val covers = vm.covers
+
+    Box(Modifier.fillMaxSize()) {
 
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
@@ -146,7 +156,7 @@ fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> U
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
-        SyncBar(status, sync?.lastSyncAt, now)
+        SyncBar(status, sync?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview)
         PullToRefreshBox(isRefreshing = status is SyncStatus.Running, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
             when {
                 !state.loaded -> Unit
@@ -197,6 +207,13 @@ fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> U
                     }
             }
         }
+    }
+    ExtendedFloatingActionButton(
+        onClick = onAdd,
+        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+        text = { Text(stringResource(R.string.book_add)) },
+        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag("add"),
+    )
     }
 }
 

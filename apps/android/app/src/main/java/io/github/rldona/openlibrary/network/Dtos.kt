@@ -1,6 +1,7 @@
 package io.github.rldona.openlibrary.network
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /*
  * Wire format of the sync API. Mirrors packages/contracts/openapi.yaml; SyncContractTest decodes the
@@ -123,3 +124,56 @@ data class SyncPullPage(
     val locations: List<SyncLocation>,
     val deleted: List<SyncTombstone>,
 )
+
+@Serializable
+data class SyncPushRequest(val epoch: String, val ops: List<JsonElement>)
+
+@Serializable
+data class FieldConflict(val field: String, val current: JsonElement, val yours: JsonElement)
+
+@Serializable
+data class SyncOpResult(
+    val opId: String,
+    val status: String,
+    val code: String? = null,
+    val message: String? = null,
+    val currentVersion: Int? = null,
+    val conflicts: List<FieldConflict>? = null,
+)
+
+@Serializable
+data class SyncPushResponse(val epoch: String, val results: List<SyncOpResult>, val serverTime: String)
+
+@Serializable
+data class MetadataProposal(
+    val title: String?,
+    val subtitle: String?,
+    val authors: List<String>,
+    val publisher: String?,
+    val publishedYear: Int?,
+    val language: String?,
+    val pages: Int?,
+    val subjects: List<String>,
+    val description: String?,
+    val coverUrl: String?,
+)
+
+@Serializable
+data class ExistingEdition(val editionId: String, val workId: String, val title: String, val copies: Int)
+
+@Serializable
+data class LookupResult(
+    val isbn13: String,
+    val isbn10: String?,
+    val found: Boolean,
+    val sources: List<String>,
+    val proposal: MetadataProposal?,
+    val existing: ExistingEdition?,
+    val errors: List<String>,
+)
+
+@Serializable
+data class Asset(val id: String, val mime: String, val width: Int, val height: Int, val bytes: Long)
+
+@Serializable
+data class FetchAssetRequest(val url: String)

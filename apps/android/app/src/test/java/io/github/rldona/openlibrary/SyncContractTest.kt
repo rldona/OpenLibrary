@@ -1,6 +1,9 @@
 package io.github.rldona.openlibrary
 
+import io.github.rldona.openlibrary.network.Asset
+import io.github.rldona.openlibrary.network.LookupResult
 import io.github.rldona.openlibrary.network.SyncPullPage
+import io.github.rldona.openlibrary.network.SyncPushResponse
 import io.github.rldona.openlibrary.network.SyncSnapshot
 import java.io.File
 import kotlinx.serialization.json.Json
@@ -27,5 +30,19 @@ class SyncContractTest {
         val p = strict.decodeFromString<SyncPullPage>(fixture("pull.json"))
         assertTrue(p.deleted.isNotEmpty())
         assertTrue(p.cursor > 0)
+    }
+
+    @Test
+    fun pushFixtureDecodes() {
+        val r = strict.decodeFromString<SyncPushResponse>(fixture("push.json"))
+        assertTrue(r.results.map { it.status } == listOf("applied", "duplicate", "conflict", "rejected"))
+        assertTrue(r.results[2].conflicts!!.single().field == "subtitle")
+    }
+
+    @Test
+    fun captureFixturesDecode() {
+        val l = strict.decodeFromString<LookupResult>(fixture("lookup.json"))
+        assertTrue(l.found && l.proposal!!.authors.isNotEmpty())
+        assertTrue(strict.decodeFromString<Asset>(fixture("asset.json")).id.length == 64)
     }
 }

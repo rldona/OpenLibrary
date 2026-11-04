@@ -85,7 +85,7 @@ export async function buildApp(deps: {
   const catalog = new CatalogService(db, deps.now);
   const assets = new AssetService(db, config.assetsDir, deps.fetch);
   const lookup = new LookupService(db, catalog, deps.fetch, deps.now);
-  const sync = new SyncService(db, deps.now);
+  const sync = new SyncService(db, catalog, deps.now);
 
   const app = Fastify({
     trustProxy: config.trustProxy,

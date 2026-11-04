@@ -186,6 +186,18 @@ export const changeLog = sqliteTable(
   (t) => [index('change_log_entity_idx').on(t.entity, t.entityId, t.version)],
 );
 
+/**
+ * Operations pushed by devices (F3), kept with their result so a resent batch is idempotent:
+ * the same `opId` returns the stored result instead of applying it again.
+ */
+export const appliedOps = sqliteTable('applied_ops', {
+  opId: text('op_id').primaryKey(),
+  sessionId: text('session_id'),
+  type: text('type').notNull(),
+  result: text('result', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  at: text('at').notNull(),
+});
+
 /** Cache of external provider lookups (not synced). */
 export const lookupCache = sqliteTable('lookup_cache', {
   isbn13: text('isbn13').primaryKey(),

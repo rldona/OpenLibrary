@@ -11,9 +11,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,6 +42,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
 data class DetailState(
     val work: WorkEntity? = null,
@@ -45,7 +54,7 @@ data class DetailState(
     val locations: Map<String, LocationEntity> = emptyMap(),
 )
 
-class DetailViewModel(c: AppContainer, workId: String) : ViewModel() {
+class DetailViewModel(private val c: AppContainer, workId: String) : ViewModel() {
     val covers = c.covers
     val state: StateFlow<DetailState> =
         combine(
@@ -55,13 +64,40 @@ class DetailViewModel(c: AppContainer, workId: String) : ViewModel() {
             c.db.catalog().locations(),
         ) { w, e, cp, l -> DetailState(w, e, cp, l.associateBy { it.id }) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState())
+
+    /** Sends only what changed, so another device's edits to other fields are merged, not overwritten. */
+    fun editCopy(copy: CopyEntity, form: CopyForm) =
+        viewModelScope.launch {
+            val fields = buildJsonObject {
+                if (form.locationId != copy.locationId) put("locationId", form.locationId?.let(::JsonPrimitive) ?: JsonNull)
+                if (form.condition != copy.condition) put("condition", JsonPrimitive(form.condition))
+                if (form.notes.trim() != copy.notes) put("notes", JsonPrimitive(form.notes.trim()))
+            }
+            if (fields.isNotEmpty()) c.writes.editCopy(copy, fields)
+        }
+
+    fun addCopy(editionId: String, form: CopyForm) =
+        viewModelScope.launch { c.writes.addCopy(editionId, form.locationId, form.condition, form.notes.trim()) }
+
+    fun retire(copy: CopyEntity, reason: String) = viewModelScope.launch { c.writes.retireCopy(copy, reason) }
+
+    fun restore(copy: CopyEntity) = viewModelScope.launch { c.writes.restoreCopy(copy) }
+}
+
+private sealed interface Dialog {
+    data class Edit(val copy: CopyEntity) : Dialog
+    data class Retire(val copy: CopyEntity) : Dialog
+    data class Add(val editionId: String) : Dialog
 }
 
 @Composable
-fun DetailScreen(vm: DetailViewModel) {
+fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String) -> Unit) {
     val s by vm.state.collectAsStateWithLifecycle()
     val work = s.work ?: return
     val active = s.copies.filter { it.status == "active" }
+    var dialog by remember { mutableStateOf<Dialog?>(null) }
+    val locations = s.locations.values.toList()
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Cover(vm.covers, s.editions.firstNotNullOfOrNull { it.coverAssetId }, work.title, 110.dp)
@@ -92,12 +128,56 @@ fun DetailScreen(vm: DetailViewModel) {
             Text(stringResource(R.string.book_synopsis), style = MaterialTheme.typography.titleSmall)
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
-        s.editions.forEach { e -> EditionCard(e, s.copies.filter { it.editionId == e.id }, s.locations) }
+        s.editions.forEach { e ->
+            EditionCard(
+                e,
+                s.copies.filter { it.editionId == e.id },
+                s.locations,
+                onEditBook = { onEdit(work.id, e.id) },
+                onAddCopy = { dialog = Dialog.Add(e.id) },
+                onEditCopy = { dialog = Dialog.Edit(it) },
+                onRetire = { dialog = Dialog.Retire(it) },
+                onRestore = vm::restore,
+            )
+        }
+    }
+
+    when (val d = dialog) {
+        is Dialog.Edit ->
+            CopyDialog(
+                str(R.string.copyForm_editTitle, "code" to d.copy.code.ifEmpty { "—" }),
+                stringResource(R.string.common_save),
+                CopyForm(d.copy.locationId, d.copy.condition, d.copy.notes),
+                locations,
+                onDismiss = { dialog = null },
+                onSave = { vm.editCopy(d.copy, it); dialog = null },
+            )
+        is Dialog.Add ->
+            CopyDialog(
+                stringResource(R.string.copyForm_newTitle),
+                stringResource(R.string.copyForm_addButton),
+                CopyForm(null, "good", ""),
+                locations,
+                onDismiss = { dialog = null },
+                onSave = { vm.addCopy(d.editionId, it); dialog = null },
+            )
+        is Dialog.Retire ->
+            RetireDialog(d.copy.code, onDismiss = { dialog = null }, onRetire = { vm.retire(d.copy, it); dialog = null })
+        null -> Unit
     }
 }
 
 @Composable
-private fun EditionCard(e: EditionEntity, copies: List<CopyEntity>, locations: Map<String, LocationEntity>) {
+private fun EditionCard(
+    e: EditionEntity,
+    copies: List<CopyEntity>,
+    locations: Map<String, LocationEntity>,
+    onEditBook: () -> Unit,
+    onAddCopy: () -> Unit,
+    onEditCopy: (CopyEntity) -> Unit,
+    onRetire: (CopyEntity) -> Unit,
+    onRestore: (CopyEntity) -> Unit,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.drawer_edition), style = MaterialTheme.typography.labelMedium)
@@ -114,20 +194,35 @@ private fun EditionCard(e: EditionEntity, copies: List<CopyEntity>, locations: M
             )
             Text("ISBN " + (e.isbn13 ?: stringResource(R.string.book_noIsbn)), style = MaterialTheme.typography.bodySmall)
             if (e.metadataStatus == "provisional") {
-                Text(stringResource(R.string.book_provisional), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    stringResource(R.string.drawer_provisionalTitle) + " " + stringResource(R.string.drawer_provisionalText),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onEditBook) { Text(stringResource(R.string.drawer_editBook)) }
+                OutlinedButton(onClick = onAddCopy) { Text(stringResource(R.string.drawer_addCopy)) }
             }
             Text(stringResource(R.string.drawer_copiesOfEdition), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-            copies.sortedBy { it.status != "active" }.forEach { c -> CopyLine(c, locations) }
+            copies.sortedBy { it.status != "active" }.forEach { c -> CopyLine(c, locations, onEditCopy, onRetire, onRestore) }
         }
     }
 }
 
 @Composable
-private fun CopyLine(c: CopyEntity, locations: Map<String, LocationEntity>) {
+private fun CopyLine(
+    c: CopyEntity,
+    locations: Map<String, LocationEntity>,
+    onEdit: (CopyEntity) -> Unit,
+    onRetire: (CopyEntity) -> Unit,
+    onRestore: (CopyEntity) -> Unit,
+) {
     val retired = c.status != "active"
     Column(Modifier.padding(vertical = 4.dp)) {
         Text(
-            c.code + " · " + (pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }),
+            c.code.ifEmpty { stringResource(R.string.copy_pendingCode) } + " · " +
+                (pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }),
             style = MaterialTheme.typography.bodyMedium,
             color = if (retired) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
@@ -141,5 +236,13 @@ private fun CopyLine(c: CopyEntity, locations: Map<String, LocationEntity>) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (c.notes.isNotBlank()) Text(c.notes, style = MaterialTheme.typography.bodySmall)
+        Row {
+            if (retired) {
+                TextButton(onClick = { onRestore(c) }) { Text(stringResource(R.string.drawer_restore)) }
+            } else {
+                TextButton(onClick = { onEdit(c) }) { Text(stringResource(R.string.drawer_moveEdit)) }
+                TextButton(onClick = { onRetire(c) }) { Text(stringResource(R.string.drawer_retire)) }
+            }
+        }
     }
 }

@@ -35,6 +35,15 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 .enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, periodic)
         }
 
+        private const val SOON = "sync-soon"
+
+        /** After a local change: waits 5 s (restarted by each new change), then syncs when there is a network. */
+        fun soon(context: Context) {
+            val once =
+                OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(online).setInitialDelay(5, TimeUnit.SECONDS).build()
+            WorkManager.getInstance(context).enqueueUniqueWork(SOON, ExistingWorkPolicy.REPLACE, once)
+        }
+
         /** Runs a sync as soon as there is a network (used when the app could not reach the server). */
         fun whenOnline(context: Context) {
             val once = OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(online).build()
@@ -44,6 +53,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(PERIODIC)
             WorkManager.getInstance(context).cancelUniqueWork(ONCE)
+            WorkManager.getInstance(context).cancelUniqueWork(SOON)
         }
     }
 }

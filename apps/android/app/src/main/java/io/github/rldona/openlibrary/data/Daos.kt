@@ -19,6 +19,8 @@ data class LibraryRow(
     val activeCopies: Int,
 )
 
+data class OwnedEdition(val editionId: String, val workId: String, val title: String, val copies: Int)
+
 /** Active copy placement, used to show where each book is. */
 data class Placement(val editionId: String, val locationId: String?)
 
@@ -60,6 +62,19 @@ interface CatalogDao {
 
     @Query("SELECT DISTINCT coverAssetId FROM editions WHERE coverAssetId IS NOT NULL")
     suspend fun coverIds(): List<String>
+
+    @Query("SELECT * FROM works WHERE id = :id") suspend fun workById(id: String): WorkEntity?
+    @Query("SELECT * FROM editions WHERE id = :id") suspend fun editionById(id: String): EditionEntity?
+    @Query("SELECT * FROM copies WHERE id = :id") suspend fun copyById(id: String): CopyEntity?
+    @Query("SELECT * FROM locations WHERE id = :id") suspend fun locationById(id: String): LocationEntity?
+
+    /** Editions you already own with this ISBN (scanning a book twice offers "add another copy"). */
+    @Query("""
+        SELECT e.id AS editionId, w.id AS workId, COALESCE(e.title, w.title) AS title,
+               (SELECT COUNT(*) FROM copies c WHERE c.editionId = e.id AND c.status = 'active') AS copies
+        FROM editions e JOIN works w ON w.id = e.workId WHERE e.isbn13 = :isbn13 LIMIT 1
+    """)
+    suspend fun byIsbn(isbn13: String): OwnedEdition?
 }
 
 @Dao
@@ -108,3 +123,43 @@ interface SyncDao {
 }
 
 data class SearchSource(val editionId: String, val text: String)
+
+@Dao
+interface OutboxDao {
+    @androidx.room.Insert suspend fun insert(op: OutboxEntity)
+
+    @Query("SELECT * FROM outbox WHERE status = 'pending' ORDER BY seq LIMIT :limit")
+    suspend fun pending(limit: Int = 100): List<OutboxEntity>
+
+    @Query("SELECT * FROM outbox WHERE status = 'pending' ORDER BY seq")
+    suspend fun allPending(): List<OutboxEntity>
+
+    @Query("SELECT * FROM outbox WHERE status != 'pending' ORDER BY seq")
+    fun problems(): Flow<List<OutboxEntity>>
+
+    @Query("SELECT COUNT(*) FROM outbox WHERE status = 'pending'")
+    fun pendingCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM outbox WHERE status != 'pending'")
+    fun problemCount(): Flow<Int>
+
+    @Query("SELECT * FROM outbox WHERE opId = :opId")
+    suspend fun byOpId(opId: String): OutboxEntity?
+
+    @Query("DELETE FROM outbox WHERE opId = :opId")
+    suspend fun delete(opId: String)
+
+    @Query("UPDATE outbox SET status = :status, message = :message, conflicts = :conflicts, currentVersion = :currentVersion WHERE opId = :opId")
+    suspend fun markFailed(opId: String, status: String, message: String?, conflicts: String?, currentVersion: Int?)
+
+    @Query("DELETE FROM outbox") suspend fun clear()
+
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun addUpload(upload: PendingUploadEntity)
+
+    @Query("SELECT * FROM pending_uploads ORDER BY createdAt") suspend fun uploads(): List<PendingUploadEntity>
+
+    @Query("DELETE FROM pending_uploads WHERE assetId = :id") suspend fun uploaded(id: String)
+
+    @Query("DELETE FROM pending_uploads") suspend fun clearUploads()
+}

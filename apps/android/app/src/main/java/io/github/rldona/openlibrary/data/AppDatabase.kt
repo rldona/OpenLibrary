@@ -1,6 +1,7 @@
 package io.github.rldona.openlibrary.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -16,15 +17,17 @@ class Converters {
 @Database(
     entities = [
         WorkEntity::class, EditionEntity::class, CopyEntity::class, LocationEntity::class,
-        BookFts::class, SyncStateEntity::class,
+        BookFts::class, SyncStateEntity::class, OutboxEntity::class, PendingUploadEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun catalog(): CatalogDao
     abstract fun sync(): SyncDao
+    abstract fun outbox(): OutboxDao
 
     companion object {
         fun open(context: Context): AppDatabase =

@@ -1,5 +1,5 @@
 /**
- * Sync contracts (pull side, F2). See §6 of the design document.
+ * Sync contracts: pull (F2) and push (F3). See §6 of the design document.
  *
  * - First connection: GET /sync/snapshot → every live entity plus the cursor to continue from.
  * - Afterwards: GET /sync/pull?since=<cursor>&epoch=<epoch> → the CURRENT state of every entity
@@ -11,7 +11,20 @@
  *   apply a whole page in one transaction and do not enforce foreign keys locally.
  */
 import { z } from 'zod';
-import type { Condition, LocationKind, RetireReason } from './catalog.js';
+import {
+  BookCreate,
+  CopyCreate,
+  CopyPatch,
+  EditionPatch,
+  Id,
+  LocationCreate,
+  LocationPatch,
+  WorkPatch,
+  type Condition,
+  type ConflictProblem,
+  type LocationKind,
+  type RetireReason,
+} from './catalog.js';
 
 export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location'] as const;
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
@@ -101,3 +114,52 @@ export const SyncPullQuery = z.object({
   limit: z.coerce.number().int().min(1).max(SYNC_PULL_MAX).default(500),
 });
 export type SyncPullQuery = z.input<typeof SyncPullQuery>;
+
+// ============================================================================
+// Push (F3): changes made offline on a device, sent as a batch of operations.
+//
+// - Each operation has a client-generated `opId`. The server stores the result of every applied op, so
+//   resending a batch (lost response, retry) returns `duplicate` with the original result and changes
+//   nothing.
+// - Operations of a batch are applied in order, each in its own transaction; one that fails does not
+//   stop the rest (an op that depends on a failed one fails too, with its own reason).
+// - `conflict`: another device changed some of the same fields after `baseVersion`. NOTHING of that op
+//   is applied; `conflicts` lists the server value and yours per field. Resolving it is a new op.
+// - `rejected`: the op is invalid (validation, missing entity…); `message` is translated.
+// ============================================================================
+export const SYNC_PUSH_MAX = 100;
+
+const update = <K extends string, T extends z.ZodType>(type: K, patch: T) =>
+  z.object({ opId: Id, type: z.literal(type), id: Id, patch });
+
+export const SyncOp = z.discriminatedUnion('type', [
+  z.object({ opId: Id, type: z.literal('book.create'), book: BookCreate }),
+  z.object({ opId: Id, type: z.literal('copy.create'), copy: CopyCreate }),
+  z.object({ opId: Id, type: z.literal('location.create'), location: LocationCreate }),
+  update('work.update', WorkPatch),
+  update('edition.update', EditionPatch),
+  update('copy.update', CopyPatch),
+  update('location.update', LocationPatch),
+]);
+export type SyncOp = z.input<typeof SyncOp>;
+
+export const SyncPushRequest = z.object({
+  epoch: z.string().min(1).max(64),
+  /** Each op is validated on its own so one invalid op is `rejected` without failing the batch. */
+  ops: z
+    .array(z.object({ opId: Id }).loose())
+    .min(1)
+    .max(SYNC_PUSH_MAX),
+});
+export type SyncPushRequest = { epoch: string; ops: SyncOp[] };
+
+export type SyncOpResult = {
+  opId: string;
+  status: 'applied' | 'duplicate' | 'conflict' | 'rejected';
+  /** Error code (`conflict`, `validation`, `duplicate-isbn`, `not-found`…) when not applied. */
+  code?: string;
+  message?: string;
+  conflicts?: ConflictProblem['conflicts'];
+  currentVersion?: number;
+};
+export type SyncPushResponse = { epoch: string; results: SyncOpResult[]; serverTime: string };

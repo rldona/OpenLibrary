@@ -28,6 +28,24 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import io.github.rldona.openlibrary.core.str
+import io.github.rldona.openlibrary.ui.components.Picker
+import io.github.rldona.openlibrary.ui.components.LocationPicker
 
 data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int)
 
@@ -46,7 +64,12 @@ fun flattenTree(all: List<LocationEntity>, directCounts: Map<String?, Int>): Lis
     return out
 }
 
-class LocationsViewModel(c: AppContainer) : ViewModel() {
+class LocationsViewModel(private val c: AppContainer) : ViewModel() {
+    val all = c.db.catalog().locations()
+
+    fun create(parentId: String?, name: String, kind: String) =
+        viewModelScope.launch { c.writes.createLocation(parentId, name, kind) }
+
     val tree: StateFlow<List<LocationNode>?> =
         combine(c.db.catalog().locations(), c.db.catalog().placements()) { locs, places ->
             flattenTree(locs, places.groupingBy { it.locationId }.eachCount())
@@ -55,6 +78,61 @@ class LocationsViewModel(c: AppContainer) : ViewModel() {
 
 @Composable
 fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
+    var adding by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        LocationTree(vm, onOpen)
+        ExtendedFloatingActionButton(
+            onClick = { adding = true },
+            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            text = { Text(stringResource(R.string.locations_add)) },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        )
+    }
+    if (adding) NewLocationDialog(vm, onDismiss = { adding = false })
+}
+
+/** Simple creation from the phone; reorganising the tree stays on the web (design §6). */
+@Composable
+private fun NewLocationDialog(vm: LocationsViewModel, onDismiss: () -> Unit) {
+    val all by vm.all.collectAsState(emptyList())
+    var name by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf("shelf") }
+    var parent by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.locations_newTitle)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(80) },
+                    label = { Text(stringResource(R.string.locations_name)) },
+                    placeholder = { Text(stringResource(R.string.locations_namePlaceholder)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Picker(
+                    stringResource(R.string.locations_kind),
+                    kind,
+                    listOf("home", "room", "bookcase", "shelf", "box", "other").map { it to stringResource(locationKindLabel(it)) },
+                    { kind = it },
+                    Modifier.fillMaxWidth(),
+                )
+                LocationPicker(all, parent, { parent = it }, Modifier.fillMaxWidth())
+                Text(stringResource(R.string.locations_inside) + ": " + if (parent == null) stringResource(R.string.locations_noParent) else "", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.create(parent, name, kind); onDismiss() }, enabled = name.isNotBlank()) {
+                Text(str(R.string.common_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@Composable
+private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
     val tree by vm.tree.collectAsStateWithLifecycle()
     val nodes = tree ?: return
     if (nodes.isEmpty()) {

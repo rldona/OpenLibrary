@@ -61,6 +61,12 @@ dependencies {
     implementation(libs.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.camera.mlkit)
+    // Bundled model: scanning works offline and without Google Play services.
+    implementation(libs.mlkit.barcode)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

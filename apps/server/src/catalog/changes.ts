@@ -6,9 +6,11 @@
  *  - base <  current → for each field sent, check whether someone changed it after base:
  *        no → applied (lossless merge);  yes, same value → convergent;  yes, different value → CONFLICT.
  *  - base >  current → invalid request.
+ * Changes made by the same session never conflict with each other: a phone that edits a field twice
+ * offline sends both ops with the same base version, and the second must win over the first.
  * Android sync (F3) reuses this very logic.
  */
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, isNull, ne, or } from 'drizzle-orm';
 import type { ConflictProblem } from '@openlibrary/contracts';
 import type { Db } from '../db/client.js';
 import { changeLog, copies, editions, locations, works } from '../db/schema.js';
@@ -35,12 +37,21 @@ export function recordChange(
   tx.insert(changeLog).values({ entity, entityId, op, version, fields, at, sessionId }).run();
 }
 
-/** Fields of an entity modified after a given version. */
-export function changedSince(tx: Tx, entity: EntityName, id: string, version: number): Set<string> {
+/** Fields of an entity modified after a given version by OTHER sessions than `bySession`. */
+export function changedSince(
+  tx: Tx,
+  entity: EntityName,
+  id: string,
+  version: number,
+  bySession: string | null = null,
+): Set<string> {
+  const others = bySession ? or(isNull(changeLog.sessionId), ne(changeLog.sessionId, bySession)) : undefined;
   const rows = tx
     .select({ fields: changeLog.fields })
     .from(changeLog)
-    .where(and(eq(changeLog.entity, entity), eq(changeLog.entityId, id), gt(changeLog.version, version)))
+    .where(
+      and(eq(changeLog.entity, entity), eq(changeLog.entityId, id), gt(changeLog.version, version), others),
+    )
     .all();
   return new Set(rows.flatMap((r) => Object.keys(r.fields)));
 }
@@ -76,7 +87,7 @@ export function patchEntity<R extends { id: string; version: number; deletedAt: 
   if (!changed.length) return { row, applied: {} };
 
   if (baseVersion < row.version) {
-    const touched = changedSince(tx, entity, id, baseVersion);
+    const touched = changedSince(tx, entity, id, baseVersion, ctx.sessionId);
     const conflicts = changed.filter((k) => touched.has(k));
     if (conflicts.length) {
       throw new ConflictError(entity, {

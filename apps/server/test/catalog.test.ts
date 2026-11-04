@@ -180,7 +180,8 @@ describe('search, filters and sorting', () => {
 
 describe('versioned updates and field-level merge', () => {
   it('changes to different fields merge; same field conflicts without overwriting', async () => {
-    const { c, loc } = await setup();
+    const { c, loc, app } = await setup();
+    const phone = await webClient(app);
     const r = await c.post('/books', book1984(loc.balda3));
     const copy = r.body.editions[0].copies[0];
     const v1 = copy.version;
@@ -189,7 +190,7 @@ describe('versioned updates and field-level merge', () => {
     const a = await c.patch(`/copies/${copy.id}`, { baseVersion: v1, fields: { locationId: loc.despacho } });
     expect(a.status).toBe(200);
     // "Phone" (still on version 1) changes the notes → merged.
-    const b = await c.patch(`/copies/${copy.id}`, { baseVersion: v1, fields: { notes: 'Subrayado' } });
+    const b = await phone.patch(`/copies/${copy.id}`, { baseVersion: v1, fields: { notes: 'Subrayado' } });
     expect(b.status).toBe(200);
     expect(b.body.editions[0].copies[0]).toMatchObject({
       locationPath: ['Casa', 'Despacho'],
@@ -197,7 +198,7 @@ describe('versioned updates and field-level merge', () => {
       version: 3,
     });
     // "Phone" on version 1 tries to change the location elsewhere → conflict.
-    const conflict = await c.patch(`/copies/${copy.id}`, {
+    const conflict = await phone.patch(`/copies/${copy.id}`, {
       baseVersion: v1,
       fields: { locationId: loc.salon },
     });
@@ -208,7 +209,7 @@ describe('versioned updates and field-level merge', () => {
       yours: loc.salon,
     });
     // Same value as the current one: convergent, no conflict.
-    const same = await c.patch(`/copies/${copy.id}`, {
+    const same = await phone.patch(`/copies/${copy.id}`, {
       baseVersion: v1,
       fields: { locationId: loc.despacho },
     });

@@ -1,12 +1,13 @@
 /**
- * Sync, pull side (F2): full snapshot and incremental pull over the change log.
+ * Sync: full snapshot and incremental pull over the change log (F2), and push of offline operations (F3).
  *
  * The pull is state based: for every entity whose latest change is after the cursor it returns the
  * entity as it is NOW (not each intermediate change), ordered by that latest `seq`. Paging by the
  * latest seq is safe while writes keep happening: an entity changed again during paging simply
  * moves past the cursor and comes back in a later page.
  */
-import { inArray, isNull, sql } from 'drizzle-orm';
+import { eq, inArray, isNull, sql } from 'drizzle-orm';
+import { SyncOp, type Lang, type SyncOpResult, type SyncPushResponse } from '@openlibrary/contracts';
 import type {
   SyncCopy,
   SyncEdition,
@@ -21,10 +22,12 @@ import type {
 import type { z } from 'zod';
 import type * as C from '@openlibrary/contracts';
 import { getMeta, type Db } from '../db/client.js';
-import { changeLog, copies, editions, locations, works } from '../db/schema.js';
-import { HttpError } from '../errors.js';
+import { appliedOps, changeLog, copies, editions, locations, works } from '../db/schema.js';
+import { HttpError, parse } from '../errors.js';
+import { tr } from '../i18n.js';
 import type { Clock } from '../auth/service.js';
-import { TABLES, type Tx } from '../catalog/changes.js';
+import type { CatalogService } from '../catalog/service.js';
+import { ConflictError, TABLES, type Tx } from '../catalog/changes.js';
 
 type WorkRow = typeof works.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
@@ -43,6 +46,7 @@ const resyncNeeded = (code: string, key: string) => new HttpError(409, code, key
 export class SyncService {
   constructor(
     private readonly db: Db,
+    private readonly catalog: CatalogService,
     private readonly now: Clock = () => new Date(),
   ) {}
 
@@ -140,5 +144,72 @@ export class SyncService {
         serverTime: this.now().toISOString(),
       };
     });
+  }
+
+  /**
+   * Applies a batch of offline operations in order. Each op and the record of its result commit together,
+   * so a resent op is either fully applied once or not at all.
+   */
+  push(body: z.output<typeof C.SyncPushRequest>, sessionId: string | null, lang: Lang): SyncPushResponse {
+    if (body.epoch !== this.epoch()) throw resyncNeeded('epoch-mismatch', 'errors.epochMismatch');
+    const results = body.ops.map((raw) => this.applyOp(raw, sessionId, lang));
+    return { epoch: this.epoch(), results, serverTime: this.now().toISOString() };
+  }
+
+  private applyOp(raw: { opId: string }, sid: string | null, lang: Lang): SyncOpResult {
+    const { opId } = raw;
+    const stored = this.db.select().from(appliedOps).where(eq(appliedOps.opId, opId)).get();
+    if (stored) return { ...(stored.result as SyncOpResult), opId, status: 'duplicate' };
+    try {
+      const op = parse(SyncOp, raw, lang);
+      return this.db.transaction((tx) => {
+        this.execute(op, sid);
+        const result: SyncOpResult = { opId, status: 'applied' };
+        tx.insert(appliedOps)
+          .values({ opId, sessionId: sid, type: op.type, result, at: this.now().toISOString() })
+          .run();
+        return result;
+      });
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+      // Not stored: nothing was applied, and the device resolves it with a new op.
+      const message = tr(lang)(err.key, err.params);
+      if (err instanceof ConflictError) {
+        const { conflicts, currentVersion } = err.extra as {
+          conflicts: SyncOpResult['conflicts'];
+          currentVersion: number;
+        };
+        return { opId, status: 'conflict', code: err.code, message, conflicts, currentVersion };
+      }
+      return { opId, status: 'rejected', code: err.code, message };
+    }
+  }
+
+  /** The same catalog operations the web uses, so validation and merging rules are identical. */
+  private execute(op: z.output<typeof SyncOp>, sid: string | null): void {
+    const c = this.catalog;
+    switch (op.type) {
+      case 'book.create':
+        c.createBook(op.book, sid);
+        break;
+      case 'copy.create':
+        c.createCopy(op.copy, sid);
+        break;
+      case 'location.create':
+        c.createLocation(op.location, sid);
+        break;
+      case 'work.update':
+        c.patchWork(op.id, op.patch, sid);
+        break;
+      case 'edition.update':
+        c.patchEdition(op.id, op.patch, sid);
+        break;
+      case 'copy.update':
+        c.patchCopy(op.id, op.patch, sid);
+        break;
+      case 'location.update':
+        c.patchLocation(op.id, op.patch, sid);
+        break;
+    }
   }
 }

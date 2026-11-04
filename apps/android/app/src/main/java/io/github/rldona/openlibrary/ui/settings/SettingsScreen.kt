@@ -37,6 +37,8 @@ class SettingsViewModel(private val c: AppContainer, private val onDisconnected:
     val syncState = c.db.sync().stateFlow()
     val editions = c.db.catalog().editionCount()
     val status = c.sync.status
+    val pending = c.db.outbox().pendingCount()
+    val problems = c.db.outbox().problemCount()
 
     fun syncNow() = viewModelScope.launch { c.sync.sync() }
 
@@ -53,11 +55,13 @@ class SettingsViewModel(private val c: AppContainer, private val onDisconnected:
 }
 
 @Composable
-fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Context) {
+fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Context, onReview: () -> Unit) {
     val session by vm.session.collectAsStateWithLifecycle(null)
     val state by vm.syncState.collectAsStateWithLifecycle(null)
     val editions by vm.editions.collectAsStateWithLifecycle(0)
     val status by vm.status.collectAsStateWithLifecycle()
+    val pending by vm.pending.collectAsStateWithLifecycle(0)
+    val problems by vm.problems.collectAsStateWithLifecycle(0)
     var confirm by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -66,7 +70,7 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
         Text(stringResource(R.string.device_thisDevice) + ": " + session?.deviceName.orEmpty(), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.settings_epoch) + ": " + state?.epoch.orEmpty(), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.device_books) + ": $editions", style = MaterialTheme.typography.bodySmall)
-        SyncBar(status, state?.lastSyncAt, now)
+        SyncBar(status, state?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview)
         Button(onClick = { vm.syncNow() }, enabled = status !is SyncStatus.Running, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.sync_now))
         }

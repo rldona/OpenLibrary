@@ -13,13 +13,19 @@ async function deviceClient(app: App) {
     payload: { password: PASSWORD, name: 'Pixel 8', platform: 'android' },
   });
   const { token } = reg.json() as { token: string };
-  return async (url: string, headers: Record<string, string> = {}) => {
+  const call = async (url: string, headers: Record<string, string> = {}, payload?: object) => {
     const r = await app.inject({
+      method: payload ? 'POST' : 'GET',
       url: `/api/v1${url}`,
       headers: { authorization: `Bearer ${token}`, ...headers },
+      ...(payload ? { payload } : {}),
     });
     return { status: r.statusCode, body: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
+  return Object.assign(call, {
+    push: (epoch: string, ops: object[], headers: Record<string, string> = {}) =>
+      call('/sync/push', headers, { epoch, ops }),
+  });
 }
 
 async function setup() {
@@ -202,5 +208,177 @@ describe('sync transport', () => {
     });
     expect(r.statusCode).toBe(200);
     expect(r.headers['content-encoding']).toBe('gzip');
+  });
+});
+
+describe('sync push', () => {
+  const epochOf = async (device: Awaited<ReturnType<typeof setup>>['device']) =>
+    (await device('/sync/snapshot')).body.epoch as string;
+
+  it('F3 acceptance: a book added offline is created once, however many times the batch is sent', async () => {
+    const { device, web, home } = await setup();
+    const epoch = await epochOf(device);
+    const ids = { work: uuidv7(), edition: uuidv7(), copy: uuidv7() };
+    const batch = [
+      {
+        opId: uuidv7(),
+        type: 'book.create',
+        book: {
+          work: { id: ids.work, title: 'Misericordia', authors: ['Benito Pérez Galdós'] },
+          edition: { id: ids.edition, isbn13: '9788437604800', metadataStatus: 'provisional' },
+          copy: { id: ids.copy, locationId: home },
+        },
+      },
+    ];
+    for (let i = 0; i < 3; i++) {
+      const r = await device.push(epoch, batch);
+      expect(r.status).toBe(200);
+      expect(r.body.results[0].status).toBe(i === 0 ? 'applied' : 'duplicate');
+    }
+    const work = await web.get(`/works/${ids.work}`);
+    expect(work.body.editions).toHaveLength(1);
+    expect(work.body.editions[0]).toMatchObject({ id: ids.edition, metadataStatus: 'provisional' });
+    expect(work.body.editions[0].copies).toEqual([
+      expect.objectContaining({ id: ids.copy, code: 'EJ-0002' }),
+    ]);
+  });
+
+  it('a device editing the same field twice offline never conflicts with itself', async () => {
+    const { device, copyId } = await setup();
+    const epoch = await epochOf(device);
+    const edit = (notes: string) => ({
+      opId: uuidv7(),
+      type: 'copy.update',
+      id: copyId,
+      patch: { baseVersion: 1, fields: { notes } },
+    });
+    const r = await device.push(epoch, [edit('Primero'), edit('Después')]);
+    expect(r.body.results.map((x: { status: string }) => x.status)).toEqual(['applied', 'applied']);
+    const copy = (await device('/sync/snapshot')).body.copies.find((c: { id: string }) => c.id === copyId);
+    expect(copy.notes).toBe('Después');
+  });
+
+  it('applies ops in order: a location created offline can hold a copy created in the same batch', async () => {
+    const { device, web, home, editionId } = await setup();
+    const epoch = await epochOf(device);
+    const shelf = uuidv7();
+    const copy = uuidv7();
+    const r = await device.push(epoch, [
+      { opId: uuidv7(), type: 'location.create', location: { id: shelf, parentId: home, name: 'Mesilla' } },
+      {
+        opId: uuidv7(),
+        type: 'copy.create',
+        copy: { id: copy, editionId, locationId: shelf, condition: 'new' },
+      },
+    ]);
+    expect(r.body.results.map((x: { status: string }) => x.status)).toEqual(['applied', 'applied']);
+    const tree = await web.get('/locations');
+    expect(tree.body.items.find((l: { id: string }) => l.id === shelf)).toMatchObject({ copyCount: 1 });
+  });
+
+  it('merges different fields edited on web and phone without losing either', async () => {
+    const { device, web, copyId, home } = await setup();
+    const epoch = await epochOf(device);
+    expect(
+      (await web.patch(`/copies/${copyId}`, { baseVersion: 1, fields: { notes: 'Dedicado' } })).status,
+    ).toBe(200);
+    const room = uuidv7();
+    await web.post('/locations', { id: room, parentId: home, name: 'Despacho' });
+    const r = await device.push(epoch, [
+      {
+        opId: uuidv7(),
+        type: 'copy.update',
+        id: copyId,
+        patch: { baseVersion: 1, fields: { locationId: room } },
+      },
+    ]);
+    expect(r.body.results[0].status).toBe('applied');
+    const copy = (await device('/sync/snapshot')).body.copies.find((c: { id: string }) => c.id === copyId);
+    expect(copy).toMatchObject({ notes: 'Dedicado', locationId: room, version: 3 });
+  });
+
+  it('F3 acceptance: the same field edited on web and phone is a visible conflict, nothing overwritten', async () => {
+    const { device, web, copyId } = await setup();
+    const epoch = await epochOf(device);
+    await web.patch(`/copies/${copyId}`, { baseVersion: 1, fields: { notes: 'Prestado a Ana' } });
+    const opId = uuidv7();
+    const op = {
+      opId,
+      type: 'copy.update',
+      id: copyId,
+      patch: { baseVersion: 1, fields: { notes: 'En la mesilla' } },
+    };
+    const r = await device.push(epoch, [op], { 'accept-language': 'es' });
+    expect(r.body.results[0]).toMatchObject({
+      opId,
+      status: 'conflict',
+      code: 'conflict',
+      currentVersion: 2,
+      conflicts: [{ field: 'notes', current: 'Prestado a Ana', yours: 'En la mesilla' }],
+    });
+    expect(r.body.results[0].message).toContain('Otro dispositivo');
+    const copy = (await device('/sync/snapshot')).body.copies.find((c: { id: string }) => c.id === copyId);
+    expect(copy.notes).toBe('Prestado a Ana');
+
+    // "Keep mine" is just a new op based on the version the conflict reported.
+    const resolve = await device.push(epoch, [
+      {
+        opId: uuidv7(),
+        type: 'copy.update',
+        id: copyId,
+        patch: { baseVersion: 2, fields: { notes: 'En la mesilla' } },
+      },
+    ]);
+    expect(resolve.body.results[0].status).toBe('applied');
+  });
+
+  it('rejects invalid ops one by one without failing the batch', async () => {
+    const { device } = await setup();
+    const epoch = await epochOf(device);
+    const r = await device.push(
+      epoch,
+      [
+        { opId: uuidv7(), type: 'book.create', book: { work: { title: '' }, edition: {}, copy: {} } },
+        { opId: uuidv7(), type: 'copy.create', copy: { editionId: uuidv7() } },
+        { opId: uuidv7(), type: 'teleport' },
+        { opId: uuidv7(), type: 'location.create', location: { parentId: null, name: 'Trastero' } },
+      ],
+      { 'accept-language': 'es' },
+    );
+    expect(r.status).toBe(200);
+    expect(
+      r.body.results.map((x: { status: string; code: string }) => `${x.status}:${x.code ?? ''}`),
+    ).toEqual(['rejected:validation', 'rejected:bad-request', 'rejected:validation', 'applied:']);
+    expect(r.body.results[1].message).toBe('La edición indicada no existe.');
+  });
+
+  it('a rejected op is not remembered: once its cause is fixed the same op can be applied', async () => {
+    const { device, web, home } = await setup();
+    const epoch = await epochOf(device);
+    const parent = uuidv7();
+    const op = { opId: uuidv7(), type: 'location.create', location: { parentId: parent, name: 'Balda' } };
+    expect((await device.push(epoch, [op])).body.results[0].status).toBe('rejected');
+    await web.post('/locations', { id: parent, parentId: home, name: 'Estantería' });
+    expect((await device.push(epoch, [op])).body.results[0].status).toBe('applied');
+  });
+
+  it('refuses the whole batch after a restore, and validates its shape', async () => {
+    const { device, db } = await setup();
+    const epoch = await epochOf(device);
+    const op = { opId: uuidv7(), type: 'location.create', location: { parentId: null, name: 'X' } };
+    expect((await device.push(epoch, [])).status).toBe(400);
+    expect(
+      (
+        await device.push(
+          epoch,
+          Array.from({ length: 101 }, () => ({ ...op, opId: uuidv7() })),
+        )
+      ).status,
+    ).toBe(400);
+    expect((await device.push(epoch, [{ type: 'location.create' }])).status).toBe(400);
+    bumpEpoch(db);
+    const r = await device.push(epoch, [op]);
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('epoch-mismatch');
   });
 });

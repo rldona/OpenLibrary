@@ -107,7 +107,7 @@ describe('performance', () => {
     console.log(`Alta de 10 000 libros: ${Math.round(setup)} ms`, times);
 
     const t1 = performance.now();
-    const snapshot = new SyncService(db).snapshot();
+    const snapshot = new SyncService(db, cat).snapshot();
     const bytes = JSON.stringify(snapshot).length;
     const snapshotMs = performance.now() - t1;
     expect(snapshot.copies).toHaveLength(10_000);

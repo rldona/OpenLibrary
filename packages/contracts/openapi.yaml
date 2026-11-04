@@ -3,7 +3,7 @@ info:
   title: OpenLibrary API
   version: 0.2.0
   description: |
-    Contract between the server and the Android app (F2: browsing and sync pull).
+    Contract between the server and the Android app (F2: browsing and sync pull; F3: push).
     The web app uses the TypeScript contracts in `src/` directly; this file covers what Android consumes
     and is checked against real server responses by `apps/server/test/openapi.test.ts`.
 
@@ -89,6 +89,81 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '401': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
+  /sync/push:
+    post:
+      operationId: push
+      description: |
+        Offline operations, applied in order, each in its own transaction. Resending an op (same `opId`)
+        returns `duplicate` and changes nothing. A `conflict` applies nothing of that op; resolve it with a
+        new op based on `currentVersion`. 409 `epoch-mismatch` refuses the whole batch (take a snapshot first).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncPushRequest' }
+      responses:
+        '200':
+          description: One result per op, in the same order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPushResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /lookup/isbn/{isbn}:
+    get:
+      operationId: lookupIsbn
+      description: |
+        Metadata proposal from external providers (proxied and cached by the server) and, if you already own
+        that edition, `existing`. Providers that failed are listed in `errors`; adding the book by hand still works.
+      parameters:
+        - { name: isbn, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Proposal (or `found` false).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LookupResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+  /assets:
+    post:
+      operationId: uploadAsset
+      description: |
+        Uploads a cover photo (JPEG/PNG/WebP, max 15 MB). The id is the SHA-256 of the uploaded bytes, so a
+        device can reference it in ops before uploading; upload it before pushing those ops. Idempotent.
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+  /assets/fetch:
+    post:
+      operationId: fetchAsset
+      description: Stores the cover proposed by a provider (`proposal.coverUrl`) on the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+      responses:
+        '201':
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+        '502': { $ref: '#/components/responses/Problem' }
   /assets/{id}:
     get:
       operationId: getAsset
@@ -319,3 +394,118 @@ components:
         copies: { type: array, items: { $ref: '#/components/schemas/SyncCopy' } }
         locations: { type: array, items: { $ref: '#/components/schemas/SyncLocation' } }
         deleted: { type: array, items: { $ref: '#/components/schemas/SyncTombstone' } }
+    SyncPushRequest:
+      type: object
+      required: [epoch, ops]
+      properties:
+        epoch: { type: string }
+        ops:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: |
+            Each op has `opId` (UUIDv7) and `type`, plus:
+            `book.create` → `book` (as POST /books: `work` or `workId`, `edition`, `copy`, all with client ids);
+            `copy.create` → `copy` (as POST /copies); `location.create` → `location` (as POST /locations);
+            `work.update` | `edition.update` | `copy.update` | `location.update` → `id` and
+            `patch` ({ baseVersion, fields }, only the fields the user changed).
+          items:
+            type: object
+            required: [opId, type]
+            properties:
+              opId: { type: string }
+              type:
+                type: string
+                enum:
+                  [
+                    book.create,
+                    copy.create,
+                    location.create,
+                    work.update,
+                    edition.update,
+                    copy.update,
+                    location.update,
+                  ]
+    SyncOpResult:
+      type: object
+      additionalProperties: false
+      required: [opId, status]
+      properties:
+        opId: { type: string }
+        status: { type: string, enum: [applied, duplicate, conflict, rejected] }
+        code:
+          {
+            type: string,
+            description: 'Why it was not applied: conflict, validation, bad-request, duplicate-isbn…',
+          }
+        message: { type: string, description: Translated according to Accept-Language. }
+        currentVersion: { type: integer, description: Server version of the entity (conflicts). }
+        conflicts:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, current, yours]
+            properties:
+              field: { type: string }
+              current: { description: Value on the server. }
+              yours: { description: Value sent by this device. }
+    SyncPushResponse:
+      type: object
+      additionalProperties: false
+      required: [epoch, results, serverTime]
+      properties:
+        epoch: { type: string }
+        serverTime: { type: string }
+        results: { type: array, items: { $ref: '#/components/schemas/SyncOpResult' } }
+    MetadataProposal:
+      type: object
+      additionalProperties: false
+      required:
+        [title, subtitle, authors, publisher, publishedYear, language, pages, subjects, description, coverUrl]
+      properties:
+        title: { type: [string, 'null'] }
+        subtitle: { type: [string, 'null'] }
+        authors: { type: array, items: { type: string } }
+        publisher: { type: [string, 'null'] }
+        publishedYear: { type: [integer, 'null'] }
+        language: { type: [string, 'null'] }
+        pages: { type: [integer, 'null'] }
+        subjects: { type: array, items: { type: string } }
+        description: { type: [string, 'null'] }
+        coverUrl: { type: [string, 'null'] }
+    LookupResult:
+      type: object
+      additionalProperties: false
+      required: [isbn13, isbn10, found, sources, proposal, existing, errors]
+      properties:
+        isbn13: { type: string }
+        isbn10: { type: [string, 'null'] }
+        found: { type: boolean }
+        sources: { type: array, items: { type: string } }
+        proposal:
+          oneOf:
+            - { type: 'null' }
+            - { $ref: '#/components/schemas/MetadataProposal' }
+        existing:
+          oneOf:
+            - { type: 'null' }
+            - type: object
+              additionalProperties: false
+              required: [editionId, workId, title, copies]
+              properties:
+                editionId: { type: string }
+                workId: { type: string }
+                title: { type: string }
+                copies: { type: integer }
+        errors: { type: array, items: { type: string } }
+    Asset:
+      type: object
+      additionalProperties: false
+      required: [id, mime, width, height, bytes]
+      properties:
+        id: { type: string, description: SHA-256 of the uploaded bytes. }
+        mime: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        bytes: { type: integer }
