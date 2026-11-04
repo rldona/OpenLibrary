@@ -41,8 +41,10 @@ import io.github.rldona.openlibrary.sync.SyncStatus
 import io.github.rldona.openlibrary.sync.SyncWorker
 import io.github.rldona.openlibrary.ui.book.BookFormScreen
 import io.github.rldona.openlibrary.ui.book.BookFormViewModel
-import io.github.rldona.openlibrary.ui.capture.PhotoScreen
-import io.github.rldona.openlibrary.ui.capture.ScannerScreen
+import io.github.rldona.openlibrary.ui.capture.CaptureMode
+import io.github.rldona.openlibrary.ui.capture.CaptureScreen
+import io.github.rldona.openlibrary.ui.cover.CoverViewModel
+import io.github.rldona.openlibrary.ui.cover.CoverViewerScreen
 import io.github.rldona.openlibrary.ui.review.ReviewScreen
 import io.github.rldona.openlibrary.ui.review.ReviewViewModel
 import io.github.rldona.openlibrary.ui.detail.DetailScreen
@@ -68,8 +70,9 @@ import kotlinx.serialization.Serializable
 @Serializable object SettingsRoute
 @Serializable object AddBookRoute
 @Serializable data class EditBookRoute(val workId: String, val editionId: String)
-@Serializable object ScanRoute
-@Serializable object PhotoRoute
+/** Full-screen camera: `mode` is "isbn" or "cover"; `tabs` lets the user switch between them. */
+@Serializable data class CaptureRoute(val mode: String, val tabs: Boolean)
+@Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
 
 class MainActivity : ComponentActivity() {
@@ -92,7 +95,9 @@ private fun App(c: AppContainer, connected: Boolean) {
     val entry by nav.currentBackStackEntryAsState()
     val dest = entry?.destination
     val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "SettingsRoute").any { r.contains(it) } } == true
-    val inDetail = !inTabs && dest?.route?.contains("SetupRoute") == false
+    // Camera and cover viewer use the whole screen, without app bars.
+    val fullScreen = dest?.route?.let { r -> "CaptureRoute" in r || "CoverRoute" in r } == true
+    val inDetail = !inTabs && !fullScreen && dest?.route?.contains("SetupRoute") == false
     val status by c.sync.status.collectAsStateWithLifecycle()
 
     // Relative times ("2 min ago") refresh every half minute.
@@ -131,7 +136,11 @@ private fun App(c: AppContainer, connected: Boolean) {
         },
         bottomBar = { if (inTabs) Tabs(nav) },
     ) { padding ->
-        NavHost(nav, startDestination = if (connected) LibraryRoute() else SetupRoute, modifier = Modifier.padding(padding)) {
+        NavHost(
+            nav,
+            startDestination = if (connected) LibraryRoute() else SetupRoute,
+            modifier = if (fullScreen) Modifier else Modifier.padding(padding),
+        ) {
             composable<SetupRoute> {
                 val vm = viewModel<SetupViewModel>(
                     factory = viewModelFactory {
@@ -159,7 +168,11 @@ private fun App(c: AppContainer, connected: Boolean) {
             composable<DetailRoute> { e ->
                 val route = e.toRoute<DetailRoute>()
                 val vm = viewModel<DetailViewModel>(factory = viewModelFactory { initializer { DetailViewModel(c, route.workId) } })
-                DetailScreen(vm) { workId, editionId -> nav.navigate(EditBookRoute(workId, editionId)) }
+                DetailScreen(
+                    vm,
+                    onEdit = { workId, editionId -> nav.navigate(EditBookRoute(workId, editionId)) },
+                    onCover = { id, title -> nav.navigate(CoverRoute(id, title)) },
+                )
             }
             composable<AddBookRoute> { e ->
                 val vm = viewModel<BookFormViewModel>(factory = viewModelFactory { initializer { BookFormViewModel(c, null, null) } })
@@ -172,17 +185,20 @@ private fun App(c: AppContainer, connected: Boolean) {
                 )
                 BookForm(vm, e.savedStateHandle, nav) { nav.popBackStack() }
             }
-            composable<ScanRoute> {
-                ScannerScreen { isbn ->
-                    nav.previousBackStackEntry?.savedStateHandle?.set("isbn", isbn)
+            composable<CaptureRoute> { e ->
+                val route = e.toRoute<CaptureRoute>()
+                CaptureScreen(c.covers, if (route.mode == "cover") CaptureMode.Cover else CaptureMode.Isbn, route.tabs) { result ->
+                    nav.previousBackStackEntry?.savedStateHandle?.let { h ->
+                        result.isbn?.let { h["isbn"] = it }
+                        result.photoId?.let { h["photo"] = it }
+                    }
                     nav.popBackStack()
                 }
             }
-            composable<PhotoRoute> {
-                PhotoScreen(c.covers) { id ->
-                    nav.previousBackStackEntry?.savedStateHandle?.set("photo", id)
-                    nav.popBackStack()
-                }
+            composable<CoverRoute> { e ->
+                val route = e.toRoute<CoverRoute>()
+                val vm = viewModel<CoverViewModel>(factory = viewModelFactory { initializer { CoverViewModel(c, route.assetId) } })
+                CoverViewerScreen(vm, route.title) { nav.popBackStack() }
             }
             composable<ReviewRoute> {
                 val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })
@@ -211,8 +227,9 @@ private fun BookForm(vm: BookFormViewModel, state: androidx.lifecycle.SavedState
         vm,
         scannedIsbn = isbn,
         photoId = photo,
-        onScan = { nav.navigate(ScanRoute) },
-        onPhoto = { nav.navigate(PhotoRoute) },
+        // Adding a book: ISBN then cover in one camera session. Editing: just the camera for each.
+        onScan = { nav.navigate(CaptureRoute("isbn", tabs = !vm.editing)) },
+        onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
     )

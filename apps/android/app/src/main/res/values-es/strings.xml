@@ -3,13 +3,18 @@
 <resources>
     <string name="add_cameraDenied">Hace falta la cámara para escanear o hacer fotos. También puedes escribir el ISBN.</string>
     <string name="add_capture">Hacer foto</string>
+    <string name="add_detected">Detectado: {isbn}</string>
     <string name="add_notIsbn">Ese código de barras no es un ISBN: {reason}</string>
     <string name="add_offline">Sin conexión: se guardará como provisional y podrás completarlo después.</string>
+    <string name="add_photoHint">Encuadra la portada dentro del recuadro; solo se guarda esa parte.</string>
     <string name="add_removePhoto">Quitar la foto</string>
     <string name="add_retakePhoto">Hacer otra foto</string>
     <string name="add_scan">Escanear ISBN</string>
-    <string name="add_scanHint">Apunta la cámara al código de barras de la contraportada.</string>
+    <string name="add_scanAgain">Seguir escaneando</string>
+    <string name="add_scanHint">Encuadra el código de barras de la contraportada dentro del recuadro. Toca la pantalla para enfocar.</string>
     <string name="add_takePhoto">Hacer foto de la portada</string>
+    <string name="add_torch">Linterna</string>
+    <string name="add_useIsbn">Usar este ISBN</string>
     <string name="add_viewDetails">Ver ficha</string>
     <string name="app_name">OpenLibrary</string>
     <string name="app_serverDown">Servidor no disponible</string>
@@ -31,6 +36,11 @@
     <string name="book_unknownAuthor">Autor desconocido</string>
     <string name="book_untitled">Sin título</string>
     <string name="book_year">Año</string>
+    <string name="capture_cover">Portada</string>
+    <string name="capture_coverHint">Centra la portada en el marco</string>
+    <string name="capture_gallery">Elegir de la galería</string>
+    <string name="capture_isbn">ISBN</string>
+    <string name="capture_isbnHint">Centra el código de barras en el marco</string>
     <string name="common_cancel">Cancelar</string>
     <string name="common_close">Cerrar</string>
     <string name="common_delete">Borrar</string>

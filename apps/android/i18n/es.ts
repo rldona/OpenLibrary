@@ -65,7 +65,8 @@ export const es: Record<keyof typeof en, string> = {
   'review.what.location': 'Ubicación',
 
   'add.scan': 'Escanear ISBN',
-  'add.scanHint': 'Apunta la cámara al código de barras de la contraportada.',
+  'add.scanHint':
+    'Encuadra el código de barras de la contraportada dentro del recuadro. Toca la pantalla para enfocar.',
   'add.cameraDenied': 'Hace falta la cámara para escanear o hacer fotos. También puedes escribir el ISBN.',
   'add.notIsbn': 'Ese código de barras no es un ISBN: {reason}',
   'add.offline': 'Sin conexión: se guardará como provisional y podrás completarlo después.',
@@ -74,6 +75,16 @@ export const es: Record<keyof typeof en, string> = {
   'add.removePhoto': 'Quitar la foto',
   'add.viewDetails': 'Ver ficha',
   'add.capture': 'Hacer foto',
+  'capture.isbn': 'ISBN',
+  'capture.cover': 'Portada',
+  'capture.isbnHint': 'Centra el código de barras en el marco',
+  'capture.coverHint': 'Centra la portada en el marco',
+  'capture.gallery': 'Elegir de la galería',
+  'add.photoHint': 'Encuadra la portada dentro del recuadro; solo se guarda esa parte.',
+  'add.detected': 'Detectado: {isbn}',
+  'add.useIsbn': 'Usar este ISBN',
+  'add.scanAgain': 'Seguir escaneando',
+  'add.torch': 'Linterna',
 
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',

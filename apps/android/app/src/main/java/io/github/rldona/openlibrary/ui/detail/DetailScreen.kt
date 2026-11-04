@@ -1,5 +1,6 @@
 package io.github.rldona.openlibrary.ui.detail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,7 +92,7 @@ private sealed interface Dialog {
 }
 
 @Composable
-fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String) -> Unit) {
+fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String) -> Unit, onCover: (assetId: String, title: String) -> Unit) {
     val s by vm.state.collectAsStateWithLifecycle()
     val work = s.work ?: return
     val active = s.copies.filter { it.status == "active" }
@@ -100,7 +101,15 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Cover(vm.covers, s.editions.firstNotNullOfOrNull { it.coverAssetId }, work.title, 110.dp)
+            val coverId = s.editions.firstNotNullOfOrNull { it.coverAssetId }?.takeIf { vm.covers.has(it) }
+            // Tapping the cover opens it full screen, zoomable.
+            Cover(
+                vm.covers,
+                coverId,
+                work.title,
+                110.dp,
+                if (coverId != null) Modifier.clickable { onCover(coverId, work.title) } else Modifier,
+            )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     str(

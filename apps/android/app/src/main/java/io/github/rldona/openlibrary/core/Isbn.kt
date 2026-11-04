@@ -42,3 +42,8 @@ fun normalizeIsbn(raw: String): IsbnResult {
     }
     return IsbnResult.Invalid("length")
 }
+
+/** 978-84-9759-246-8 (approximate grouping; display only), like formatIsbn in the contracts. */
+fun formatIsbn(isbn13: String): String =
+    if (isbn13.length == 13) "${isbn13.substring(0, 3)}-${isbn13.substring(3, 5)}-${isbn13.substring(5, 9)}-${isbn13.substring(9, 12)}-${isbn13[12]}"
+    else isbn13

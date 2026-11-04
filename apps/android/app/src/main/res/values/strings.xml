@@ -3,13 +3,18 @@
 <resources>
     <string name="add_cameraDenied">The camera is needed to scan or take photos. You can type the ISBN instead.</string>
     <string name="add_capture">Take photo</string>
+    <string name="add_detected">Detected: {isbn}</string>
     <string name="add_notIsbn">That barcode is not an ISBN: {reason}</string>
     <string name="add_offline">No connection: it will be saved as provisional and you can complete it later.</string>
+    <string name="add_photoHint">Fit the cover inside the frame; only that part is kept.</string>
     <string name="add_removePhoto">Remove photo</string>
     <string name="add_retakePhoto">Take another photo</string>
     <string name="add_scan">Scan ISBN</string>
-    <string name="add_scanHint">Point the camera at the barcode on the back cover.</string>
+    <string name="add_scanAgain">Keep scanning</string>
+    <string name="add_scanHint">Fit the barcode on the back cover inside the frame. Tap the screen to focus.</string>
     <string name="add_takePhoto">Take cover photo</string>
+    <string name="add_torch">Light</string>
+    <string name="add_useIsbn">Use this ISBN</string>
     <string name="add_viewDetails">View details</string>
     <string name="app_name">OpenLibrary</string>
     <string name="app_serverDown">Server unavailable</string>
@@ -31,6 +36,11 @@
     <string name="book_unknownAuthor">Unknown author</string>
     <string name="book_untitled">Untitled</string>
     <string name="book_year">Year</string>
+    <string name="capture_cover">Cover</string>
+    <string name="capture_coverHint">Centre the cover in the frame</string>
+    <string name="capture_gallery">Choose from the gallery</string>
+    <string name="capture_isbn">ISBN</string>
+    <string name="capture_isbnHint">Centre the barcode in the frame</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_close">Close</string>
     <string name="common_delete">Delete</string>
