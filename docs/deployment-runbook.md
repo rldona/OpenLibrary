@@ -120,7 +120,7 @@ The current state is not deleted: it is set aside as `library.db.before-restore-
 | Status | `ol status` · `docker compose -f /opt/openlibrary/deploy/docker-compose.yml ps` |
 | Logs | `docker compose -f /opt/openlibrary/deploy/docker-compose.yml logs -f --tail=100` |
 | Change the password (if forgotten) | `ol set-password` (signs out every session) |
-| Update to the latest version | `/opt/openlibrary/deploy/scripts/update.sh` |
+| Update to the latest version (backup, pull, rebuild) | `sudo /opt/openlibrary/deploy/scripts/update.sh` |
 | Revoke a lost phone | Web → Settings → Sessions and devices → Revoke |
 
 ## 8. Security: what protects the library
