@@ -23,6 +23,9 @@ const SERVER: Record<Lang, Dict> = {
     'errors.notFound': 'Not found.',
     'errors.routeNotFound': '{method} {path} does not exist.',
     'errors.baseVersionAhead': 'baseVersion is greater than the current version.',
+    // sync
+    'errors.epochMismatch': 'The server data was restored from a backup. A full resync is needed.',
+    'errors.cursorAhead': 'The sync cursor is ahead of the server. A full resync is needed.',
     // auth
     'errors.unauthorized': 'You need to sign in.',
     'errors.wrongPassword': 'Wrong password.',
@@ -88,6 +91,11 @@ const SERVER: Record<Lang, Dict> = {
     'errors.notFound': 'No encontrado.',
     'errors.routeNotFound': 'No existe {method} {path}.',
     'errors.baseVersionAhead': 'baseVersion es mayor que la versión actual.',
+    // sync
+    'errors.epochMismatch':
+      'Los datos del servidor se restauraron desde una copia. Hace falta una sincronización completa.',
+    'errors.cursorAhead':
+      'El cursor de sincronización va por delante del servidor. Hace falta una sincronización completa.',
     'errors.unauthorized': 'Necesitas iniciar sesión.',
     'errors.wrongPassword': 'Contraseña incorrecta.',
     'errors.notConfigured':

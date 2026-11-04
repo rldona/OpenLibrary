@@ -1,0 +1,103 @@
+/**
+ * Sync contracts (pull side, F2). See §6 of the design document.
+ *
+ * - First connection: GET /sync/snapshot → every live entity plus the cursor to continue from.
+ * - Afterwards: GET /sync/pull?since=<cursor>&epoch=<epoch> → the CURRENT state of every entity
+ *   changed after the cursor (one record per entity, however many times it changed) and the ids
+ *   deleted since then. Clients upsert the records and drop the tombstones.
+ * - If the server's epoch differs (a backup was restored) the pull answers 409 `epoch-mismatch`:
+ *   the client must discard its copy and take a new snapshot.
+ * - Within a page records are not ordered by dependency (a copy may arrive before its edition):
+ *   apply a whole page in one transaction and do not enforce foreign keys locally.
+ */
+import { z } from 'zod';
+import type { Condition, LocationKind, RetireReason } from './catalog.js';
+
+export const SYNC_ENTITIES = ['work', 'edition', 'copy', 'location'] as const;
+export type SyncEntity = (typeof SYNC_ENTITIES)[number];
+
+type SyncMeta = { id: string; version: number; createdAt: string; updatedAt: string };
+
+export type SyncWork = SyncMeta & {
+  title: string;
+  subtitle: string | null;
+  authors: string[];
+  subjects: string[];
+  description: string | null;
+  originalTitle: string | null;
+  originalLanguage: string | null;
+  series: string | null;
+  seriesIndex: number | null;
+};
+
+export type SyncEdition = SyncMeta & {
+  workId: string;
+  title: string | null;
+  subtitle: string | null;
+  publisher: string | null;
+  publishedYear: number | null;
+  language: string | null;
+  pages: number | null;
+  format: string | null;
+  isbn13: string | null;
+  coverAssetId: string | null;
+  metadataStatus: 'complete' | 'provisional';
+  metadataSource: string | null;
+};
+
+export type SyncCopy = SyncMeta & {
+  editionId: string;
+  code: string;
+  locationId: string | null;
+  condition: Condition;
+  acquiredOn: string | null;
+  priceCents: number | null;
+  priceCurrency: string;
+  notes: string;
+  status: 'active' | 'retired';
+  retiredReason: RetireReason | null;
+  retiredOn: string | null;
+};
+
+export type SyncLocation = SyncMeta & {
+  parentId: string | null;
+  name: string;
+  kind: LocationKind;
+  sortOrder: number;
+};
+
+export type SyncTombstone = { entity: SyncEntity; id: string; version: number; deletedAt: string };
+
+/** Entities grouped by type: simple to consume from Kotlin (no polymorphic records). */
+export type SyncRecords = {
+  works: SyncWork[];
+  editions: SyncEdition[];
+  copies: SyncCopy[];
+  locations: SyncLocation[];
+};
+
+export type SyncSnapshot = SyncRecords & {
+  epoch: string;
+  /** Pass it as `since` in the next pull. */
+  cursor: number;
+  serverTime: string;
+};
+
+export type SyncPullPage = SyncRecords & {
+  epoch: string;
+  deleted: SyncTombstone[];
+  /** Pass it as `since` in the next pull (equals `since` when nothing changed). */
+  cursor: number;
+  /** More changes are waiting: pull again right away with the new cursor. */
+  hasMore: boolean;
+  serverTime: string;
+};
+
+export const SYNC_PULL_MAX = 1000;
+
+export const SyncPullQuery = z.object({
+  since: z.coerce.number().int().min(0),
+  epoch: z.string().min(1).max(64),
+  limit: z.coerce.number().int().min(1).max(SYNC_PULL_MAX).default(500),
+});
+export type SyncPullQuery = z.input<typeof SyncPullQuery>;

@@ -81,4 +81,5 @@ export type Problem = z.infer<typeof Problem>;
 export * from './isbn.js';
 export * from './ids.js';
 export * from './catalog.js';
+export * from './sync.js';
 export * from './i18n.js';

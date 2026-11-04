@@ -1,9 +1,11 @@
 /**
  * F1 criterion: search < 150 ms with 10,000 synthetic copies.
+ * F2: the first sync (snapshot) of that library stays well within the 10 s budget.
  * Data is inserted straight through the service (no HTTP) so the setup is fast.
  */
 import { describe, expect, it } from 'vitest';
 import { CatalogService } from '../src/catalog/service.js';
+import { SyncService } from '../src/sync/service.js';
 import { openDb } from '../src/db/client.js';
 import { LibraryQuery } from '@openlibrary/contracts';
 
@@ -103,5 +105,13 @@ describe('performance', () => {
       expect(page.items.length).toBeGreaterThan(0);
     }
     console.log(`Alta de 10 000 libros: ${Math.round(setup)} ms`, times);
+
+    const t1 = performance.now();
+    const snapshot = new SyncService(db).snapshot();
+    const bytes = JSON.stringify(snapshot).length;
+    const snapshotMs = performance.now() - t1;
+    expect(snapshot.copies).toHaveLength(10_000);
+    expect(snapshotMs).toBeLessThan(2000);
+    console.log(`Snapshot of 10,000 copies: ${Math.round(snapshotMs)} ms, ${(bytes / 1e6).toFixed(1)} MB`);
   }, 120_000);
 });

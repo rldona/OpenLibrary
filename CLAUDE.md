@@ -33,5 +33,6 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 ## Status
 
 - F0 foundations ✔, F1 web catalog ✔, bilingual UI ✔ (2026-11-04).
-- Next: deploy on the Ubuntu PC (runbook), then F2 — Android browsing + sync pull.
+- Deployed on the Ubuntu PC (2026-11-04): `https://openlibrary.<tailnet>.ts.net`, runbook followed.
+- F2 in progress: server pull side done (`/sync/snapshot`, `/sync/pull`, gzip). Next: `openapi.yaml`, then the Android app.
 - The Docker image builds and runs healthy on the Ubuntu PC (2026-11-04). The lockfile must resolve from registry.npmjs.org (never a work registry).

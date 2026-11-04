@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import compress from '@fastify/compress';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -17,6 +18,8 @@ import { catalogRoutes } from './catalog/routes.js';
 import { AssetService } from './assets/service.js';
 import { assetAndLookupRoutes } from './assets/routes.js';
 import { LookupService } from './lookup/service.js';
+import { SyncService } from './sync/service.js';
+import { syncRoutes } from './sync/routes.js';
 import type { Fetch } from './lookup/providers.js';
 
 declare module 'fastify' {
@@ -82,6 +85,7 @@ export async function buildApp(deps: {
   const catalog = new CatalogService(db, deps.now);
   const assets = new AssetService(db, config.assetsDir, deps.fetch);
   const lookup = new LookupService(db, catalog, deps.fetch, deps.now);
+  const sync = new SyncService(db, deps.now);
 
   const app = Fastify({
     trustProxy: config.trustProxy,
@@ -103,6 +107,8 @@ export async function buildApp(deps: {
   });
 
   await app.register(cookie);
+  // The sync snapshot of a large library is several MB of JSON: gzip/brotli cut it about tenfold.
+  await app.register(compress, { threshold: 1024 });
   await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
@@ -171,6 +177,7 @@ export async function buildApp(deps: {
       await api.register(authRoutes, { auth, config });
       await api.register(catalogRoutes, { catalog });
       await api.register(assetAndLookupRoutes, { assets, lookup });
+      await api.register(syncRoutes, { sync });
     },
     { prefix: API_PREFIX },
   );

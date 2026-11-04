@@ -216,19 +216,22 @@ if kind=delete and there are changes after base_version → "edited vs deleted" 
 bump version, write change_log(seq++, entity, id, version, fields)
 store op_id → result
 ```
-*(Implemented in F1 in `apps/server/src/catalog/changes.ts` and already used by the web; F3 adds `applied_ops` and the push/pull endpoints.)*
+*(Implemented in F1 in `apps/server/src/catalog/changes.ts` and already used by the web; F2 adds the pull endpoints in `apps/server/src/sync/`; F3 adds `applied_ops` and push.)*
 
 ### Sync cycle (client)
 ```
 1. PUSH   POST /sync/push   { device_id, batch_id, ops[≤100] }  → { results[op_id: applied|duplicate|conflict|rejected] }
 2. ASSETS POST /assets (pending covers; idempotent by hash)
-3. PULL   GET  /sync/pull?since=<cursor>&limit=500 → { changes[], next_cursor, has_more }
+3. PULL   GET  /sync/pull?since=<cursor>&epoch=<epoch>&limit=500
+                → { works[], editions[], copies[], locations[], deleted[], cursor, hasMore, epoch }
 4. Apply remote changes in Room (entities with pending local ops are rebased)
 5. Download new covers in the background (300 px thumbnail; original on demand)
 ```
 - Triggers: on app open, after each change (5 s debounce), when the network returns (WorkManager with `NetworkType.CONNECTED`), every 30 min, and a manual button.
 - Retries: exponential backoff (5 s → 10 min). The same batch is resent with the same `op_id`s → no duplicates even if the response was lost.
-- **First connection**: `GET /sync/snapshot` (compressed JSON of everything + cursor), then covers are queued.
+- **First connection**: `GET /sync/snapshot` (compressed JSON of everything + cursor), then covers are queued. 10,000 copies: ~160 ms on the server, 11 MB before gzip.
+- **Pull is state based** (F2 ✔): each entity whose latest change is after the cursor comes back once, with its *current* state, ordered by that latest `seq`; deletions come as tombstones. An entity changed again while paging just reappears in a later page. A page is not in dependency order, so the client applies it in one transaction without local foreign keys.
+- **Resync**: the client sends its `epoch`; after a restore the pull answers 409 `epoch-mismatch` (also `cursor-ahead` if the cursor is past the log) and the client takes a new snapshot.
 - **Visible states**: `Synced · 2 min ago` · `3 pending changes` · `Server unavailable — data from 4 Nov 09:12` · `1 conflict to review`.
 - **Conflicts**: listed under "Sync" with local vs server value per field → *Keep mine / Keep server / Combine (text)*. The resolution is just another operation.
 - **Rejections** (validation): shown with a readable message; the op can be edited or discarded; it does not block the rest of the queue.
@@ -263,7 +266,8 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | GET / POST / PATCH / DELETE | `/locations[/{id}]` | tree with cumulative counts | F1 ✔ |
 | GET | `/lookup/isbn/{isbn}` | normalised metadata proposal (provider proxy, 30-day cache) + existing edition | F1 ✔ |
 | POST / GET | `/assets` · `/assets/fetch` · `/assets/{sha256}?size=thumb\|full` | upload / fetch provider cover / download | F1 ✔ |
-| GET / POST | `/sync/snapshot` · `/sync/pull` · `/sync/push` · `/sync/conflicts` | protocol §6 | F2–F3 |
+| GET | `/sync/snapshot` · `/sync/pull?since=&epoch=&limit=` | full snapshot; state-based incremental pull (§6) | F2 ✔ |
+| POST / GET | `/sync/push` · `/sync/conflicts` | protocol §6 | F3 |
 | … | `/reading-sessions`, `/quotes`, `/wishlist`, `/stats` | reading, wishlist, statistics | F4 |
 | … | `/export/csv` · `/export/full` (zip) · `/import` (dry-run + report) · `/admin/backups` | portability and backups | F5 |
 
