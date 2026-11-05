@@ -16,6 +16,8 @@ okhttp = "5.5.1"
 coil = "3.6.3"
 camera = "1.6.2"
 mlkitBarcode = "17.3.0"
+sqlcipher = "4.19.1"
+biometric = "1.1.0"
 junit = "4.13.2"
 robolectric = "4.17"
 androidxTestCore = "1.7.0"
@@ -49,6 +51,8 @@ camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cam
 camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
 camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }
 camera-mlkit = { module = "androidx.camera:camera-mlkit-vision", version.ref = "camera" }
+sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
+biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcode" }
 junit = { module = "junit:junit", version.ref = "junit" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

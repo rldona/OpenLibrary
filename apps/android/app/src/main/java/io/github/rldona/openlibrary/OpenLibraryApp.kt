@@ -3,6 +3,8 @@ package io.github.rldona.openlibrary
 import android.app.Application
 import io.github.rldona.openlibrary.data.AppDatabase
 import io.github.rldona.openlibrary.data.DataStoreSessionStore
+import io.github.rldona.openlibrary.data.LockPolicy
+import io.github.rldona.openlibrary.data.LockSettings
 import io.github.rldona.openlibrary.data.SessionStore
 import io.github.rldona.openlibrary.network.ApiClient
 import io.github.rldona.openlibrary.sync.CoverStore
@@ -13,13 +15,18 @@ import java.io.File
 
 /** Manual dependency wiring: small enough that a DI framework would only add build time. */
 class AppContainer(app: Application) {
-    val db: AppDatabase = AppDatabase.open(app)
+    /** Opened on first use (encrypted, so it needs the native SQLCipher library: not in JVM unit tests). */
+    val db: AppDatabase by lazy { AppDatabase.open(app) }
     val sessions: SessionStore = DataStoreSessionStore(app)
     val covers = CoverStore(File(app.filesDir, "covers"))
     val api: (String, String?) -> ApiClient = { url, token -> ApiClient(url, token) }
-    val sync = SyncRepository(db, sessions, covers, apiFor = { url, token -> api(url, token) })
+    val sync by lazy {
+        SyncRepository(db, sessions, covers, apiFor = { url, token -> api(url, token) })
+    }
     /** Every local change schedules a sync a few seconds later (several quick edits share one push). */
-    val writes = LocalWrites(db, onQueued = { SyncWorker.soon(app) })
+    val writes by lazy { LocalWrites(db, onQueued = { SyncWorker.soon(app) }) }
+    val lockSettings = LockSettings(app)
+    val lock = LockPolicy()
 }
 
 class OpenLibraryApp : Application() {

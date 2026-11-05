@@ -44,7 +44,7 @@ type WishRow = typeof wishlistItems.$inferSelect;
 type QuoteRow = typeof quotes.$inferSelect;
 type Out<T extends z.ZodType> = z.output<T>;
 
-const workDerived = (w: { title: string; authors: string[] }) => ({
+export const workDerived = (w: { title: string; authors: string[] }) => ({
   sortTitle: fold(w.title),
   sortAuthor: authorSortKey(w.authors),
 });

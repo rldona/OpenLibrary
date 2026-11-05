@@ -1,9 +1,9 @@
 package io.github.rldona.openlibrary
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.fragment.app.FragmentActivity
+import io.github.rldona.openlibrary.ui.lock.LockScreen
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -83,15 +86,39 @@ import kotlinx.serialization.Serializable
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
 
-class MainActivity : ComponentActivity() {
+/** A FragmentActivity because the system fingerprint/PIN prompt needs one. */
+class MainActivity : FragmentActivity() {
+    private val container get() = (application as OpenLibraryApp).container
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val container = (application as OpenLibraryApp).container
         // Reading the small session file decides the first screen without a flash of the setup screen.
         val connected = runBlocking { container.sessions.session.first() != null }
         if (connected) SyncWorker.schedule(this)
-        setContent { OpenLibraryTheme { App(container, connected) } }
+        setContent {
+            OpenLibraryTheme {
+                // The app stays composed under the lock so you come back to where you were (a half-filled form…).
+                val locked by container.lock.locked.collectAsStateWithLifecycle()
+                Box {
+                    Box(if (locked) Modifier.clearAndSetSemantics {} else Modifier) { App(container, connected) }
+                    if (locked) LockScreen { container.lock.unlocked() }
+                }
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val enabled = runBlocking { container.lockSettings.current() }
+        container.lock.onStart(enabled, System.currentTimeMillis())
+        // The recent-apps thumbnail would show the library while the app is locked.
+        if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!enabled)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        container.lock.onStop(System.currentTimeMillis())
     }
 }
 

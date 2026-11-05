@@ -1,6 +1,7 @@
 package io.github.rldona.openlibrary.data
 
 import android.content.Context
+import android.util.Log
 import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
@@ -8,6 +9,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import kotlinx.serialization.json.Json
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 class Converters {
     @TypeConverter fun fromList(value: List<String>): String = Json.encodeToString(value)
@@ -33,7 +35,21 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun outbox(): OutboxDao
 
     companion object {
-        fun open(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "library.db").build()
+        /** The encrypted database; a plain one from an older version is encrypted first, keeping its data. */
+        fun open(context: Context): AppDatabase {
+            EncryptedDb.loadLibrary()
+            val file = context.getDatabasePath(NAME)
+            val key = EncryptedDb.key(context, file)
+            // If encrypting fails (it should not) the app keeps working on the plain file and retries next start.
+            val plain = EncryptedDb.isPlain(file) &&
+                runCatching { EncryptedDb.encryptInPlace(file, key) }
+                    .onFailure { Log.e("OpenLibrary", "could not encrypt the local database", it) }
+                    .isFailure
+            return Room.databaseBuilder(context, AppDatabase::class.java, NAME)
+                .apply { if (!plain) openHelperFactory(SupportOpenHelperFactory(key.toByteArray())) }
+                .build()
+        }
+
+        private const val NAME = "library.db"
     }
 }

@@ -88,4 +88,13 @@ export const es: Record<keyof typeof en, string> = {
 
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',
+
+  'security.title': 'Seguridad',
+  'lock.title': 'OpenLibrary está bloqueada',
+  'lock.unlock': 'Desbloquear',
+  'lock.prompt': 'Desbloquear OpenLibrary',
+  'lock.setting': 'Bloquear la app',
+  'lock.settingHint':
+    'Pide tu huella, tu cara o el bloqueo de pantalla al abrir la app o al volver tras un minuto fuera. La biblioteca de este móvil se guarda siempre cifrada.',
+  'lock.unavailable': 'Configura primero un bloqueo de pantalla en este móvil.',
 };

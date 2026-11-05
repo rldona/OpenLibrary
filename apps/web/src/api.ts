@@ -1,5 +1,7 @@
 import type {
   AssetDTO,
+  BackupStatus,
+  ImportReport,
   BookCreate,
   ChangePasswordRequest,
   CopyCreate,
@@ -114,6 +116,11 @@ export const api = {
   lookup: (isbn: string) => request<LookupResult>('GET', `/lookup/isbn/${encodeURIComponent(isbn)}`),
   uploadCover: (file: Blob) => request<AssetDTO>('POST', '/assets', file, file.type),
   fetchCover: (url: string) => request<AssetDTO>('POST', '/assets/fetch', { url }),
+
+  // import, export and backups (downloads are plain links to /export/*)
+  importFile: (file: Blob, dryRun: boolean) =>
+    request<ImportReport>('POST', `/import?dryRun=${dryRun}`, file, file.type),
+  backupStatus: () => request<BackupStatus>('GET', '/backups/status'),
 };
 
 export const coverUrl = (id: string, size: 'thumb' | 'full' = 'thumb') =>

@@ -83,4 +83,5 @@ export * from './ids.js';
 export * from './catalog.js';
 export * from './sync.js';
 export * from './stats.js';
+export * from './portability.js';
 export * from './i18n.js';

@@ -21,6 +21,9 @@ import { LookupService } from './lookup/service.js';
 import { SyncService } from './sync/service.js';
 import { syncRoutes } from './sync/routes.js';
 import { StatsService } from './stats/service.js';
+import { ExportService } from './portability/export.js';
+import { ImportService } from './portability/import.js';
+import { portabilityRoutes } from './portability/routes.js';
 import type { Fetch } from './lookup/providers.js';
 
 declare module 'fastify' {
@@ -179,6 +182,12 @@ export async function buildApp(deps: {
       await api.register(catalogRoutes, { catalog });
       await api.register(assetAndLookupRoutes, { assets, lookup });
       await api.register(syncRoutes, { sync });
+      await api.register(portabilityRoutes, {
+        exporter: new ExportService(db, assets, config.version, deps.now),
+        importer: new ImportService(db, catalog, assets, deps.now),
+        dataDir: config.dataDir,
+        now: deps.now ?? (() => new Date()),
+      });
       const stats = new StatsService(db);
       api.get('/stats', async (req) => {
         requireAuth(req);

@@ -11,6 +11,7 @@ import { Locations } from './pages/Locations';
 import { Settings } from './pages/Settings';
 import { Wishlist } from './pages/Wishlist';
 import { Stats } from './pages/Stats';
+import { Data } from './pages/Data';
 import { BookDrawer } from './pages/BookDrawer';
 import { BookForm } from './pages/BookForm';
 import { CopyForm, type CopyMode } from './pages/CopyForm';
@@ -73,9 +74,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       ? 'wishlist'
       : path.startsWith('/stats')
         ? 'stats'
-        : path.startsWith('/settings')
-          ? 'settings'
-          : 'library';
+        : path.startsWith('/data')
+          ? 'data'
+          : path.startsWith('/settings')
+            ? 'settings'
+            : 'library';
 
   // If the session expires, any 401 goes back to the login screen.
   const qc = useQueryClient();
@@ -145,7 +148,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           t('nav.wishlist'),
           wishes.data?.items.filter((w) => w.status === 'open').length,
         )}
+        {nav('/stats', 'stats', 'chart', t('nav.stats'))}
         <div className="sep" />
+        {nav('/data', 'data', 'download', t('nav.data'))}
         {nav('/settings', 'settings', 'gear', t('nav.settings'))}
         <button className="nav" onClick={() => void logout()}>
           <Icon name="logout" />
@@ -153,7 +158,6 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </button>
         <div className="foot">
           <LanguageSwitch />
-          <p>{t('nav.comingSoon')}</p>
         </div>
       </aside>
       <main>
@@ -176,6 +180,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           {view === 'locations' && <Locations />}
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
           {view === 'stats' && <Stats />}
+          {view === 'data' && <Data />}
           {view === 'settings' && <Settings onLogout={onLogout} />}
         </section>
       </main>

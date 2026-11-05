@@ -282,7 +282,7 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | GET / POST / PATCH | `/wishlist`, `/wishlist/{id}` | wishes (BR14); "I bought it" = create the book or copy, then `status: acquired` + `acquiredCopyId`; synced as entity `wish` | F4 ✔ |
 | POST / PATCH / DELETE | `/quotes`, `/quotes/{id}` | quotes of a work (`WorkDetail.quotes`); synced as entity `quote` (push `quote.delete` sends a tombstone) | F4 ✔ |
 | GET | `/stats` | collection, reading, acquisitions, rankings, wishlist (definitions in `packages/contracts/src/stats.ts`); Android computes the same offline | F4 ✔ |
-| … | `/export/csv` · `/export/full` (zip) · `/import` (dry-run + report) · `/admin/backups` | portability and backups | F5 |
+| GET / POST | `/export/full` (zip) · `/export/json` · `/export/csv` · `/import?dryRun=` · `/backups/status` | portability and backups: the import detects zip/JSON/CSV from the content, the dry run returns the exact report (same transaction, rolled back); backup status reads `backups/last-success` written by `backup.sh` | F5 ✔ |
 
 **Lookup response**
 ```json
@@ -293,7 +293,9 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
   "existing": null, "errors": [] }
 ```
 
-**Full export format** (`library.json`, versioned `format_version: 1`): arrays `works, editions, copies, locations, reading_sessions, quotes, wishlist, assets` with every key and ID-based relations; covers under `assets/<sha256>.jpg`. Re-importable without loss (it is also the "logical" restore format).
+**Full export format** (`library.json`, `"format": "openlibrary"`, versioned `format_version: 1`, schemas in `packages/contracts/src/portability.ts`): arrays `works, editions, copies, locations, reading_sessions, quotes, wishlist, assets` of live records (camelCase fields as in the API, without `version`) with ID-based relations; covers under `assets/<id>.jpg`. Re-importable without loss (it is also the "logical" restore format).
+
+**Import rules**: an id already in the library is a duplicate (skipped, so importing twice changes nothing); an edition whose ISBN exists is a duplicate and its copies/readings/quotes go to the existing edition and work; a record that fails validation or needs a record that is neither in the file nor in the library is invalid; optional links to something missing (location, cover, copy of a quote…) are dropped with a warning; copy codes are kept and a taken code gets a new one. Every created record goes to the change log, so devices pull it. The CSV (one row per copy, columns in `CSV_COLUMNS`, `,` or `;`) creates works, editions, copies, location paths and the latest reading; a row without `code`/`copy_id` for a book already in the library is taken as a duplicate.
 
 ---
 
@@ -331,8 +333,8 @@ Monorepo with **npm workspaces** for the TypeScript side; Android uses its own G
 - **Nightly and at boot** (systemd timer with `Persistent=true`, so it runs even if the PC was off at the scheduled time):
   1. `ol backup` → consistent hot copy of the database (SQLite online backup API).
   2. **restic** of the snapshot + `assets/` (assets are immutable by hash → incremental) to an external disk/NAS and, optionally, encrypted cloud storage (B2 free tier). Retention: 7 daily, 4 weekly, 12 monthly.
-  3. Weekly `restic check` + warning if the last backup is older than 3 days (shown in the web, F5).
-- The web will also let you download the **full export** (zip) at any time: the "app-independent" copy (F5).
+  3. Weekly `restic check` + warning if the last backup is older than 3 days (shown in the web's Import and export page).
+- The web lets you download the **full export** (zip) at any time: the "app-independent" copy.
 - Android is in practice a third copy of the data (not of the original covers).
 
 ### Restore
@@ -381,7 +383,7 @@ Going from A to B or C: roughly **an afternoon of deployment work**. The API, sy
 | **F2 · Android browsing + sync pull** (2 wk) | Room + FTS, snapshot + incremental pull, cover cache, offline list/search/details/locations, sync status, EN/ES **(done 2026-11-04)** | With the PC off, the whole library and its covers can be browsed and searched ✔ (checked on a Galaxy S26 Ultra; covers by unit test); a change made on the web appears on Android after syncing ✔ |
 | **F3 · Android capture + offline writes** (3 wk) | Scanner, provisional entry, cover photos, editing copies/reading/notes, outbox + idempotent push, conflicts **(done 2026-11-04; reading status moves to F4)** | Full UC01 flow ✔ (lookup, owned-edition warning, provisional offline entry, provider cover; camera scan and photo pending a check on the phone); changes made offline survive killing the app and rebooting ✔ (emulator); resending the same batch 3 times does not duplicate ✔; editing the same field on web and Android produces a visible conflict ✔ |
 | **F4 · Reading, wishlist, statistics** (1.5 wk) | Reading sessions and re-reads, quotes, wishlist → acquisition, statistics (works vs copies) **(done 2026-11-04: web + Android, synced)** | "I bought it" creates a copy without duplicating the work ✔; stats match reference SQL queries ✔ (`stats.test.ts`), and Android's offline stats match the server's on the same data ✔ (`StatsParityTest`) |
-| **F5 · Portability and hardening** (1.5 wk) | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |
+| **F5 · Portability and hardening** (1.5 wk) **(done 2026-11-04, except accessibility/performance passes)** | CSV/JSON+zip export, import (own format) with dry-run and report, restore + resync, app lock, local encryption, accessibility, performance, bulk insert path | Export → clean install → import = same counts and relations ✔; restore.sh recovers last night's backup ✔; import reports duplicates and invalid rows ✔ |
 
 Indicative total: **~11 weeks** part-time. Every phase ends with something usable.
 

@@ -110,7 +110,9 @@ sudo /opt/openlibrary/deploy/scripts/restore.sh 4f2a9c1e   # a specific one
 
 The current state is not deleted: it is set aside as `library.db.before-restore-<date>`. After restoring, the server bumps its *epoch* and phones will perform a full resync.
 
-**Recommended drill** after installing: take a backup, change the password, restore and check the previous one is back.
+**Recommended drill** after installing: take a backup, change the password, restore and check the previous one is back. The same steps run automatically in the server tests (`apps/server/test/restore-drill.test.ts`).
+
+The web's **Import and export** page shows when the last backup finished (from `backups/last-success`, written by `backup.sh`) and warns if it is older than 3 days. From there you can also download the full export (zip with every record and cover): keep one outside the PC from time to time. Importing it into a new installation is the logical restore (§ design 9).
 
 ## 7. Day-to-day operation
 

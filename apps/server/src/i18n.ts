@@ -82,6 +82,33 @@ const SERVER: Record<Lang, Dict> = {
     'errors.noCover': 'The provider has no cover for this book.',
     'errors.providerError': 'The provider answered {status}.',
     'errors.tooManyRedirects': 'Too many redirects.',
+    // import / export
+    'errors.importEmpty': 'The file is empty.',
+    'errors.importUnreadable':
+      'This file cannot be read. Use an OpenLibrary export (zip or JSON) or a CSV file.',
+    'errors.importNoLibrary': 'The zip does not contain library.json: it is not an OpenLibrary export.',
+    'errors.importFormat': 'This is not a valid OpenLibrary export: {details}',
+    'errors.importCsvHeader': 'The first row of the CSV must name the columns, with at least "title".',
+    'import.invalid': 'Invalid: {details}',
+    'import.duplicateId': 'Already in the library.',
+    'import.duplicateCode': 'Copy {code} is already in the library.',
+    'import.duplicateIsbn':
+      'An edition with ISBN {isbn} is already in the library: its copies, readings and quotes go there.',
+    'import.bookExists':
+      'This book is already in the library. To add it as another copy, give it a code or copy_id.',
+    'import.workMerged': 'Already in the library (same ISBN): merged with the existing work.',
+    'import.workWithoutEditions': 'A work without editions cannot be imported.',
+    'import.missingWork': 'Its work is neither in the file nor in the library.',
+    'import.missingEdition': 'Its edition is neither in the file nor in the library.',
+    'import.missingCopy': 'Its copy is neither in the file nor in the library.',
+    'import.parentMissing': 'Its parent location is missing: it goes at the top level.',
+    'import.locationMissing': 'Its location is missing: imported without a location.',
+    'import.coverMissing': 'Its cover is not in the file: imported without a cover.',
+    'import.copyLinkDropped': 'The copy it pointed to is missing: link removed.',
+    'import.workLinkDropped': 'The work it pointed to is missing: link removed.',
+    'import.codeTaken': 'Code {code} is already used: it got {newCode}.',
+    'import.notANumber': 'Not a number: {value}.',
+    'import.imageInvalid': 'Not a usable image.',
   },
   es: {
     'title.400': 'Petición no válida',
@@ -160,6 +187,33 @@ const SERVER: Record<Lang, Dict> = {
     'errors.noCover': 'El proveedor no tiene portada para este libro.',
     'errors.providerError': 'El proveedor respondió {status}.',
     'errors.tooManyRedirects': 'Demasiadas redirecciones.',
+    // importar / exportar
+    'errors.importEmpty': 'El archivo está vacío.',
+    'errors.importUnreadable':
+      'No se puede leer este archivo. Usa una exportación de OpenLibrary (zip o JSON) o un archivo CSV.',
+    'errors.importNoLibrary': 'El zip no contiene library.json: no es una exportación de OpenLibrary.',
+    'errors.importFormat': 'No es una exportación válida de OpenLibrary: {details}',
+    'errors.importCsvHeader': 'La primera fila del CSV debe nombrar las columnas, al menos «title».',
+    'import.invalid': 'No válido: {details}',
+    'import.duplicateId': 'Ya está en la biblioteca.',
+    'import.duplicateCode': 'El ejemplar {code} ya está en la biblioteca.',
+    'import.duplicateIsbn':
+      'Ya hay una edición con ISBN {isbn} en la biblioteca: sus ejemplares, lecturas y citas van a ella.',
+    'import.bookExists':
+      'Este libro ya está en la biblioteca. Para añadirlo como otro ejemplar, ponle un code o copy_id.',
+    'import.workMerged': 'Ya está en la biblioteca (mismo ISBN): se une a la obra existente.',
+    'import.workWithoutEditions': 'No se puede importar una obra sin ediciones.',
+    'import.missingWork': 'Su obra no está ni en el archivo ni en la biblioteca.',
+    'import.missingEdition': 'Su edición no está ni en el archivo ni en la biblioteca.',
+    'import.missingCopy': 'Su ejemplar no está ni en el archivo ni en la biblioteca.',
+    'import.parentMissing': 'Falta su ubicación superior: queda en el nivel principal.',
+    'import.locationMissing': 'Falta su ubicación: se importa sin ubicación.',
+    'import.coverMissing': 'Su portada no está en el archivo: se importa sin portada.',
+    'import.copyLinkDropped': 'Falta el ejemplar al que apuntaba: se quita el enlace.',
+    'import.workLinkDropped': 'Falta la obra a la que apuntaba: se quita el enlace.',
+    'import.codeTaken': 'El código {code} ya está en uso: se le asigna {newCode}.',
+    'import.notANumber': 'No es un número: {value}.',
+    'import.imageInvalid': 'No es una imagen utilizable.',
   },
 };
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -12,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,7 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -27,7 +31,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.rldona.openlibrary.AppContainer
 import io.github.rldona.openlibrary.R
+import androidx.fragment.app.FragmentActivity
 import io.github.rldona.openlibrary.sync.SyncStatus
+import io.github.rldona.openlibrary.ui.lock.authenticate
+import io.github.rldona.openlibrary.ui.lock.canLock
 import io.github.rldona.openlibrary.sync.SyncWorker
 import io.github.rldona.openlibrary.ui.components.SyncBar
 import kotlinx.coroutines.launch
@@ -39,6 +46,10 @@ class SettingsViewModel(private val c: AppContainer, private val onDisconnected:
     val status = c.sync.status
     val pending = c.db.outbox().pendingCount()
     val problems = c.db.outbox().problemCount()
+
+    val lockEnabled = c.lockSettings.enabled
+
+    fun setLock(on: Boolean) = viewModelScope.launch { c.lockSettings.set(on) }
 
     fun syncNow() = viewModelScope.launch { c.sync.sync() }
 
@@ -79,6 +90,8 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
         }
         Text(stringResource(R.string.sync_resyncHint), style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
+        LockSetting(vm)
+        HorizontalDivider()
         OutlinedButton(onClick = { confirm = true }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.device_disconnect), color = MaterialTheme.colorScheme.error)
         }
@@ -94,4 +107,32 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+}
+
+/** Turning the lock on asks for the fingerprint/PIN once, so it is never enabled on a phone that cannot unlock. */
+@Composable
+private fun LockSetting(vm: SettingsViewModel) {
+    val enabled by vm.lockEnabled.collectAsStateWithLifecycle(false)
+    val activity = LocalContext.current as FragmentActivity
+    val title = stringResource(R.string.lock_prompt)
+    var unavailable by remember { mutableStateOf(false) }
+    Text(stringResource(R.string.security_title), style = MaterialTheme.typography.titleMedium)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.lock_setting), modifier = Modifier.weight(1f))
+        Switch(
+            checked = enabled,
+            onCheckedChange = { on ->
+                when {
+                    !on -> vm.setLock(false)
+                    !canLock(activity) -> unavailable = true
+                    else -> authenticate(activity, title) { vm.setLock(true) }
+                }
+            },
+        )
+    }
+    Text(
+        stringResource(if (unavailable) R.string.lock_unavailable else R.string.lock_settingHint),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (unavailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

@@ -89,4 +89,13 @@ export const en = {
 
   'copy.pendingCode': 'not synced yet',
   'locations.add': 'New location',
+
+  'security.title': 'Security',
+  'lock.title': 'OpenLibrary is locked',
+  'lock.unlock': 'Unlock',
+  'lock.prompt': 'Unlock OpenLibrary',
+  'lock.setting': 'Lock the app',
+  'lock.settingHint':
+    'Asks for your fingerprint, face or screen lock when you open the app or come back after a minute away. The library on this phone is always stored encrypted.',
+  'lock.unavailable': 'Set up a screen lock on this phone first.',
 } as const;

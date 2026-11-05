@@ -85,6 +85,49 @@ export class AssetService {
     return toDto(row);
   }
 
+  /**
+   * A cover from an export, kept under its original id (an export carries the stored JPEG, whose hash is
+   * not the id). Returns the row to insert, or null if the file is not a usable image. With `write: false`
+   * (dry run) it only checks the image.
+   */
+  async importFile(id: string, buf: Buffer, write: boolean): Promise<typeof assets.$inferInsert | null> {
+    let meta: Metadata;
+    try {
+      meta = await sharp(buf, { failOn: 'error' }).metadata();
+    } catch {
+      return null;
+    }
+    if (!meta.width || !meta.height || meta.width < 20 || meta.height < 20) return null;
+    let out = { data: buf, width: meta.width, height: meta.height };
+    if (write) {
+      const img = sharp(buf).rotate();
+      if (meta.format !== 'jpeg' || meta.width > 1600 || meta.height > 1600) {
+        const r = await img
+          .clone()
+          .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85, mozjpeg: true })
+          .toBuffer({ resolveWithObject: true });
+        out = { data: r.data, width: r.info.width, height: r.info.height };
+      }
+      fs.mkdirSync(path.dirname(this.pathOf(id, 'full')), { recursive: true });
+      await img
+        .clone()
+        .resize({ width: 400, withoutEnlargement: true })
+        .jpeg({ quality: 78, mozjpeg: true })
+        .toFile(this.pathOf(id, 'thumb'));
+      fs.writeFileSync(this.pathOf(id, 'full'), out.data);
+    }
+    return {
+      id,
+      mime: 'image/jpeg',
+      width: out.width,
+      height: out.height,
+      bytes: out.data.length,
+      origin: 'import',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   /** Downloads a cover proposed by a provider (following redirects only to allowed hosts). */
   async fetchFromProvider(rawUrl: string): Promise<AssetDTO> {
     let url = new URL(rawUrl);
