@@ -3,7 +3,13 @@ package io.github.rldona.openlibrary
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,9 +23,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -164,6 +175,7 @@ private fun App(c: AppContainer, connected: Boolean) {
             if (inDetail) {
                 TopAppBar(
                     title = {},
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                     navigationIcon = {
                         IconButton(onClick = { nav.popBackStack() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.detail_back))
@@ -172,12 +184,26 @@ private fun App(c: AppContainer, connected: Boolean) {
                 )
             }
         },
-        bottomBar = { if (inTabs) Tabs(nav) },
+        bottomBar = {
+            if (inTabs) {
+                Column {
+                    // Like the web's sidebar: on the page background, separated by a `line` rule.
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Tabs(nav)
+                }
+            }
+        },
     ) { padding ->
         NavHost(
             nav,
             startDestination = if (connected) LibraryRoute() else SetupRoute,
             modifier = if (fullScreen) Modifier else Modifier.padding(padding),
+            // Navigation's default is a 700 ms cross-fade, which feels sluggish: a short fade and a small
+            // slide instead, forwards and backwards.
+            enterTransition = { fadeIn(tween(180)) + slideInHorizontally(tween(220)) { it / 12 } },
+            exitTransition = { fadeOut(tween(120)) },
+            popEnterTransition = { fadeIn(tween(180)) },
+            popExitTransition = { fadeOut(tween(120)) + slideOutHorizontally(tween(180)) { it / 12 } },
         ) {
             composable<SetupRoute> {
                 val vm = viewModel<SetupViewModel>(
@@ -226,9 +252,28 @@ private fun App(c: AppContainer, connected: Boolean) {
                 val vm = viewModel<StatsViewModel>(factory = viewModelFactory { initializer { StatsViewModel(c) } })
                 StatsScreen(vm)
             }
-            composable<WishlistRoute> {
+            composable<WishlistRoute> { e ->
                 val vm = viewModel<WishlistViewModel>(factory = viewModelFactory { initializer { WishlistViewModel(c) } })
-                WishlistScreen(vm) { wishId -> nav.navigate(AddBookRoute(wishId)) }
+                // The camera hands the ISBN back through this entry's SavedStateHandle.
+                val scanned by e.savedStateHandle.getStateFlow<String?>("isbn", null).collectAsStateWithLifecycle()
+                val photo by e.savedStateHandle.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
+                LaunchedEffect(scanned) {
+                    scanned?.let {
+                        vm.scanned(it)
+                        e.savedStateHandle["isbn"] = null
+                    }
+                }
+                LaunchedEffect(photo) {
+                    photo?.let {
+                        vm.photo(it)
+                        e.savedStateHandle["photo"] = null
+                    }
+                }
+                WishlistScreen(
+                    vm,
+                    onScan = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
+                    onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+                ) { wishId -> nav.navigate(AddBookRoute(wishId)) }
             }
             composable<EditBookRoute> { e ->
                 val route = e.toRoute<EditBookRoute>()
@@ -302,7 +347,7 @@ private fun BookForm(
 private fun Tabs(nav: NavHostController) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route.orEmpty()
-    NavigationBar {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.background, tonalElevation = 0.dp) {
         listOf(
             Triple(LibraryRoute(), R.string.nav_library, Icons.AutoMirrored.Filled.LibraryBooks) to "LibraryRoute",
             Triple(LocationsRoute, R.string.nav_locations, Icons.Default.Place) to "LocationsRoute",
@@ -322,6 +367,12 @@ private fun Tabs(nav: NavHostController) {
                 },
                 icon = { Icon(icon, contentDescription = null) },
                 label = { Text(stringResource(label)) },
+                // The web's selected menu item: accent text on the accent's soft tint.
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
             )
         }
     }

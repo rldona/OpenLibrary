@@ -1,0 +1,1 @@
+ALTER TABLE `wishlist_items` ADD `cover_asset_id` text;

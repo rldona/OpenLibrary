@@ -60,7 +60,10 @@ interface CatalogDao {
     @Query("SELECT COUNT(*) FROM editions e WHERE EXISTS (SELECT 1 FROM copies c WHERE c.editionId = e.id AND c.status = 'active')")
     fun editionCount(): Flow<Int>
 
-    @Query("SELECT DISTINCT coverAssetId FROM editions WHERE coverAssetId IS NOT NULL")
+    @Query(
+        "SELECT coverAssetId FROM editions WHERE coverAssetId IS NOT NULL " +
+            "UNION SELECT coverAssetId FROM wishes WHERE coverAssetId IS NOT NULL",
+    )
     suspend fun coverIds(): List<String>
 
     @Query(

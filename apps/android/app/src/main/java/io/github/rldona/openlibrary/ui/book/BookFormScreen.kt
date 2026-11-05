@@ -11,12 +11,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -97,6 +98,13 @@ class BookFormViewModel(
     /** Cover photo taken on the phone (asset id), or the provider's proposal. */
     var photoId by mutableStateOf<String?>(null)
     private var coverUrl: String? = null
+    /** The provider's cover, already copied to the server and downloaded here, shown before saving. */
+    var providerCoverId by mutableStateOf<String?>(null)
+        private set
+    var providerCoverSource by mutableStateOf<String?>(null)
+        private set
+    /** What the book will have as its cover: the user's photo wins over the provider's. */
+    val coverId get() = photoId ?: providerCoverId
     private var sources: List<String> = emptyList()
     var notice by mutableStateOf<LookupNotice?>(null)
         private set
@@ -120,6 +128,8 @@ class BookFormViewModel(
             wish = w
             title = w.title
             authors = w.authors.joinToString("; ")
+            // "I bought it": the wish's cover becomes the book's (it is on the server already).
+            w.coverAssetId?.let { providerCoverId = it }
             w.isbn13?.let { isbn = it; lookup() }
         }
         if (workId != null && editionId != null) viewModelScope.launch {
@@ -157,6 +167,8 @@ class BookFormViewModel(
                 val p = result.proposal
                 if (result.found && p != null) {
                     fill(p)
+                    // A book being edited keeps the cover it has; a new one shows the provider's right away.
+                    if (photoId == null && providerCoverId == null) p.coverUrl?.let { fetchProviderCover(it, result.sources.firstOrNull()) }
                     // The data arrived: the book is no longer provisional (the user can still tick it).
                     provisional = false
                     sources = result.sources
@@ -213,7 +225,7 @@ class BookFormViewModel(
 
     private suspend fun saveNew(): String {
         val newWorkId = uuidv7()
-        val cover = photoId ?: providerCover()
+        val cover = photoId ?: providerCoverId ?: providerCover()
         val book =
             NewBook(
                 work = NewWork(newWorkId, title.trim(), subtitle.trim().ifEmpty { null }, authorList()),
@@ -262,6 +274,25 @@ class BookFormViewModel(
         }
     }
 
+    /** Copies the provider's cover to the server and downloads it, so the form can show it. */
+    private fun fetchProviderCover(url: String, source: String?) =
+        viewModelScope.launch {
+            val s = c.sessions.session.first() ?: return@launch
+            runCatching {
+                val api = c.api(s.serverUrl, s.token)
+                val id = withTimeout(10_000) { api.fetchAsset(url).id }
+                if (!c.covers.has(id)) c.covers.put(id, withTimeout(10_000) { api.asset(id) })
+                providerCoverId = id
+                providerCoverSource = source
+            }
+        }
+
+    /** "Without this cover": the provider's is not wanted. */
+    fun dropProviderCover() {
+        providerCoverId = null
+        coverUrl = null
+    }
+
     /** The provider's cover is copied to the server now if there is a connection; otherwise the book has none. */
     private suspend fun providerCover(): String? {
         val url = coverUrl ?: return null
@@ -287,9 +318,12 @@ class BookFormViewModel(
         if (isbn13 != e.isbn13) ef["isbn13"] = isbn13?.let(::JsonPrimitive) ?: JsonNull
         val status = if (provisional) "provisional" else "complete"
         if (status != e.metadataStatus) ef["metadataStatus"] = JsonPrimitive(status)
-        val newPhoto = photoId != e.coverAssetId
-        if (newPhoto) ef["coverAssetId"] = photoId?.let(::JsonPrimitive) ?: JsonNull
-        if (ef.isNotEmpty()) c.writes.editEdition(e, JsonObject(ef), coverPhoto = photoId.takeIf { newPhoto })
+        val cover = coverId
+        val newCover = cover != e.coverAssetId
+        if (newCover) ef["coverAssetId"] = cover?.let(::JsonPrimitive) ?: JsonNull
+        // Only a photo taken on the phone needs uploading; the provider's cover is on the server already.
+        val upload = photoId.takeIf { newCover && it != null && it != providerCoverId }
+        if (ef.isNotEmpty()) c.writes.editEdition(e, JsonObject(ef), coverPhoto = upload)
     }
 
     private fun authorList() = authors.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -337,13 +371,24 @@ fun BookFormScreen(
         vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(vm.covers, vm.photoId, vm.title.ifBlank { "?" }, 64.dp)
-            Column {
+            Cover(vm.covers, vm.coverId, vm.title.ifBlank { "?" }, 72.dp, authors = vm.authors.split(';').map { it.trim() }.filter { it.isNotEmpty() })
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val fromProvider = vm.photoId == null && vm.providerCoverId != null
+                if (fromProvider) {
+                    Text(
+                        str(R.string.form_providerCover, "source" to (vm.providerCoverSource ?: "")),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 OutlinedButton(onClick = onPhoto) {
-                    Text(stringResource(if (vm.photoId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
+                    Text(stringResource(if (vm.coverId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
                 }
                 if (vm.photoId != null && !vm.editing) {
                     OutlinedButton(onClick = { vm.photoId = null }) { Text(stringResource(R.string.add_removePhoto)) }
+                }
+                if (fromProvider) {
+                    TextButton(onClick = vm::dropProviderCover) { Text(stringResource(R.string.form_removeCover)) }
                 }
             }
         }
@@ -386,14 +431,14 @@ fun BookFormScreen(
 
 @Composable
 private fun Notice(w: WishEntity) {
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         Text(str(R.string.wish_willBeAcquired, "title" to w.title), Modifier.padding(12.dp))
     }
 }
 
 @Composable
 private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (OwnedEdition) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when (n) {
                 is LookupNotice.Found -> {

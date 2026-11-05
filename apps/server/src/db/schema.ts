@@ -193,6 +193,8 @@ export const wishlistItems = sqliteTable(
       .notNull()
       .default('open'),
     acquiredCopyId: text('acquired_copy_id'),
+    /** Cover proposed by a provider when the wish was looked up by ISBN; it goes to the book when bought. */
+    coverAssetId: text('cover_asset_id'),
   },
   (t) => [index('wishlist_isbn_idx').on(t.isbn13)],
 );

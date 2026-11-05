@@ -389,6 +389,10 @@ export class ImportService {
           if (!w) report.add('warning', 'wishes', i + 1, lbl, 'import.workLinkDropped');
           v.workId = w;
         }
+        if (!coverOk(v.coverAssetId)) {
+          report.add('warning', 'wishes', i + 1, lbl, 'import.coverMissing');
+          v.coverAssetId = null;
+        }
         if (v.acquiredCopyId && !ins.live('copy', v.acquiredCopyId)) {
           report.add('warning', 'wishes', i + 1, lbl, 'import.copyLinkDropped');
           v.acquiredCopyId = null;

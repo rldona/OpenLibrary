@@ -128,6 +128,8 @@ data class WishEntity(
     val acquiredCopyId: String?,
     val createdAt: String,
     val updatedAt: String,
+    /** Cover found by the ISBN lookup; "I bought it" gives it to the book. */
+    val coverAssetId: String? = null,
 )
 
 /** A passage kept from a work (F4). */

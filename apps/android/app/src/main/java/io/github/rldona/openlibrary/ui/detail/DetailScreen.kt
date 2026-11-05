@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -150,8 +150,10 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
                 vm.covers,
                 coverId,
                 work.title,
-                110.dp,
+                128.dp,
                 if (coverId != null) Modifier.clickable { onCover(coverId, work.title) } else Modifier,
+                authors = work.authors,
+                provisional = s.editions.any { it.metadataStatus == "provisional" },
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -163,8 +165,12 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Text(work.title, style = MaterialTheme.typography.headlineSmall)
-                work.subtitle?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-                Text(work.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) })
+                work.subtitle?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Text(
+                    work.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 work.series?.let {
                     val idx = work.seriesIndex?.let { i -> " #" + if (i % 1.0 == 0.0) i.toInt() else i } ?: ""
                     Text(str(R.string.drawer_series, "series" to it + idx), style = MaterialTheme.typography.bodySmall)
@@ -232,7 +238,7 @@ private fun EditionCard(
     onRetire: (CopyEntity) -> Unit,
     onRestore: (CopyEntity) -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.drawer_edition), style = MaterialTheme.typography.labelMedium)
             Text(

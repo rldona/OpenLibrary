@@ -1,8 +1,8 @@
 {
-  "epoch": "773fc085-2bd1-4ac5-8bcd-5c1f908a438f",
+  "epoch": "55c0af53-1fe4-4601-bd03-6debd9d67788",
   "works": [
     {
-      "id": "01a1a844-aea7-7adf-b659-e3d155e4b7a2",
+      "id": "01a1ac0c-7014-7b4c-9958-aefec3099e3a",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -26,25 +26,25 @@
   "deleted": [
     {
       "entity": "work",
-      "id": "01a1a844-aeb6-7107-a365-20886b87ec6b",
+      "id": "01a1ac0c-7025-7c25-8c3c-2eee857b90ac",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "edition",
-      "id": "01a1a844-aeb7-76c0-b9f9-b6a85d3abb0b",
+      "id": "01a1ac0c-7026-758e-bdfd-21d7b14b345a",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "copy",
-      "id": "01a1a844-aeb7-715f-964f-d3c60d70aa17",
+      "id": "01a1ac0c-7026-76ba-8d10-5fcba683d57a",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "quote",
-      "id": "01a1a844-aed0-7a02-8745-aa980ff82ffd",
+      "id": "01a1ac0c-7048-79c0-8719-4471dbfddb53",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     }

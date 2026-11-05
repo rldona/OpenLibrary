@@ -405,6 +405,7 @@ components:
           notes,
           status,
           acquiredCopyId,
+          coverAssetId,
         ]
       properties:
         id: { type: string }
@@ -419,6 +420,9 @@ components:
         notes: { type: string }
         status: { type: string, enum: [open, acquired, discarded] }
         acquiredCopyId: { type: [string, 'null'], description: The copy created by "I bought it". }
+        coverAssetId:
+          type: [string, 'null']
+          description: Cover found by the ISBN lookup; "I bought it" gives it to the new edition.
     SyncQuote:
       type: object
       additionalProperties: false

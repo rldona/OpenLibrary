@@ -29,7 +29,14 @@ fun SyncBar(
     pending: Int = 0,
     problems: Int = 0,
     onReview: () -> Unit = {},
+    /** Say nothing while all is well (the library home); Settings always shows the full state. */
+    onlyProblems: Boolean = false,
 ) {
+    if (onlyProblems) {
+        val fine = status == SyncStatus.Idle && pending == 0 && problems == 0
+        // Only the very first download is worth a progress bar; later syncs show in pull-to-refresh.
+        if (fine || (status is SyncStatus.Running && !status.firstSync)) return
+    }
     if (status is SyncStatus.Running) {
         LinearProgressIndicator(modifier.fillMaxWidth())
         return

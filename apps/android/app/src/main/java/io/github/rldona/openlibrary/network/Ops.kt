@@ -93,6 +93,7 @@ data class NewWish(
     val isbn13: String? = null,
     val priority: String = "normal",
     val notes: String = "",
+    val coverAssetId: String? = null,
 )
 
 @Serializable

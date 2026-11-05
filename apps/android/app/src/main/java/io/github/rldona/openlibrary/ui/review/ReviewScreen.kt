@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -67,7 +67,7 @@ fun ReviewScreen(vm: ReviewViewModel) {
 private fun ProblemCard(p: OutboxEntity, vm: ReviewViewModel) {
     var combining by remember { mutableStateOf<FieldConflict?>(null) }
     val conflicts = LocalWrites.conflictsOf(p)
-    Card(Modifier.fillMaxWidth()) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(whatLabel(p.type)), style = MaterialTheme.typography.labelMedium)
             Text(stringResource(if (p.status == "conflict") R.string.review_conflict else R.string.review_rejected))

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
-import { Banner, Icon, Modal, useToast } from '../components/ui';
+import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
 import { fmtDate, splitList } from '../lib/format';
 import { useInvalidate, useWishlist } from '../lib/queries';
 import { useI18n } from '../i18n';
@@ -53,6 +53,7 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
       <ul className="list">
         {open.map((w) => (
           <li key={w.id}>
+            <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} className="wish-cover" />
             <div className="grow">
               <b>{w.title}</b>{' '}
               {w.priority !== 'normal' && (
@@ -115,6 +116,7 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
   const [isbn, setIsbn] = useState(wish?.isbn13 ?? '');
   const [priority, setPriority] = useState<WishDTO['priority']>(wish?.priority ?? 'normal');
   const [notes, setNotes] = useState(wish?.notes ?? '');
+  const [coverAssetId, setCoverAssetId] = useState<string | null>(wish?.coverAssetId ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -127,6 +129,11 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
       const p = (await api.lookup(n.isbn13)).proposal;
       if (p?.title && !title.trim()) setTitle(p.title);
       if (p?.authors.length && !authors.trim()) setAuthors(p.authors.join('; '));
+      // The provider's cover is copied to the server now, so the wish (and later the book) can use it.
+      if (p?.coverUrl && !coverAssetId) {
+        const asset = await api.fetchCover(p.coverUrl).catch(() => null);
+        if (asset) setCoverAssetId(asset.id);
+      }
     } catch (e) {
       setError(errorText(e, t));
     }
@@ -141,6 +148,7 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
       isbn13: isbn.trim() || null,
       priority,
       notes: notes.trim(),
+      coverAssetId,
     };
     setBusy(true);
     try {
@@ -152,6 +160,7 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
           isbn13: wish.isbn13,
           priority: wish.priority,
           notes: wish.notes,
+          coverAssetId: wish.coverAssetId,
         };
         const changed = Object.fromEntries(
           Object.entries(fields).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(before[k])),
@@ -200,6 +209,36 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
           <button type="button" className="btn" disabled={!isbn.trim()} onClick={() => void lookup()}>
             {t('form.lookup')}
           </button>
+        </div>
+        <div className="form-cover">
+          <Cover assetId={coverAssetId} title={title || '?'} authors={splitList(authors)} />
+          <div className="stack-sm">
+            <b>{t('form.cover')}</b>
+            <span className="muted small">{coverAssetId ? t('form.coverCurrent') : t('form.coverNone')}</span>
+            <div className="row-sm">
+              <label className="btn sm file">
+                <Icon name="image" size={15} /> {t('form.chooseImage')}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f)
+                      void api
+                        .uploadCover(f)
+                        .then((a) => setCoverAssetId(a.id))
+                        .catch((err) => setError(errorText(err, t)));
+                  }}
+                />
+              </label>
+              {coverAssetId && (
+                <button type="button" className="btn sm ghost" onClick={() => setCoverAssetId(null)}>
+                  {t('common.remove')}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         <div className="fgrid">
           <label className="span2">

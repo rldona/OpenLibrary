@@ -94,11 +94,24 @@ class LocalWrites(
         enqueue(Op.ReadingUpdate(uuidv7(), reading.id, Patch(baseOf(reading.version), fields)))
 
     // ---------------- Wishlist ----------------
-    suspend fun addWish(title: String, authors: List<String>, isbn13: String?, priority: String = "normal", notes: String = "") =
-        enqueue(Op.WishCreate(uuidv7(), NewWish(uuidv7(), title.trim(), authors, isbn13, priority, notes.trim())))
+    suspend fun addWish(
+        title: String,
+        authors: List<String>,
+        isbn13: String?,
+        priority: String = "normal",
+        notes: String = "",
+        coverAssetId: String? = null,
+        /** A cover photo taken on the phone (its id is [coverAssetId]): uploaded before the wish is pushed. */
+        coverPhoto: String? = null,
+    ) {
+        if (coverPhoto != null) outbox.addUpload(PendingUploadEntity(coverPhoto, now()))
+        enqueue(Op.WishCreate(uuidv7(), NewWish(uuidv7(), title.trim(), authors, isbn13, priority, notes.trim(), coverAssetId)))
+    }
 
-    suspend fun editWish(wish: WishEntity, fields: JsonObject) =
+    suspend fun editWish(wish: WishEntity, fields: JsonObject, coverPhoto: String? = null) {
+        if (coverPhoto != null) outbox.addUpload(PendingUploadEntity(coverPhoto, now()))
         enqueue(Op.WishUpdate(uuidv7(), wish.id, Patch(baseOf(wish.version), fields)))
+    }
 
     /** BR14: the wish is kept as history, linked to the copy that fulfilled it. Queue it after that copy's op. */
     suspend fun acquireWish(wish: WishEntity, copyId: String) =
@@ -217,7 +230,7 @@ class LocalWrites(
                 is Op.WishCreate -> {
                     val w = op.wish
                     if (c.wishById(w.id) == null) {
-                        d.upsertWishes(listOf(WishEntity(w.id, 0, w.title, w.authors, w.isbn13, null, w.priority, w.notes, "open", null, ts, ts)))
+                        d.upsertWishes(listOf(WishEntity(w.id, 0, w.title, w.authors, w.isbn13, null, w.priority, w.notes, "open", null, ts, ts, w.coverAssetId)))
                     }
                 }
                 is Op.WishUpdate -> c.wishById(op.id)?.let { d.upsertWishes(listOf(patched(it, op.patch.fields, WishEntity.serializer()))) }

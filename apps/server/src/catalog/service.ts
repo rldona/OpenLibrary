@@ -745,7 +745,11 @@ export class CatalogService {
     });
   }
 
-  private ensureWishLinks(tx: Tx, f: { workId?: string | null; acquiredCopyId?: string | null }) {
+  private ensureWishLinks(
+    tx: Tx,
+    f: { workId?: string | null; acquiredCopyId?: string | null; coverAssetId?: string | null },
+  ) {
+    this.ensureAsset(tx, f.coverAssetId);
     if (f.workId) {
       const w = tx.select().from(works).where(eq(works.id, f.workId)).get();
       if (!w || w.deletedAt) throw badRequest('errors.workNotFound');

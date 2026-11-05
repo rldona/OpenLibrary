@@ -126,6 +126,7 @@ data class SyncWish(
     val notes: String,
     val status: String,
     val acquiredCopyId: String?,
+    val coverAssetId: String? = null,
 )
 
 @Serializable

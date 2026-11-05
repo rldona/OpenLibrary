@@ -114,4 +114,11 @@ export const en = {
   'bulk.aim': 'Point at the barcodes one by one',
   'library.toComplete_one': '{n} to complete',
   'library.toComplete_other': '{n} to complete',
+
+  'wish.offline': 'No connection: type the title yourself, the ISBN is kept.',
+  'wish.owned': 'You already have «{title}» in your library.',
+  'wish.alreadyWished': 'This ISBN is already in your wishlist.',
+
+  'form.providerCover': 'Cover from {source}',
+  'form.removeCover': 'Without this cover',
 } as const;

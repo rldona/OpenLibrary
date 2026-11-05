@@ -104,6 +104,7 @@ export type SyncWish = SyncMeta & {
   notes: string;
   status: 'open' | 'acquired' | 'discarded';
   acquiredCopyId: string | null;
+  coverAssetId: string | null;
 };
 
 export type SyncQuote = SyncMeta & {

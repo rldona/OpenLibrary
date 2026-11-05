@@ -1,6 +1,20 @@
 package io.github.rldona.openlibrary.ui.library
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import io.github.rldona.openlibrary.sync.CoverStore
+import io.github.rldona.openlibrary.ui.components.FillCover
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -147,6 +161,8 @@ fun LibraryScreen(
     val pending by vm.pending.collectAsStateWithLifecycle(0)
     val problems by vm.problems.collectAsStateWithLifecycle(0)
     val covers = vm.covers
+    // Covers, like the web; the compact list is one tap away.
+    var grid by rememberSaveable { mutableStateOf(true) }
 
     Box(Modifier.fillMaxSize()) {
 
@@ -184,7 +200,7 @@ fun LibraryScreen(
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
-        SyncBar(status, sync?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview)
+        SyncBar(status, sync?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview, onlyProblems = true)
         PullToRefreshBox(isRefreshing = status is SyncStatus.Running, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
             when {
                 !state.loaded -> Unit
@@ -192,47 +208,7 @@ fun LibraryScreen(
                     Empty(stringResource(R.string.library_noMatchesTitle), stringResource(R.string.library_noMatchesText))
                 state.items.isEmpty() ->
                     Empty(stringResource(R.string.library_emptyTitle), stringResource(R.string.library_emptyText))
-                else ->
-                    LazyColumn(Modifier.fillMaxSize().testTag("library")) {
-                        item {
-                            Text(
-                                plural(R.string.library_editionsFound_one, R.string.library_editionsFound_other, state.items.size),
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            )
-                        }
-                        items(state.items, key = { it.row.editionId }) { item ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable { onOpen(item.row.workId) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Cover(covers, item.row.coverAssetId, item.row.title, 48.dp)
-                                Column(Modifier.weight(1f)) {
-                                    Text(item.row.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        item.row.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        listOfNotNull(item.row.publisher, item.row.publishedYear?.toString()).joinToString(" · "),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        item.place.joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) } +
-                                            if (item.row.activeCopies > 1) " · " + plural(R.string.library_copies_one, R.string.library_copies_other, item.row.activeCopies) else "",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                            HorizontalDivider()
-                        }
-                    }
+                else -> Books(state.items, covers, grid, onToggle = { grid = !grid }, onOpen = onOpen)
             }
         }
     }
@@ -241,13 +217,21 @@ fun LibraryScreen(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SmallFloatingActionButton(onClick = onBulk, modifier = Modifier.testTag("bulk")) {
+        // As on the web: the main action is the solid accent, the secondary one its soft tint.
+        SmallFloatingActionButton(
+            onClick = onBulk,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("bulk"),
+        ) {
             Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.bulk_title))
         }
         ExtendedFloatingActionButton(
             onClick = onAdd,
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
             text = { Text(stringResource(R.string.book_add)) },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.testTag("add"),
         )
     }
@@ -260,6 +244,91 @@ private fun Empty(title: String, text: String) {
         item {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun Books(items: List<LibraryItem>, covers: CoverStore, grid: Boolean, onToggle: () -> Unit, onOpen: (String) -> Unit) {
+    val header: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                plural(R.string.library_editionsFound_one, R.string.library_editionsFound_other, items.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onToggle) {
+                Icon(
+                    if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                    contentDescription = stringResource(if (grid) R.string.library_viewTable else R.string.library_viewCovers),
+                )
+            }
+        }
+    }
+    if (grid) {
+        LazyVerticalGrid(
+            GridCells.Adaptive(104.dp),
+            Modifier.fillMaxSize().testTag("library"),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) { header() }
+            items(items, key = { it.row.editionId }) { item ->
+                Column(
+                    Modifier.clip(MaterialTheme.shapes.small).clickable { onOpen(item.row.workId) }.padding(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FillCover(covers, item.row.coverAssetId, item.row.title, item.row.authors, item.row.metadataStatus == "provisional")
+                    Text(item.row.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        item.row.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (item.row.activeCopies > 1) {
+                        Text("×${item.row.activeCopies}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize().testTag("library"), contentPadding = PaddingValues(bottom = 96.dp)) {
+            item { header() }
+            items(items, key = { it.row.editionId }) { item ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onOpen(item.row.workId) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Cover(covers, item.row.coverAssetId, item.row.title, 52.dp, authors = item.row.authors, provisional = item.row.metadataStatus == "provisional")
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(item.row.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            item.row.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            listOfNotNull(item.row.publisher, item.row.publishedYear?.toString()).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            item.place.joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) } +
+                                if (item.row.activeCopies > 1) " · " + plural(R.string.library_copies_one, R.string.library_copies_other, item.row.activeCopies) else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                HorizontalDivider(Modifier.padding(start = 82.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            }
         }
     }
 }

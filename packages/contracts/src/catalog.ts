@@ -135,6 +135,8 @@ export const WishFields = z.object({
   notes: text(5000).default(''),
   status: z.enum(WISH_STATUSES).default('open'),
   acquiredCopyId: Id.nullish().default(null),
+  /** Cover found by the ISBN lookup (an asset already on the server). */
+  coverAssetId: AssetId.nullish().default(null),
 });
 export type WishFields = z.infer<typeof WishFields>;
 

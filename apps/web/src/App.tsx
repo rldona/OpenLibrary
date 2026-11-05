@@ -92,12 +92,24 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   );
 
   const addBook = () => setDialog({ kind: 'book', mode: { kind: 'add' } });
-  const boughtWish = (w: { id: string; title: string; authors: string[]; isbn13: string | null }) =>
+  const boughtWish = (w: {
+    id: string;
+    title: string;
+    authors: string[];
+    isbn13: string | null;
+    coverAssetId: string | null;
+  }) =>
     setDialog({
       kind: 'book',
       mode: {
         kind: 'add',
-        prefill: { wishId: w.id, title: w.title, authors: w.authors, isbn: w.isbn13 ?? undefined },
+        prefill: {
+          wishId: w.id,
+          title: w.title,
+          authors: w.authors,
+          isbn: w.isbn13 ?? undefined,
+          coverAssetId: w.coverAssetId ?? undefined,
+        },
       },
     });
   const actions = {

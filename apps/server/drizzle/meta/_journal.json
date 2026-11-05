@@ -50,6 +50,13 @@
       "when": 1793824025432,
       "tag": "0006_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793887830434,
+      "tag": "0007_wish_cover",
+      "breakpoints": true
     }
   ]
 }

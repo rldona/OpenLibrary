@@ -21,7 +21,10 @@ import { openBook } from '../lib/router';
 import { useI18n } from '../i18n';
 
 type Mode =
-  | { kind: 'add'; prefill?: { isbn?: string; title?: string; authors?: string[]; wishId?: string } }
+  | {
+      kind: 'add';
+      prefill?: { isbn?: string; title?: string; authors?: string[]; wishId?: string; coverAssetId?: string };
+    }
   | { kind: 'edition'; work: WorkDTO }
   | { kind: 'edit'; work: WorkDTO; edition: EditionDTO };
 
@@ -117,7 +120,9 @@ export function BookForm({
   const [cover, setCover] = useState<CoverChoice>(
     mode.kind === 'edit' && mode.edition.coverAssetId
       ? { kind: 'asset', id: mode.edition.coverAssetId }
-      : { kind: 'none' },
+      : mode.kind === 'add' && mode.prefill?.coverAssetId
+        ? { kind: 'asset', id: mode.prefill.coverAssetId } // the wish's cover
+        : { kind: 'none' },
   );
   const [lookup, setLookup] = useState<
     { state: 'idle' | 'busy' } | { state: 'done'; r: LookupResult } | { state: 'error'; msg: string }
@@ -174,7 +179,9 @@ export function BookForm({
         language: p.language ?? (mode.kind !== 'edit' && x.language === initial.language ? '' : x.language),
         pages: p.pages ? String(p.pages) : x.pages,
       }));
-      if (p.coverUrl && cover.kind !== 'file') setCover({ kind: 'url', url: p.coverUrl });
+      // The provider's cover only fills an empty slot: a photo, the current cover or the wish's stay.
+      if (p.coverUrl)
+        setCover((c) => (c.kind === 'none' || c.kind === 'url' ? { kind: 'url', url: p.coverUrl! } : c));
       setSource(r.sources.join(' + '));
     } catch (e) {
       setLookup({ state: 'error', msg: errorText(e, t) });

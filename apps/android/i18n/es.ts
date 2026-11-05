@@ -113,4 +113,11 @@ export const es: Record<keyof typeof en, string> = {
   'bulk.aim': 'Apunta a los códigos uno a uno',
   'library.toComplete_one': '{n} por completar',
   'library.toComplete_other': '{n} por completar',
+
+  'wish.offline': 'Sin conexión: escribe tú el título, el ISBN se guarda.',
+  'wish.owned': 'Ya tienes «{title}» en tu biblioteca.',
+  'wish.alreadyWished': 'Este ISBN ya está en tu lista de deseos.',
+
+  'form.providerCover': 'Portada de {source}',
+  'form.removeCover': 'Sin esta portada',
 };

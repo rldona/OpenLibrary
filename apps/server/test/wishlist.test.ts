@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import sharp from 'sharp';
 import { uuidv7, withCheckDigit } from '@openlibrary/contracts';
-import { makeApp, PASSWORD, webClient } from './helpers.js';
+import { makeApp, ORIGIN, PASSWORD, webClient } from './helpers.js';
 
 const ISBN = withCheckDigit('978843760494');
 
@@ -110,5 +111,30 @@ describe('wishlist', () => {
     expect((await c.get('/wishlist')).body.items.map((w: { title: string }) => w.title)).toContain(
       'Del móvil',
     );
+  });
+
+  it('a wish keeps the cover found by its ISBN, which must exist on the server', async () => {
+    const { app, c } = await setup();
+    const jpeg = await sharp({ create: { width: 300, height: 450, channels: 3, background: '#264653' } })
+      .jpeg()
+      .toBuffer();
+    const cover = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/assets',
+        headers: { origin: ORIGIN, 'content-type': 'image/jpeg' },
+        cookies: { ol_session: c.token },
+        payload: jpeg,
+      })
+    ).json().id as string;
+    const w = await c.post('/wishlist', { title: 'Antifrágil', isbn13: ISBN, coverAssetId: cover });
+    expect(w.status).toBe(201);
+    expect(w.body.coverAssetId).toBe(cover);
+    expect((await c.post('/wishlist', { title: 'X', coverAssetId: 'ab'.repeat(32) })).status).toBe(400);
+    const patched = await c.patch(`/wishlist/${w.body.id}`, {
+      baseVersion: 1,
+      fields: { coverAssetId: null },
+    });
+    expect(patched.body.coverAssetId).toBeNull();
   });
 });

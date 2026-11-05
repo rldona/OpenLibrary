@@ -315,7 +315,7 @@ private fun SyncReading.toEntity() =
     ReadingEntity(id, version, copyId, status, startedOn, finishedOn, rating, notes, createdAt, updatedAt)
 
 private fun SyncWish.toEntity() =
-    WishEntity(id, version, title, authors, isbn13, workId, priority, notes, status, acquiredCopyId, createdAt, updatedAt)
+    WishEntity(id, version, title, authors, isbn13, workId, priority, notes, status, acquiredCopyId, createdAt, updatedAt, coverAssetId)
 
 private fun SyncQuote.toEntity() = QuoteEntity(id, version, workId, copyId, text, page, note, createdAt, updatedAt)
 
