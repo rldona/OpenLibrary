@@ -352,4 +352,8 @@ export const es: Record<keyof typeof en, string> = {
   'data.entity.assets': 'Portadas',
   'a11y.skipToContent': 'Saltar al contenido',
   'a11y.mainNav': 'Menú principal',
+  'wish.drawerLabel': 'Detalle del deseo',
+  'wish.addedOn': 'Añadido',
+  'wish.updatedOn': 'Último cambio',
+  'wish.openBook': 'Ver el libro en tu biblioteca',
 };

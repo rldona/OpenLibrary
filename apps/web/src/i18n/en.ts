@@ -347,4 +347,8 @@ export const en = {
   'data.entity.assets': 'Covers',
   'a11y.skipToContent': 'Skip to content',
   'a11y.mainNav': 'Main menu',
+  'wish.drawerLabel': 'Wish details',
+  'wish.addedOn': 'Added',
+  'wish.updatedOn': 'Last change',
+  'wish.openBook': 'See the book in your library',
 } as const;

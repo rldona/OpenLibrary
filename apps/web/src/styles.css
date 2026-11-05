@@ -1460,3 +1460,23 @@ table.report thead th {
 .list .wish-cover {
   width: 44px;
 }
+/* Wishlist: the cover and the title open the wish panel. */
+.linklike {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.linklike:hover {
+  color: var(--accent);
+}
+.wish-open {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}

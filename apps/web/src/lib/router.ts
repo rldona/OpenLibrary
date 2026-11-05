@@ -37,3 +37,6 @@ export function setParams(patch: Record<string, string | undefined>, opts: { rep
 
 export const openBook = (workId: string, editionId?: string) => setParams({ book: workId, ed: editionId });
 export const closeBook = () => setParams({ book: undefined, ed: undefined });
+/** The wish detail panel (?wish=<id>), over the wishlist. */
+export const openWish = (id: string) => setParams({ wish: id });
+export const closeWish = () => setParams({ wish: undefined });

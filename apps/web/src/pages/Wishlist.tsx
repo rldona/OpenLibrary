@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
 import { fmtDate, splitList } from '../lib/format';
 import { useInvalidate, useWishlist } from '../lib/queries';
+import { closeWish, openBook, openWish, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
 
 type Bought = (w: WishDTO) => void;
@@ -53,9 +54,13 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
       <ul className="list">
         {open.map((w) => (
           <li key={w.id}>
-            <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} className="wish-cover" />
+            <button className="wish-open" onClick={() => openWish(w.id)} aria-label={w.title}>
+              <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} className="wish-cover" />
+            </button>
             <div className="grow">
-              <b>{w.title}</b>{' '}
+              <button className="linklike" onClick={() => openWish(w.id)}>
+                <b>{w.title}</b>
+              </button>{' '}
               {w.priority !== 'normal' && (
                 <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
                   {t(`wish.priority.${w.priority}`)}
@@ -88,7 +93,9 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
           <summary>{t('wish.history', { n: done.length })}</summary>
           {done.map((w) => (
             <div key={w.id} className="row-sm">
-              <span>{w.title}</span>
+              <button className="linklike" onClick={() => openWish(w.id)}>
+                {w.title}
+              </button>
               <span className="muted">
                 {t(`wish.status.${w.status}`)} · {fmtDate(w.updatedAt)}
               </span>
@@ -102,7 +109,142 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
         </details>
       )}
 
+      <WishDrawer
+        items={items}
+        onBought={onBought}
+        onEdit={setEditing}
+        onStatus={(w, st) => void setStatus(w, st)}
+      />
       {editing && <WishForm wish={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+    </>
+  );
+}
+
+/** Detail of a wish in the right-hand panel, like a book's (?wish=<id>). */
+function WishDrawer({
+  items,
+  onBought,
+  onEdit,
+  onStatus,
+}: {
+  items: WishDTO[];
+  onBought: Bought;
+  onEdit: (w: WishDTO) => void;
+  onStatus: (w: WishDTO, status: 'open' | 'discarded') => void;
+}) {
+  const { t } = useI18n();
+  const { params } = useLocation();
+  const id = params.get('wish');
+  const w = items.find((x) => x.id === id);
+  const open = !!id;
+
+  // Same keyboard behaviour as the book panel: Escape closes, focus moves in and back.
+  const panel = useRef<HTMLElement>(null);
+  const opener = useRef<Element | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) =>
+      e.key === 'Escape' && !document.querySelector('.modal-bg') && closeWish();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  useEffect(() => {
+    if (open) {
+      opener.current = document.activeElement;
+      panel.current?.focus();
+    } else if (opener.current instanceof HTMLElement) {
+      opener.current.focus();
+      opener.current = null;
+    }
+  }, [open]);
+
+  return (
+    <>
+      <div className={`scrim ${open ? 'on' : ''}`} onClick={closeWish} />
+      <aside
+        className={`drawer ${open ? 'on' : ''}`}
+        aria-label={t('wish.drawerLabel')}
+        aria-hidden={!open}
+        inert={!open}
+        ref={panel}
+        tabIndex={-1}
+      >
+        {w && (
+          <>
+            <div className="dh">
+              <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} />
+              <div className="grow">
+                <div className="kicker">
+                  {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
+                </div>
+                <h2>{w.title}</h2>
+                <div>{w.authors.join(', ') || t('book.unknownAuthor')}</div>
+                {w.isbn13 && <div className="muted mono small">ISBN {formatIsbn(w.isbn13)}</div>}
+                <div className="actions">
+                  {w.status === 'open' && (
+                    <button
+                      className="btn sm primary"
+                      onClick={() => {
+                        closeWish();
+                        onBought(w);
+                      }}
+                    >
+                      {t('wish.bought')}
+                    </button>
+                  )}
+                  <button className="btn sm" onClick={() => onEdit(w)}>
+                    {t('common.edit')}
+                  </button>
+                  {w.status === 'open' ? (
+                    <button className="btn sm ghost danger" onClick={() => onStatus(w, 'discarded')}>
+                      {t('wish.discard')}
+                    </button>
+                  ) : (
+                    w.status === 'discarded' && (
+                      <button className="btn sm ghost" onClick={() => onStatus(w, 'open')}>
+                        {t('drawer.restore')}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+              <button className="icon-btn x" onClick={closeWish} aria-label={t('common.close')}>
+                <Icon name="x" />
+              </button>
+            </div>
+            {w.notes && (
+              <section className="sec">
+                <h3>{t('wish.notes')}</h3>
+                <p className="note">{w.notes}</p>
+              </section>
+            )}
+            <section className="sec">
+              <dl className="kv">
+                <div>
+                  <dt>{t('wish.addedOn')}</dt>
+                  <dd>{fmtDate(w.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt>{t('wish.updatedOn')}</dt>
+                  <dd>{fmtDate(w.updatedAt)}</dd>
+                </div>
+              </dl>
+              {w.workId && (
+                <p>
+                  <button
+                    className="btn sm"
+                    onClick={() => {
+                      closeWish();
+                      openBook(w.workId!);
+                    }}
+                  >
+                    {t('wish.openBook')}
+                  </button>
+                </p>
+              )}
+            </section>
+          </>
+        )}
+      </aside>
     </>
   );
 }
