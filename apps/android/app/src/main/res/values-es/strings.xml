@@ -36,6 +36,18 @@
     <string name="book_unknownAuthor">Autor desconocido</string>
     <string name="book_untitled">Sin título</string>
     <string name="book_year">Año</string>
+    <string name="bulk_addCopy">Añadir otro ejemplar</string>
+    <string name="bulk_added_one">{n} libro añadido</string>
+    <string name="bulk_added_other">{n} libros añadidos</string>
+    <string name="bulk_addedOne">Añadido</string>
+    <string name="bulk_aim">Apunta a los códigos uno a uno</string>
+    <string name="bulk_hint">Apunta al código de barras de cada libro, uno tras otro. Cada uno se guarda en cuanto se lee, en la ubicación de arriba.</string>
+    <string name="bulk_location">Añadirlos a</string>
+    <string name="bulk_lookingUp">Buscando…</string>
+    <string name="bulk_owned">Ya está en tu biblioteca</string>
+    <string name="bulk_provisional">Guardado sin datos: complétalo después</string>
+    <string name="bulk_repeated">{isbn} ya está en esta lista</string>
+    <string name="bulk_title">Escanear varios</string>
     <string name="capture_cover">Portada</string>
     <string name="capture_coverHint">Centra la portada en el marco</string>
     <string name="capture_gallery">Elegir de la galería</string>
@@ -234,6 +246,8 @@
     <string name="library_sort_location">Ubicación</string>
     <string name="library_sort_title">Título</string>
     <string name="library_sortBy">Ordenar: {field}</string>
+    <string name="library_toComplete_one">{n} por completar</string>
+    <string name="library_toComplete_other">{n} por completar</string>
     <string name="library_view">Vista</string>
     <string name="library_viewCovers">Portadas</string>
     <string name="library_viewTable">Tabla</string>

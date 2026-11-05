@@ -12,6 +12,9 @@ import io.github.rldona.openlibrary.sync.LocalWrites
 import io.github.rldona.openlibrary.sync.SyncRepository
 import io.github.rldona.openlibrary.sync.SyncWorker
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** Manual dependency wiring: small enough that a DI framework would only add build time. */
 class AppContainer(app: Application) {
@@ -25,6 +28,8 @@ class AppContainer(app: Application) {
     }
     /** Every local change schedules a sync a few seconds later (several quick edits share one push). */
     val writes by lazy { LocalWrites(db, onQueued = { SyncWorker.soon(app) }) }
+    /** Work that must finish even if the screen that started it closes (e.g. books scanned in bulk). */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val lockSettings = LockSettings(app)
     val lock = LockPolicy()
 }

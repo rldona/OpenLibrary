@@ -97,4 +97,20 @@ export const es: Record<keyof typeof en, string> = {
   'lock.settingHint':
     'Pide tu huella, tu cara o el bloqueo de pantalla al abrir la app o al volver tras un minuto fuera. La biblioteca de este móvil se guarda siempre cifrada.',
   'lock.unavailable': 'Configura primero un bloqueo de pantalla en este móvil.',
+
+  'bulk.title': 'Escanear varios',
+  'bulk.added_one': '{n} libro añadido',
+  'bulk.added_other': '{n} libros añadidos',
+  'bulk.repeated': '{isbn} ya está en esta lista',
+  'bulk.hint':
+    'Apunta al código de barras de cada libro, uno tras otro. Cada uno se guarda en cuanto se lee, en la ubicación de arriba.',
+  'bulk.location': 'Añadirlos a',
+  'bulk.lookingUp': 'Buscando…',
+  'bulk.addedOne': 'Añadido',
+  'bulk.provisional': 'Guardado sin datos: complétalo después',
+  'bulk.owned': 'Ya está en tu biblioteca',
+  'bulk.addCopy': 'Añadir otro ejemplar',
+  'bulk.aim': 'Apunta a los códigos uno a uno',
+  'library.toComplete_one': '{n} por completar',
+  'library.toComplete_other': '{n} por completar',
 };

@@ -48,6 +48,8 @@ import io.github.rldona.openlibrary.ui.book.BookFormScreen
 import io.github.rldona.openlibrary.ui.book.BookFormViewModel
 import io.github.rldona.openlibrary.ui.capture.CaptureMode
 import io.github.rldona.openlibrary.ui.capture.CaptureScreen
+import io.github.rldona.openlibrary.ui.capture.BulkScanScreen
+import io.github.rldona.openlibrary.ui.capture.BulkScanViewModel
 import io.github.rldona.openlibrary.ui.cover.CoverViewModel
 import io.github.rldona.openlibrary.ui.cover.CoverViewerScreen
 import io.github.rldona.openlibrary.ui.review.ReviewScreen
@@ -85,6 +87,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class CaptureRoute(val mode: String, val tabs: Boolean)
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
+@Serializable object BulkScanRoute
 
 /** A FragmentActivity because the system fingerprint/PIN prompt needs one. */
 class MainActivity : FragmentActivity() {
@@ -131,7 +134,7 @@ private fun App(c: AppContainer, connected: Boolean) {
     val dest = entry?.destination
     val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "WishlistRoute", "StatsRoute", "SettingsRoute").any { r.contains(it) } } == true
     // Camera and cover viewer use the whole screen, without app bars.
-    val fullScreen = dest?.route?.let { r -> "CaptureRoute" in r || "CoverRoute" in r } == true
+    val fullScreen = dest?.route?.let { r -> "CaptureRoute" in r || "CoverRoute" in r || "BulkScanRoute" in r } == true
     val inDetail = !inTabs && !fullScreen && dest?.route?.contains("SetupRoute") == false
     val status by c.sync.status.collectAsStateWithLifecycle()
 
@@ -197,6 +200,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                     now,
                     onOpen = { workId -> nav.navigate(DetailRoute(workId)) },
                     onAdd = { nav.navigate(AddBookRoute()) },
+                    onBulk = { nav.navigate(BulkScanRoute) },
                     onReview = { nav.navigate(ReviewRoute) },
                 )
             }
@@ -247,6 +251,10 @@ private fun App(c: AppContainer, connected: Boolean) {
                 val route = e.toRoute<CoverRoute>()
                 val vm = viewModel<CoverViewModel>(factory = viewModelFactory { initializer { CoverViewModel(c, route.assetId) } })
                 CoverViewerScreen(vm, route.title) { nav.popBackStack() }
+            }
+            composable<BulkScanRoute> {
+                val vm = viewModel<BulkScanViewModel>(factory = viewModelFactory { initializer { BulkScanViewModel(c) } })
+                BulkScanScreen(vm, onOpen = { nav.navigate(DetailRoute(it)) }, onClose = { nav.popBackStack() })
             }
             composable<ReviewRoute> {
                 val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })

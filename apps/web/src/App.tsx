@@ -119,6 +119,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     <a
       href={to}
       className={`nav ${view === v ? 'on' : ''}`}
+      aria-current={view === v ? 'page' : undefined}
       onClick={(e) => {
         e.preventDefault();
         navigate(to);
@@ -132,6 +133,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="app">
+      <a className="skip" href="#content">
+        {t('a11y.skipToContent')}
+      </a>
       <aside className="side">
         <div className="brand">
           <span className="logo" aria-hidden>
@@ -139,19 +143,21 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </span>
           OpenLibrary
         </div>
-        {nav('/', 'library', 'book', t('nav.library'))}
-        {nav('/locations', 'locations', 'tree', t('nav.locations'), locs.data?.items.length)}
-        {nav(
-          '/wishlist',
-          'wishlist',
-          'list',
-          t('nav.wishlist'),
-          wishes.data?.items.filter((w) => w.status === 'open').length,
-        )}
-        {nav('/stats', 'stats', 'chart', t('nav.stats'))}
-        <div className="sep" />
-        {nav('/data', 'data', 'download', t('nav.data'))}
-        {nav('/settings', 'settings', 'gear', t('nav.settings'))}
+        <nav aria-label={t('a11y.mainNav')}>
+          {nav('/', 'library', 'book', t('nav.library'))}
+          {nav('/locations', 'locations', 'tree', t('nav.locations'), locs.data?.items.length)}
+          {nav(
+            '/wishlist',
+            'wishlist',
+            'list',
+            t('nav.wishlist'),
+            wishes.data?.items.filter((w) => w.status === 'open').length,
+          )}
+          {nav('/stats', 'stats', 'chart', t('nav.stats'))}
+          <div className="sep" />
+          {nav('/data', 'data', 'download', t('nav.data'))}
+          {nav('/settings', 'settings', 'gear', t('nav.settings'))}
+        </nav>
         <button className="nav" onClick={() => void logout()}>
           <Icon name="logout" />
           <span>{t('nav.logout')}</span>
@@ -175,7 +181,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <span className="hide-sm">{t('book.add')}</span>
           </button>
         </header>
-        <section className="view">
+        <section className="view" id="content" tabIndex={-1}>
           {view === 'library' && <Library onAdd={addBook} />}
           {view === 'locations' && <Locations />}
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}

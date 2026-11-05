@@ -135,7 +135,7 @@ class LocalWrites(
     private suspend fun enqueue(op: Op, notify: Boolean = true) {
         db.withTransaction {
             applyLocally(db, op)
-            rebuildSearchIndex(db)
+            reindexFor(db, op)
             outbox.insert(
                 OutboxEntity(
                     opId = op.opId,
@@ -235,6 +235,22 @@ class LocalWrites(
                     }
                     d.upsertCopies(listOf(p))
                 }
+            }
+        }
+
+        /** Keeps the search index current after a local change, touching only the editions it affects. */
+        suspend fun reindexFor(db: AppDatabase, op: Op) {
+            val d = db.sync()
+            when (op) {
+                // A renamed or moved location changes the text of every book inside it.
+                is Op.LocationUpdate -> rebuildSearchIndex(db)
+                is Op.BookCreate -> reindexEditions(db, listOf(op.book.edition.id))
+                is Op.EditionUpdate -> reindexEditions(db, listOf(op.id))
+                is Op.WorkUpdate -> reindexEditions(db, d.editionIdsOf(op.id))
+                is Op.CopyCreate -> op.copy.editionId?.let { reindexEditions(db, listOf(it)) }
+                is Op.CopyUpdate -> d.editionOfCopy(op.id)?.let { reindexEditions(db, listOf(it)) }
+                // New locations hold nothing yet; readings, quotes and wishes are not searched.
+                else -> Unit
             }
         }
 

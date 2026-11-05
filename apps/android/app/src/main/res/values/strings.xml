@@ -36,6 +36,18 @@
     <string name="book_unknownAuthor">Unknown author</string>
     <string name="book_untitled">Untitled</string>
     <string name="book_year">Year</string>
+    <string name="bulk_addCopy">Add another copy</string>
+    <string name="bulk_added_one">{n} book added</string>
+    <string name="bulk_added_other">{n} books added</string>
+    <string name="bulk_addedOne">Added</string>
+    <string name="bulk_aim">Point at the barcodes one by one</string>
+    <string name="bulk_hint">Point at each book\'s barcode, one after another. Each one is saved as soon as it is read, in the location above.</string>
+    <string name="bulk_location">Add them to</string>
+    <string name="bulk_lookingUp">Looking it up…</string>
+    <string name="bulk_owned">Already in your library</string>
+    <string name="bulk_provisional">Saved without data: complete it later</string>
+    <string name="bulk_repeated">{isbn} is already in this list</string>
+    <string name="bulk_title">Scan many</string>
     <string name="capture_cover">Cover</string>
     <string name="capture_coverHint">Centre the cover in the frame</string>
     <string name="capture_gallery">Choose from the gallery</string>
@@ -234,6 +246,8 @@
     <string name="library_sort_location">Location</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sortBy">Sort: {field}</string>
+    <string name="library_toComplete_one">{n} to complete</string>
+    <string name="library_toComplete_other">{n} to complete</string>
     <string name="library_view">View</string>
     <string name="library_viewCovers">Covers</string>
     <string name="library_viewTable">Table</string>

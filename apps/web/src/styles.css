@@ -10,7 +10,7 @@
   --chip: #efe9df;
   --ok: #2f6b4f;
   --ok-soft: #e1efe6;
-  --warn: #9a6212;
+  --warn: #8a5710;
   --warn-soft: #f8ecd6;
   --err: #a83232;
   --err-soft: #f7e1df;
@@ -684,6 +684,10 @@ main {
 .drawer.on {
   transform: none;
   visibility: visible;
+  /* Visible at once when opening, so focus can move into it; hidden only after sliding out. */
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s;
 }
 .dh {
   display: flex;
@@ -1425,4 +1429,31 @@ table.report thead th {
   align-items: center;
   gap: 6px;
   width: auto;
+}
+
+/* ---------- Accessibility ---------- */
+:where(button, a, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.skip:focus {
+  top: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

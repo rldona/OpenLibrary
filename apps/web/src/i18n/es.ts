@@ -350,4 +350,6 @@ export const es: Record<keyof typeof en, string> = {
   'data.entity.quotes': 'Citas',
   'data.entity.wishes': 'Deseos',
   'data.entity.assets': 'Portadas',
+  'a11y.skipToContent': 'Saltar al contenido',
+  'a11y.mainNav': 'Menú principal',
 };

@@ -345,4 +345,6 @@ export const en = {
   'data.entity.quotes': 'Quotes',
   'data.entity.wishes': 'Wishes',
   'data.entity.assets': 'Covers',
+  'a11y.skipToContent': 'Skip to content',
+  'a11y.mainNav': 'Main menu',
 } as const;

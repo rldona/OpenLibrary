@@ -118,7 +118,7 @@ fun ReadingCard(readings: List<ReadingEntity>, copies: List<CopyEntity>, onActio
                 earlier.forEach { r ->
                     Text(
                         stringResource(readingStatusLabel(r.status)) + " · ${r.startedOn ?: "—"} → ${r.finishedOn ?: "—"}" +
-                            (r.rating?.let { " · " + stars(it) } ?: ""),
+                            (r.rating?.let { " · " + stars(it) + " $it" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

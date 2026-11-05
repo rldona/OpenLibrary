@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { formatIsbn, type EditionDTO, type WorkDTO, type CopyDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon, useToast } from '../components/ui';
@@ -34,6 +34,18 @@ export function BookDrawer(actions: DrawerActions) {
   }, []);
 
   const open = !!workId;
+  // Keyboard and screen-reader users land in the panel when it opens and go back where they were when it closes.
+  const panel = useRef<HTMLElement>(null);
+  const opener = useRef<Element | null>(null);
+  useEffect(() => {
+    if (open) {
+      opener.current = document.activeElement;
+      panel.current?.focus();
+    } else if (opener.current instanceof HTMLElement) {
+      opener.current.focus();
+      opener.current = null;
+    }
+  }, [open]);
   const data = work.data;
   const eds = data?.editions ?? [];
   const ed =
@@ -69,7 +81,14 @@ export function BookDrawer(actions: DrawerActions) {
   return (
     <>
       <div className={`scrim ${open ? 'on' : ''}`} onClick={closeBook} />
-      <aside className={`drawer ${open ? 'on' : ''}`} aria-label={t('drawer.label')} aria-hidden={!open}>
+      <aside
+        className={`drawer ${open ? 'on' : ''}`}
+        aria-label={t('drawer.label')}
+        aria-hidden={!open}
+        inert={!open}
+        ref={panel}
+        tabIndex={-1}
+      >
         {open && work.isPending && <p className="muted pad">{t('common.loading')}</p>}
         {open && work.isError && (
           <div className="pad">

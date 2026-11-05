@@ -33,6 +33,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.rldona.openlibrary.AppContainer
 import io.github.rldona.openlibrary.R
+import io.github.rldona.openlibrary.sync.BulkScan
 import io.github.rldona.openlibrary.core.IsbnResult
 import io.github.rldona.openlibrary.core.conditionLabel
 import io.github.rldona.openlibrary.core.normalizeIsbn
@@ -156,6 +157,8 @@ class BookFormViewModel(
                 val p = result.proposal
                 if (result.found && p != null) {
                     fill(p)
+                    // The data arrived: the book is no longer provisional (the user can still tick it).
+                    provisional = false
                     sources = result.sources
                     notice = LookupNotice.Found(result.sources)
                 } else {
@@ -180,7 +183,9 @@ class BookFormViewModel(
 
     /** The proposal only fills what the user has not typed. */
     private fun fill(p: MetadataProposal) {
-        if (title.isBlank()) title = p.title.orEmpty()
+        // A book scanned in bulk without data has the ISBN as a stand-in title.
+        val standIn = (normalizeIsbn(isbn) as? IsbnResult.Ok)?.let { title.trim() == BulkScan.provisionalTitle(it.isbn13) } == true
+        if (title.isBlank() || standIn) title = p.title.orEmpty()
         if (subtitle.isBlank()) subtitle = p.subtitle.orEmpty()
         if (authors.isBlank()) authors = p.authors.joinToString("; ")
         if (publisher.isBlank()) publisher = p.publisher.orEmpty()

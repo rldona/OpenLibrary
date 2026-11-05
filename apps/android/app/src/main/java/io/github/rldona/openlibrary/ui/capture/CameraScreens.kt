@@ -171,7 +171,7 @@ private fun ModeTab(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CameraPreview(controller: LifecycleCameraController, torch: Boolean) {
+internal fun CameraPreview(controller: LifecycleCameraController, torch: Boolean) {
     val owner = LocalLifecycleOwner.current
     AndroidView(
         factory = { ctx -> PreviewView(ctx).apply { this.controller = controller; controller.bindToLifecycle(owner) } },
@@ -187,7 +187,7 @@ private fun CameraPreview(controller: LifecycleCameraController, torch: Boolean)
  * The frame is computed from the view size by [shape] and reported with [onFrame].
  */
 @Composable
-private fun Viewfinder(hint: String, highlight: Boolean, onFrame: (PixelRect) -> Unit, shape: (w: Float, h: Float) -> PixelRect) {
+internal fun Viewfinder(hint: String, highlight: Boolean, onFrame: (PixelRect) -> Unit, shape: (w: Float, h: Float) -> PixelRect) {
     val accent = MaterialTheme.colorScheme.primary
     var frame by remember { mutableStateOf<PixelRect?>(null) }
     val density = LocalDensity.current
@@ -229,7 +229,7 @@ private fun Viewfinder(hint: String, highlight: Boolean, onFrame: (PixelRect) ->
     }
 }
 
-private fun PixelRect.contains(x: Float, y: Float) = x in left..right && y in top..bottom
+internal fun PixelRect.contains(x: Float, y: Float) = x in left..right && y in top..bottom
 
 /**
  * EAN-13 scanning on the device (ML Kit, bundled model: works offline). Only codes inside the frame count,

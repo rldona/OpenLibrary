@@ -13,6 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.filled.Search
@@ -62,6 +66,9 @@ data class LibraryState(
     val items: List<LibraryItem> = emptyList(),
     val loaded: Boolean = false,
     val location: LocationEntity? = null,
+    /** Books saved without data (scanned offline or unknown to the providers). */
+    val provisional: Int = 0,
+    val onlyProvisional: Boolean = false,
 )
 
 /** Library list over the local copy: works with the server off. */
@@ -69,17 +76,20 @@ data class LibraryState(
 class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewModel() {
     val query = MutableStateFlow("")
     private val locationFilter = MutableStateFlow(locationId)
+    val onlyProvisional = MutableStateFlow(false)
     private val locations = c.db.catalog().locations()
 
     val state: StateFlow<LibraryState> =
-        combine(query.debounce(150), locationFilter, locations) { q, loc, all -> Triple(q, loc, all) }
-            .flatMapLatest { (q, loc, all) ->
+        combine(query.debounce(150), locationFilter, locations, onlyProvisional) { q, loc, all, prov -> Filter(q, loc, all, prov) }
+            .flatMapLatest { (q, loc, all, prov) ->
                 val byId = all.associateBy { it.id }
                 val ids = loc?.let { subtree(all, it) } ?: emptyList()
                 combine(c.db.catalog().library(ftsQuery(q), loc == null, ids), c.db.catalog().placements()) { rows, places ->
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
                     LibraryState(
-                        items = rows.map { r ->
+                        provisional = rows.count { it.metadataStatus == "provisional" },
+                        onlyProvisional = prov,
+                        items = rows.filter { !prov || it.metadataStatus == "provisional" }.map { r ->
                             val inFilter = firstPlace[r.editionId].orEmpty().firstOrNull { loc == null || it in ids }
                             LibraryItem(r, pathOf(byId, inFilter))
                         },
@@ -105,6 +115,8 @@ class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewM
     }
 }
 
+private data class Filter(val q: String, val loc: String?, val all: List<LocationEntity>, val prov: Boolean)
+
 /** A location and everything inside it. */
 fun subtree(all: List<LocationEntity>, root: String): List<String> {
     val children = all.groupBy { it.parentId }
@@ -120,7 +132,14 @@ fun subtree(all: List<LocationEntity>, root: String): List<String> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> Unit, onAdd: () -> Unit, onReview: () -> Unit) {
+fun LibraryScreen(
+    vm: LibraryViewModel,
+    now: Long,
+    onOpen: (workId: String) -> Unit,
+    onAdd: () -> Unit,
+    onBulk: () -> Unit,
+    onReview: () -> Unit,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val q by vm.query.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
@@ -153,6 +172,15 @@ fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> U
                 onClick = vm::clearLocation,
                 label = { Text(loc.name) },
                 trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.library_clearFilters)) },
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+        }
+        if (state.provisional > 0 || state.onlyProvisional) {
+            FilterChip(
+                selected = state.onlyProvisional,
+                onClick = { vm.onlyProvisional.value = !state.onlyProvisional },
+                label = { Text(plural(R.string.library_toComplete_one, R.string.library_toComplete_other, state.provisional)) },
+                leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
@@ -208,12 +236,21 @@ fun LibraryScreen(vm: LibraryViewModel, now: Long, onOpen: (workId: String) -> U
             }
         }
     }
-    ExtendedFloatingActionButton(
-        onClick = onAdd,
-        icon = { Icon(Icons.Default.Add, contentDescription = null) },
-        text = { Text(stringResource(R.string.book_add)) },
-        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp).testTag("add"),
-    )
+    Column(
+        Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SmallFloatingActionButton(onClick = onBulk, modifier = Modifier.testTag("bulk")) {
+            Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.bulk_title))
+        }
+        ExtendedFloatingActionButton(
+            onClick = onAdd,
+            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            text = { Text(stringResource(R.string.book_add)) },
+            modifier = Modifier.testTag("add"),
+        )
+    }
     }
 }
 

@@ -265,6 +265,22 @@ suspend fun rebuildSearchIndex(db: AppDatabase) {
     dao.insertFts(rows)
 }
 
+/** Only the given editions: what a local change needs (a full rebuild costs ~0.5 s with 10,000 books). */
+suspend fun reindexEditions(db: AppDatabase, editionIds: Collection<String>) {
+    if (editionIds.isEmpty()) return
+    val dao = db.sync()
+    val ids = editionIds.distinct()
+    val locations = dao.allLocations().associateBy { it.id }
+    val placesByEdition = dao.activePlacementsOf(ids).groupBy({ it.editionId }, { it.locationId })
+    val rows =
+        dao.searchSourcesOf(ids).map { src ->
+            val places = placesByEdition[src.editionId].orEmpty().filterNotNull().flatMap { pathOf(locations, it) }
+            BookFts(editionId = src.editionId, body = fold(src.text + " " + places.joinToString(" ")))
+        }
+    dao.deleteFts(ids)
+    dao.insertFts(rows)
+}
+
 /** Names from the root down to the given location ("Casa", "Salón", "Balda 3"). */
 fun pathOf(locations: Map<String, LocationEntity>, id: String?): List<String> {
     val out = ArrayDeque<String>()

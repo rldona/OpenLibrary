@@ -155,6 +155,27 @@ interface SyncDao {
     )
     suspend fun searchSources(): List<SearchSource>
 
+    @Query(
+        """
+        SELECT e.id AS editionId,
+               w.title || ' ' || COALESCE(w.subtitle, '') || ' ' || w.authors || ' ' || w.subjects || ' ' ||
+               COALESCE(w.series, '') || ' ' || COALESCE(e.title, '') || ' ' || COALESCE(e.publisher, '') || ' ' ||
+               COALESCE(e.isbn13, '') || ' ' || COALESCE(e.publishedYear, '') AS text
+        FROM editions e JOIN works w ON w.id = e.workId
+        WHERE e.id IN (:editionIds)
+        """,
+    )
+    suspend fun searchSourcesOf(editionIds: List<String>): List<SearchSource>
+
+    @Query("SELECT editionId, locationId FROM copies WHERE status = 'active' AND editionId IN (:editionIds)")
+    suspend fun activePlacementsOf(editionIds: List<String>): List<Placement>
+
+    @Query("SELECT id FROM editions WHERE workId = :workId") suspend fun editionIdsOf(workId: String): List<String>
+
+    @Query("SELECT editionId FROM copies WHERE id = :copyId") suspend fun editionOfCopy(copyId: String): String?
+
+    @Query("DELETE FROM book_fts WHERE editionId IN (:editionIds)") suspend fun deleteFts(editionIds: List<String>)
+
     @Query("SELECT editionId, locationId FROM copies WHERE status = 'active'")
     suspend fun activePlacements(): List<Placement>
 

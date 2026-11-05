@@ -98,4 +98,20 @@ export const en = {
   'lock.settingHint':
     'Asks for your fingerprint, face or screen lock when you open the app or come back after a minute away. The library on this phone is always stored encrypted.',
   'lock.unavailable': 'Set up a screen lock on this phone first.',
+
+  'bulk.title': 'Scan many',
+  'bulk.added_one': '{n} book added',
+  'bulk.added_other': '{n} books added',
+  'bulk.repeated': '{isbn} is already in this list',
+  'bulk.hint':
+    "Point at each book's barcode, one after another. Each one is saved as soon as it is read, in the location above.",
+  'bulk.location': 'Add them to',
+  'bulk.lookingUp': 'Looking it up…',
+  'bulk.addedOne': 'Added',
+  'bulk.provisional': 'Saved without data: complete it later',
+  'bulk.owned': 'Already in your library',
+  'bulk.addCopy': 'Add another copy',
+  'bulk.aim': 'Point at the barcodes one by one',
+  'library.toComplete_one': '{n} to complete',
+  'library.toComplete_other': '{n} to complete',
 } as const;
