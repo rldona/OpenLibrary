@@ -356,4 +356,5 @@ export const es: Record<keyof typeof en, string> = {
   'wish.addedOn': 'Añadido',
   'wish.updatedOn': 'Último cambio',
   'wish.openBook': 'Ver el libro en tu biblioteca',
+  'wish.aboutBook': 'Sobre el libro',
 };

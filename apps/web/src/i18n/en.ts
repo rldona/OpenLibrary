@@ -351,4 +351,5 @@ export const en = {
   'wish.addedOn': 'Added',
   'wish.updatedOn': 'Last change',
   'wish.openBook': 'See the book in your library',
+  'wish.aboutBook': 'About the book',
 } as const;

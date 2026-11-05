@@ -15,11 +15,22 @@ export const keys = {
   work: (id: string) => ['work', id] as const,
   wishlist: ['wishlist'] as const,
   stats: ['stats'] as const,
+  lookup: (isbn13: string) => ['lookup', isbn13] as const,
 };
 
 export const useLocations = () => useQuery({ queryKey: keys.locations, queryFn: api.locations });
 export const useFacets = () => useQuery({ queryKey: keys.facets, queryFn: api.facets });
 export const useWishlist = () => useQuery({ queryKey: keys.wishlist, queryFn: api.wishlist });
+
+/** Provider data for an ISBN (the server caches it, so asking again is cheap). */
+export const lookupQuery = (isbn13: string) => ({
+  queryKey: keys.lookup(isbn13),
+  queryFn: () => api.lookup(isbn13),
+  staleTime: Infinity,
+  retry: false,
+});
+export const useLookup = (isbn13: string | null | undefined) =>
+  useQuery({ ...lookupQuery(isbn13 ?? ''), enabled: !!isbn13 });
 
 /** BR15: the open wish a new book fulfils, by explicit id ("I bought it") or by its ISBN. */
 export function matchingWish(

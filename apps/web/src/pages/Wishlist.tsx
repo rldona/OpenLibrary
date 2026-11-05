@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
-import { fmtDate, splitList } from '../lib/format';
-import { useInvalidate, useWishlist } from '../lib/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { fmtDate, langName, splitList } from '../lib/format';
+import { lookupQuery, useInvalidate, useLookup, useWishlist } from '../lib/queries';
 import { closeWish, openBook, openWish, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
 
@@ -20,6 +21,7 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
   const list = useWishlist();
   const [editing, setEditing] = useState<WishDTO | 'new' | null>(null);
   const items = list.data?.items ?? [];
+  useProviderCovers(items);
   const open = items.filter((w) => w.status === 'open');
   const done = items.filter((w) => w.status !== 'open');
 
@@ -120,6 +122,48 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
   );
 }
 
+/** Wishes asked for once per page load: a failed or coverless lookup is not retried in a loop. */
+const coverTried = new Set<string>();
+
+/**
+ * Wishes with an ISBN but no cover or authors (saved without a lookup, or before wishes had covers) get
+ * what the providers know, stored on the server, so the list, the panel and the phone show it. Only
+ * empty fields are filled: nothing the user typed is replaced.
+ */
+function useProviderCovers(items: WishDTO[]) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidate();
+  useEffect(() => {
+    const todo = items.filter(
+      (w) => w.isbn13 && (!w.coverAssetId || !w.authors.length) && !coverTried.has(w.id),
+    );
+    if (!todo.length) return;
+    todo.forEach((w) => coverTried.add(w.id));
+    void (async () => {
+      let changed = false;
+      for (const w of todo) {
+        try {
+          const r = await qc.fetchQuery(lookupQuery(w.isbn13!));
+          const p = r.found ? r.proposal : null;
+          if (!p) continue;
+          const fields: { coverAssetId?: string; authors?: string[] } = {};
+          if (!w.authors.length && p.authors.length) fields.authors = p.authors;
+          if (!w.coverAssetId && p.coverUrl) {
+            fields.coverAssetId = (await api.fetchCover(p.coverUrl).catch(() => null))?.id;
+            if (!fields.coverAssetId) delete fields.coverAssetId;
+          }
+          if (!Object.keys(fields).length) continue;
+          await api.patchWish(w.id, { baseVersion: w.version, fields });
+          changed = true;
+        } catch {
+          // No connection, no cover or edited meanwhile: the wish simply stays without one.
+        }
+      }
+      if (changed) invalidate();
+    })();
+  }, [items, qc, invalidate]);
+}
+
 /** Detail of a wish in the right-hand panel, like a book's (?wish=<id>). */
 function WishDrawer({
   items,
@@ -137,6 +181,9 @@ function WishDrawer({
   const id = params.get('wish');
   const w = items.find((x) => x.id === id);
   const open = !!id;
+  // What the providers know about the book: shown here, as in the form "I bought it" opens.
+  const found = useLookup(open ? w?.isbn13 : null);
+  const p = found.data?.found ? found.data.proposal : null;
 
   // Same keyboard behaviour as the book panel: Escape closes, focus moves in and back.
   const panel = useRef<HTMLElement>(null);
@@ -171,7 +218,12 @@ function WishDrawer({
         {w && (
           <>
             <div className="dh">
-              <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} />
+              <Cover
+                assetId={w.coverAssetId}
+                src={w.coverAssetId ? null : p?.coverUrl}
+                title={w.title}
+                authors={w.authors}
+              />
               <div className="grow">
                 <div className="kicker">
                   {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
@@ -211,6 +263,50 @@ function WishDrawer({
                 <Icon name="x" />
               </button>
             </div>
+            {p && (
+              <section className="sec">
+                <h3>{t('wish.aboutBook')}</h3>
+                <dl className="kv">
+                  {p.publisher && (
+                    <div>
+                      <dt>{t('book.publisher')}</dt>
+                      <dd>{p.publisher}</dd>
+                    </div>
+                  )}
+                  {p.publishedYear && (
+                    <div>
+                      <dt>{t('book.year')}</dt>
+                      <dd>{p.publishedYear}</dd>
+                    </div>
+                  )}
+                  {p.pages && (
+                    <div>
+                      <dt>{t('book.pages')}</dt>
+                      <dd>{p.pages}</dd>
+                    </div>
+                  )}
+                  {p.language && (
+                    <div>
+                      <dt>{t('book.language')}</dt>
+                      <dd>{langName(p.language)}</dd>
+                    </div>
+                  )}
+                </dl>
+                {p.subjects.length > 0 && (
+                  <div className="chips">
+                    {p.subjects.map((x) => (
+                      <span key={x} className="chip">
+                        {x}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {p.description && <p className="note">{p.description}</p>}
+                <p className="muted small">
+                  {t('form.foundTitle', { sources: found.data!.sources.join(', ') })}
+                </p>
+              </section>
+            )}
             {w.notes && (
               <section className="sec">
                 <h3>{t('wish.notes')}</h3>
