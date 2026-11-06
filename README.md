@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/cover.png" alt="OpenLibrary: every book on your shelf, catalogued at home" width="860">
+</p>
+
 # OpenLibrary
 
 A personal library for physical books: a self-hosted server on an Ubuntu PC (reachable through Tailscale), a web app to manage the catalog and a native Android app with ISBN scanning and offline mode. The app is available in **English and Spanish**.
