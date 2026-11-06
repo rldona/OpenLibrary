@@ -1,10 +1,10 @@
 {
-  "epoch": "987a1c2e-de88-4283-96a2-081a7ec8eb63",
+  "epoch": "e49181b0-4e77-4cc5-8888-8a5a1e73aa02",
   "cursor": 29,
   "serverTime": "2026-11-04T10:00:00.000Z",
   "works": [
     {
-      "id": "01a1ac0c-70e0-7f75-803a-4b702ca079e8",
+      "id": "01a1b25f-4c55-7b3d-adea-c643183209be",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -19,7 +19,7 @@
       "seriesIndex": null
     },
     {
-      "id": "01a1ac0c-70e7-7a16-9af4-83bbf27113d3",
+      "id": "01a1b25f-4c5a-773d-a66c-7d3f0c78c982",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -34,7 +34,7 @@
       "seriesIndex": null
     },
     {
-      "id": "01a1ac0c-70ec-7356-a18b-2a25df8d67ca",
+      "id": "01a1b25f-4c5f-7244-af1c-abb2921809db",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -49,7 +49,7 @@
       "seriesIndex": null
     },
     {
-      "id": "01a1ac0c-70f6-70d5-acf5-762df7a3aee0",
+      "id": "01a1b25f-4c6c-73c3-a7fd-a017a9710331",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -66,11 +66,11 @@
   ],
   "editions": [
     {
-      "id": "01a1ac0c-70e1-7ae2-b79e-b703db97a023",
+      "id": "01a1b25f-4c56-727f-ac1c-d9dda28c5d5a",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1ac0c-70e0-7f75-803a-4b702ca079e8",
+      "workId": "01a1b25f-4c55-7b3d-adea-c643183209be",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -84,11 +84,11 @@
       "metadataSource": null
     },
     {
-      "id": "01a1ac0c-70e7-7493-a41d-4d27d6fe98f4",
+      "id": "01a1b25f-4c5a-78b1-80a4-a053cc968467",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1ac0c-70e7-7a16-9af4-83bbf27113d3",
+      "workId": "01a1b25f-4c5a-773d-a66c-7d3f0c78c982",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -102,11 +102,11 @@
       "metadataSource": null
     },
     {
-      "id": "01a1ac0c-70ec-7283-b581-663b521c6c32",
+      "id": "01a1b25f-4c5f-757f-8634-c7c9213b92f4",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1ac0c-70ec-7356-a18b-2a25df8d67ca",
+      "workId": "01a1b25f-4c5f-7244-af1c-abb2921809db",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -120,11 +120,11 @@
       "metadataSource": null
     },
     {
-      "id": "01a1ac0c-70f6-7c7e-84ea-b51087790e6b",
+      "id": "01a1b25f-4c6d-72a3-ac71-6bb737f7bee8",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1ac0c-70f6-70d5-acf5-762df7a3aee0",
+      "workId": "01a1b25f-4c6c-73c3-a7fd-a017a9710331",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -140,13 +140,13 @@
   ],
   "copies": [
     {
-      "id": "01a1ac0c-70e2-7e92-93f8-4e815bea93d9",
+      "id": "01a1b25f-4c56-7cf5-b10b-f9bdee929946",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1ac0c-70e1-7ae2-b79e-b703db97a023",
+      "editionId": "01a1b25f-4c56-727f-ac1c-d9dda28c5d5a",
       "code": "EJ-0001",
-      "locationId": "01a1ac0c-70dd-72d9-849d-4682fe0fac34",
+      "locationId": "01a1b25f-4c53-7858-a6f8-b80239bf7a33",
       "condition": "good",
       "acquiredOn": "2023-02-01",
       "priceCents": 1000,
@@ -157,11 +157,11 @@
       "retiredOn": null
     },
     {
-      "id": "01a1ac0c-70e8-7d26-9201-9932ff525e55",
+      "id": "01a1b25f-4c5b-7364-9e5e-335fde446cd5",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1ac0c-70e7-7493-a41d-4d27d6fe98f4",
+      "editionId": "01a1b25f-4c5a-78b1-80a4-a053cc968467",
       "code": "EJ-0002",
       "locationId": null,
       "condition": "good",
@@ -174,11 +174,11 @@
       "retiredOn": null
     },
     {
-      "id": "01a1ac0c-70ed-7972-8d5d-a58566c9e4c3",
+      "id": "01a1b25f-4c60-7164-b37a-b4212466233d",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1ac0c-70ec-7283-b581-663b521c6c32",
+      "editionId": "01a1b25f-4c5f-757f-8634-c7c9213b92f4",
       "code": "EJ-0003",
       "locationId": null,
       "condition": "good",
@@ -191,11 +191,11 @@
       "retiredOn": null
     },
     {
-      "id": "01a1ac0c-70f7-75ad-9f7e-b7e20e5d4516",
+      "id": "01a1b25f-4c6e-7777-bc1f-36d678f3acec",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1ac0c-70f6-7c7e-84ea-b51087790e6b",
+      "editionId": "01a1b25f-4c6d-72a3-ac71-6bb737f7bee8",
       "code": "EJ-0005",
       "locationId": null,
       "condition": "good",
@@ -208,11 +208,11 @@
       "retiredOn": "2026-11-04"
     },
     {
-      "id": "01a1ac0c-70fb-7126-8500-7d507368cef0",
+      "id": "01a1b25f-4c73-7035-8e1a-00a01f0527b1",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1ac0c-70e1-7ae2-b79e-b703db97a023",
+      "editionId": "01a1b25f-4c56-727f-ac1c-d9dda28c5d5a",
       "code": "EJ-0006",
       "locationId": null,
       "condition": "good",
@@ -227,7 +227,7 @@
   ],
   "locations": [
     {
-      "id": "01a1ac0c-70dd-72d9-849d-4682fe0fac34",
+      "id": "01a1b25f-4c53-7858-a6f8-b80239bf7a33",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -239,11 +239,11 @@
   ],
   "readings": [
     {
-      "id": "01a1ac0c-7107-7759-93c8-6d3ed1896817",
+      "id": "01a1b25f-4c83-70b9-9f21-dc92976f52f2",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1ac0c-70e2-7e92-93f8-4e815bea93d9",
+      "copyId": "01a1b25f-4c56-7cf5-b10b-f9bdee929946",
       "status": "read",
       "startedOn": null,
       "finishedOn": "2023-03-01",
@@ -251,11 +251,11 @@
       "notes": ""
     },
     {
-      "id": "01a1ac0c-710c-7b67-8ea8-faabdd7dd5f9",
+      "id": "01a1b25f-4c88-7c85-8d40-6bc61a9ef309",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1ac0c-70e2-7e92-93f8-4e815bea93d9",
+      "copyId": "01a1b25f-4c56-7cf5-b10b-f9bdee929946",
       "status": "read",
       "startedOn": null,
       "finishedOn": "2025-01-10",
@@ -263,11 +263,11 @@
       "notes": ""
     },
     {
-      "id": "01a1ac0c-7110-7ac0-b6d7-f0dc18d62ad5",
+      "id": "01a1b25f-4c8d-7bc2-bb15-c09c67eb0674",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1ac0c-70e8-7d26-9201-9932ff525e55",
+      "copyId": "01a1b25f-4c5b-7364-9e5e-335fde446cd5",
       "status": "abandoned",
       "startedOn": null,
       "finishedOn": null,
@@ -275,11 +275,11 @@
       "notes": ""
     },
     {
-      "id": "01a1ac0c-7114-7c74-a69b-65e6fb5b8956",
+      "id": "01a1b25f-4c90-7e04-8e33-176fa5f109e0",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1ac0c-70ed-7972-8d5d-a58566c9e4c3",
+      "copyId": "01a1b25f-4c60-7164-b37a-b4212466233d",
       "status": "reading",
       "startedOn": "2026-11-04",
       "finishedOn": null,
@@ -287,11 +287,11 @@
       "notes": ""
     },
     {
-      "id": "01a1ac0c-7118-7f95-b5e0-71232d91c392",
+      "id": "01a1b25f-4c94-7053-9756-041635031782",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1ac0c-70f7-75ad-9f7e-b7e20e5d4516",
+      "copyId": "01a1b25f-4c6e-7777-bc1f-36d678f3acec",
       "status": "read",
       "startedOn": null,
       "finishedOn": "2025-02-02",
@@ -301,7 +301,7 @@
   ],
   "wishes": [
     {
-      "id": "01a1ac0c-711b-7104-8f14-a8f88fb3a2b5",
+      "id": "01a1b25f-4c97-7db1-afdb-5894cba4887a",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -312,21 +312,6 @@
       "priority": "normal",
       "notes": "",
       "status": "open",
-      "acquiredCopyId": null,
-      "coverAssetId": null
-    },
-    {
-      "id": "01a1ac0c-711d-71b3-90e0-ac54c018bcf9",
-      "version": 2,
-      "createdAt": "2026-11-04T10:00:00.000Z",
-      "updatedAt": "2026-11-04T10:00:00.000Z",
-      "title": "Niebla",
-      "authors": [],
-      "isbn13": null,
-      "workId": null,
-      "priority": "normal",
-      "notes": "",
-      "status": "discarded",
       "acquiredCopyId": null,
       "coverAssetId": null
     }

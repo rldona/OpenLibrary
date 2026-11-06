@@ -276,6 +276,9 @@ export class SyncService {
       case 'wish.update':
         c.patchWish(op.id, op.patch, sid);
         break;
+      case 'wish.delete':
+        c.deleteWish(op.id, sid);
+        break;
       case 'quote.create':
         c.createQuote(op.quote, sid);
         break;

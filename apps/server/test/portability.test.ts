@@ -265,6 +265,30 @@ describe('import', () => {
     expect(mine.quotes.map((q: { text: string }) => q.text)).toEqual(['Va a la obra existente']);
   });
 
+  it('skips discarded wishes from older exports', async () => {
+    const { app, c } = await setup();
+    const ts = '2024-01-01T00:00:00.000Z';
+    const [open, discarded] = [uuidv7(), uuidv7()];
+    const file = {
+      format: 'openlibrary',
+      format_version: 1,
+      wishlist: [
+        { id: open, title: 'Abierto', createdAt: ts, updatedAt: ts },
+        { id: discarded, title: 'Descartado', status: 'discarded', createdAt: ts, updatedAt: ts },
+      ],
+    };
+    const r = (await importFile(app, c, JSON.stringify(file), false, 'es')).json();
+    expect(r.counts.wishes).toEqual({ created: 1, duplicates: 0, invalid: 0 });
+    expect(r.issues).toEqual([
+      expect.objectContaining({
+        kind: 'warning',
+        id: discarded,
+        message: 'Un deseo descartado: se omite (ahora los deseos descartados se eliminan).',
+      }),
+    ]);
+    expect((await c.get('/wishlist')).body.items.map((w: { id: string }) => w.id)).toEqual([open]);
+  });
+
   it('rejects files that are not ours', async () => {
     const { app, c } = await setup();
     const bad = async (body: string | Buffer) => (await importFile(app, c, body, true)).json();

@@ -56,6 +56,7 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.wish': 'That wish already exists.',
     'errors.alreadyExists.quote': 'That quote already exists.',
     'errors.copyNotFound': 'The given copy does not exist.',
+    'errors.wishAcquired': 'This wish was already bought: it is kept as a record and cannot be deleted.',
     'errors.conflict.work':
       'Another device changed {fields} of this book while you were editing it. Nothing was overwritten.',
     'errors.conflict.edition':
@@ -111,6 +112,7 @@ const SERVER: Record<Lang, Dict> = {
     'import.codeTaken': 'Code {code} is already used: it got {newCode}.',
     'import.notANumber': 'Not a number: {value}.',
     'import.imageInvalid': 'Not a usable image.',
+    'import.discardedWishSkipped': 'A discarded wish: skipped (discarded wishes are deleted now).',
   },
   es: {
     'title.400': 'Petición no válida',
@@ -164,6 +166,7 @@ const SERVER: Record<Lang, Dict> = {
     'errors.alreadyExists.wish': 'Ese deseo ya existe.',
     'errors.alreadyExists.quote': 'Esa cita ya existe.',
     'errors.copyNotFound': 'El ejemplar indicado no existe.',
+    'errors.wishAcquired': 'Este deseo ya se compró: se conserva como registro y no se puede eliminar.',
     'errors.conflict.work':
       'Otro dispositivo cambió {fields} de este libro mientras lo editabas. No se ha sobrescrito nada.',
     'errors.conflict.edition':
@@ -218,6 +221,8 @@ const SERVER: Record<Lang, Dict> = {
     'import.codeTaken': 'El código {code} ya está en uso: se le asigna {newCode}.',
     'import.notANumber': 'No es un número: {value}.',
     'import.imageInvalid': 'No es una imagen utilizable.',
+    'import.discardedWishSkipped':
+      'Un deseo descartado: se omite (ahora los deseos descartados se eliminan).',
   },
 };
 

@@ -700,7 +700,10 @@ export class CatalogService {
   }
 
   // ======================= Wishlist =======================
-  /** Open wishes first, by priority and then newest; acquired and discarded ones after (history). */
+  /**
+   * Open wishes first, by priority and then newest; acquired ones after. Clients only show the open ones:
+   * bought wishes stay in the database as a record. `discarded` is a legacy status (wishes are deleted now).
+   */
   wishlist(): WishList {
     const items = this.db
       .select()
@@ -736,6 +739,12 @@ export class CatalogService {
 
   patchWish(id: string, p: Out<typeof C.WishPatch>, sid: string | null = null): WishDTO {
     return this.db.transaction((tx) => {
+      // Older clients discard a wish instead of deleting it: treat that as a deletion (the schema
+      // only lets the status come alone).
+      if (p.fields.status === 'discarded') {
+        this.removeWish(tx, id, sid);
+        return toWish(tx.select().from(wishlistItems).where(eq(wishlistItems.id, id)).get()!);
+      }
       this.ensureWishLinks(tx, p.fields);
       const { row } = patchEntity<WishRow>(tx, 'wish', id, p.baseVersion, p.fields, {
         now: this.ts(),
@@ -743,6 +752,19 @@ export class CatalogService {
       });
       return toWish(row);
     });
+  }
+
+  /** Deletes a wish for good (tombstone). Deleting it again is a no-op; a bought wish is kept as a record. */
+  deleteWish(id: string, sid: string | null = null): void {
+    this.db.transaction((tx) => this.removeWish(tx, id, sid));
+  }
+
+  private removeWish(tx: Tx, id: string, sid: string | null) {
+    const w = tx.select().from(wishlistItems).where(eq(wishlistItems.id, id)).get();
+    if (!w) throw notFound();
+    if (w.deletedAt) return;
+    if (w.status === 'acquired') throw new HttpError(409, 'wish-acquired', 'errors.wishAcquired');
+    softDelete(tx, 'wish', id, this.ts(), sid);
   }
 
   private ensureWishLinks(

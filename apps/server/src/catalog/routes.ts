@@ -82,6 +82,10 @@ export async function catalogRoutes(app: FastifyInstance, opts: { catalog: Catal
   app.patch('/wishlist/:id', async (req) =>
     catalog.patchWish(idParam(req), parse(WishPatch, req.body, req.lang), sid(req)),
   );
+  app.delete('/wishlist/:id', async (req, reply) => {
+    catalog.deleteWish(idParam(req), sid(req));
+    return reply.code(204).send();
+  });
 
   // ---------- Locations ----------
   app.get('/locations', async () => catalog.locationTree());

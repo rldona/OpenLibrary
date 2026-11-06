@@ -382,6 +382,9 @@ export class ImportService {
         const v = report.parse(ExportWish, raw, 'wishes', i + 1, label(raw, 'title'));
         if (!v) return;
         const lbl = { id: v.id, label: v.title };
+        // Discarded wishes are deleted now, so an old export does not bring them back.
+        if (v.status === 'discarded')
+          return report.add('warning', 'wishes', i + 1, lbl, 'import.discardedWishSkipped');
         if (ins.exists('wish', v.id))
           return report.add('duplicate', 'wishes', i + 1, lbl, 'import.duplicateId');
         if (v.workId) {

@@ -1,45 +1,59 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { fmtDate, langName, splitList } from '../lib/format';
 import { lookupQuery, useInvalidate, useLookup, useWishlist } from '../lib/queries';
-import { closeWish, openBook, openWish, useLocation } from '../lib/router';
+import { closeWish, openBook, openWish, setParams, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
 
 type Bought = (w: WishDTO) => void;
 
 /**
  * Books you want (design §4, BR14): never part of the collection. "I bought it" opens the add-book form
- * pre-filled; when the book or copy is saved the wish becomes "acquired" and stays here as history.
+ * pre-filled; when the book or copy is saved the wish becomes "acquired": it is kept as a record but no
+ * longer shown here. A wish you no longer want is deleted for good.
  */
 export function Wishlist({ onBought }: { onBought: Bought }) {
   const { t } = useI18n();
   const toast = useToast();
   const invalidate = useInvalidate();
   const list = useWishlist();
+  const { params } = useLocation();
   const [editing, setEditing] = useState<WishDTO | 'new' | null>(null);
-  const items = list.data?.items ?? [];
-  useProviderCovers(items);
-  const open = items.filter((w) => w.status === 'open');
-  const done = items.filter((w) => w.status !== 'open');
+  const open = useMemo(() => (list.data?.items ?? []).filter((w) => w.status === 'open'), [list.data]);
+  useProviderCovers(open);
+  // After a deletion the focus goes to the page heading once the wish has left the list.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const deleted = useRef<string | null>(null);
+  useEffect(() => {
+    if (deleted.current && !open.some((w) => w.id === deleted.current)) {
+      deleted.current = null;
+      heading.current?.focus();
+    }
+  }, [open]);
 
-  async function setStatus(w: WishDTO, status: 'open' | 'discarded') {
+  async function remove(w: WishDTO) {
+    if (!confirm(t('wish.deleteConfirm', { title: w.title }))) return;
     try {
-      await api.patchWish(w.id, { baseVersion: w.version, fields: { status } });
-      invalidate();
+      await api.deleteWish(w.id);
+      deleted.current = w.id;
+      // Replaced, not pushed: going back must not reopen the panel of a wish that is gone.
+      if (params.get('wish') === w.id) setParams({ wish: undefined }, { replace: true });
     } catch (e) {
       toast(errorText(e, t));
-      invalidate();
     }
+    invalidate();
   }
 
   return (
     <>
       <div className="vh">
         <div>
-          <h1>{t('nav.wishlist')}</h1>
+          <h1 ref={heading} tabIndex={-1}>
+            {t('nav.wishlist')}
+          </h1>
           <p className="sub">{t('wish.subtitle')}</p>
         </div>
         <button className="btn" onClick={() => setEditing('new')}>
@@ -82,40 +96,20 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
               <button className="btn sm" onClick={() => setEditing(w)}>
                 {t('common.edit')}
               </button>
-              <button className="btn sm ghost danger" onClick={() => void setStatus(w, 'discarded')}>
-                {t('wish.discard')}
+              <button className="btn sm ghost danger" onClick={() => void remove(w)}>
+                {t('wish.delete')}
               </button>
             </div>
           </li>
         ))}
       </ul>
 
-      {done.length > 0 && (
-        <details className="retired">
-          <summary>{t('wish.history', { n: done.length })}</summary>
-          {done.map((w) => (
-            <div key={w.id} className="row-sm">
-              <button className="linklike" onClick={() => openWish(w.id)}>
-                {w.title}
-              </button>
-              <span className="muted">
-                {t(`wish.status.${w.status}`)} · {fmtDate(w.updatedAt)}
-              </span>
-              {w.status === 'discarded' && (
-                <button className="btn sm ghost" onClick={() => void setStatus(w, 'open')}>
-                  {t('drawer.restore')}
-                </button>
-              )}
-            </div>
-          ))}
-        </details>
-      )}
-
       <WishDrawer
-        items={items}
+        items={open}
+        loaded={list.isSuccess}
         onBought={onBought}
         onEdit={setEditing}
-        onStatus={(w, st) => void setStatus(w, st)}
+        onDelete={(w) => void remove(w)}
       />
       {editing && <WishForm wish={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
@@ -167,20 +161,26 @@ function useProviderCovers(items: WishDTO[]) {
 /** Detail of a wish in the right-hand panel, like a book's (?wish=<id>). */
 function WishDrawer({
   items,
+  loaded,
   onBought,
   onEdit,
-  onStatus,
+  onDelete,
 }: {
   items: WishDTO[];
+  /** The wishlist has loaded: an id that is not in it (bought, deleted, mistyped) is dropped. */
+  loaded: boolean;
   onBought: Bought;
   onEdit: (w: WishDTO) => void;
-  onStatus: (w: WishDTO, status: 'open' | 'discarded') => void;
+  onDelete: (w: WishDTO) => void;
 }) {
   const { t } = useI18n();
   const { params } = useLocation();
   const id = params.get('wish');
   const w = items.find((x) => x.id === id);
-  const open = !!id;
+  const open = !!w;
+  useEffect(() => {
+    if (id && loaded && !w) setParams({ wish: undefined }, { replace: true });
+  }, [id, loaded, w]);
   // What the providers know about the book: shown here, as in the form "I bought it" opens.
   const found = useLookup(open ? w?.isbn13 : null);
   const p = found.data?.found ? found.data.proposal : null;
@@ -232,31 +232,21 @@ function WishDrawer({
                 <div>{w.authors.join(', ') || t('book.unknownAuthor')}</div>
                 {w.isbn13 && <div className="muted mono small">ISBN {formatIsbn(w.isbn13)}</div>}
                 <div className="actions">
-                  {w.status === 'open' && (
-                    <button
-                      className="btn sm primary"
-                      onClick={() => {
-                        closeWish();
-                        onBought(w);
-                      }}
-                    >
-                      {t('wish.bought')}
-                    </button>
-                  )}
+                  <button
+                    className="btn sm primary"
+                    onClick={() => {
+                      closeWish();
+                      onBought(w);
+                    }}
+                  >
+                    {t('wish.bought')}
+                  </button>
                   <button className="btn sm" onClick={() => onEdit(w)}>
                     {t('common.edit')}
                   </button>
-                  {w.status === 'open' ? (
-                    <button className="btn sm ghost danger" onClick={() => onStatus(w, 'discarded')}>
-                      {t('wish.discard')}
-                    </button>
-                  ) : (
-                    w.status === 'discarded' && (
-                      <button className="btn sm ghost" onClick={() => onStatus(w, 'open')}>
-                        {t('drawer.restore')}
-                      </button>
-                    )
-                  )}
+                  <button className="btn sm ghost danger" onClick={() => onDelete(w)}>
+                    {t('wish.delete')}
+                  </button>
                 </div>
               </div>
               <button className="icon-btn x" onClick={closeWish} aria-label={t('common.close')}>

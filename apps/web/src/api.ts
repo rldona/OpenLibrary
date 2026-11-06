@@ -105,6 +105,7 @@ export const api = {
   stats: () => request<StatsDTO>('GET', '/stats'),
   createWish: (b: WishCreate) => request<WishDTO>('POST', '/wishlist', b),
   patchWish: (id: string, p: WishPatch) => request<WishDTO>('PATCH', `/wishlist/${id}`, p),
+  deleteWish: (id: string) => request<void>('DELETE', `/wishlist/${id}`),
 
   // locations
   locations: () => request<LocationTree>('GET', '/locations'),

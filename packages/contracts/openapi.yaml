@@ -437,7 +437,12 @@ components:
         workId: { type: [string, 'null'] }
         priority: { type: string, enum: [low, normal, high] }
         notes: { type: string }
-        status: { type: string, enum: [open, acquired, discarded] }
+        status:
+          type: string
+          enum: [open, acquired, discarded]
+          description: >-
+            `discarded` is legacy: wishes are deleted now (`wish.delete`), and a `wish.update` that sets it
+            (and nothing else) deletes the wish, and `wish.create` rejects it. Clients only show `open` wishes; `acquired` ones stay as a record.
         acquiredCopyId: { type: [string, 'null'], description: The copy created by "I bought it". }
         coverAssetId:
           type: [string, 'null']
@@ -527,6 +532,7 @@ components:
             `reading.create` → `reading` (as POST /reading-sessions: `copyId`, `status`, dates, rating, notes);
             `wish.create` → `wish` (as POST /wishlist: `title`, `authors`, `isbn13`, `priority`, `notes`…);
             `quote.create` → `quote` (as POST /quotes: `workId`, `text`, `page`, `note`, `copyId`); `quote.delete` → `id`;
+            `wish.delete` → `id` (deleting it again is a no-op; a bought wish is rejected);
             `work.update` | `edition.update` | `copy.update` | `location.update` | `reading.update` |
             `wish.update` | `quote.update` → `id` and
             `patch` ({ baseVersion, fields }, only the fields the user changed).
@@ -546,6 +552,7 @@ components:
                     wish.create,
                     quote.create,
                     quote.delete,
+                    wish.delete,
                     work.update,
                     edition.update,
                     copy.update,

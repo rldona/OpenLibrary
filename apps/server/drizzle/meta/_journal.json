@@ -57,6 +57,13 @@
       "when": 1793887830434,
       "tag": "0007_wish_cover",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793993170232,
+      "tag": "0008_delete_discarded_wishes",
+      "breakpoints": true
     }
   ]
 }

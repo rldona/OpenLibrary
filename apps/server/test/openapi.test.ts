@@ -111,6 +111,8 @@ describe('openapi.yaml', () => {
       status: 'acquired',
       acquiredCopyId: copy.id,
     });
+    // And one you no longer want, deleted after the snapshot (tombstone).
+    const unwanted = await web.post('/wishlist', { title: 'Amor y pedagogía' });
 
     expectSchema('HealthResponse', (await call('/health')).body);
 
@@ -134,6 +136,7 @@ describe('openapi.yaml', () => {
     await web.patch(`/works/${book.body.work.id}`, { baseVersion: 1, fields: { subtitle: 'Nivola' } });
     await web.del(`/editions/${other.body.editions[0].id}`);
     await web.del(`/quotes/${doomed.body.quotes.find((q: { text: string }) => q.text === 'Borrar').id}`);
+    expect((await web.del(`/wishlist/${unwanted.body.id}`)).status).toBe(204);
     const page = await call(`/sync/pull?since=${snap.body.cursor}&epoch=${snap.body.epoch}`, { token });
     expectSchema('SyncPullPage', page.body);
     expect((page.body.deleted as unknown[]).length).toBeGreaterThan(0);

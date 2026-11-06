@@ -122,6 +122,7 @@ export type ReadingFields = z.infer<typeof ReadingFields>;
 /**
  * A wish (design §4, BR14–BR15): never part of the collection. "I bought it" creates the copy (and the
  * edition/work if missing) and then sets `status: acquired` with `acquiredCopyId`; the wish is kept.
+ * An open wish you no longer want is deleted; `discarded` is a legacy status kept for compatibility.
  */
 export const WISH_PRIORITIES = ['low', 'normal', 'high'] as const;
 export const WISH_STATUSES = ['open', 'acquired', 'discarded'] as const;
@@ -171,7 +172,11 @@ export type CopyCreate = z.input<typeof CopyCreate>;
 export const ReadingCreate = ReadingFields.extend({ id: Id.optional(), copyId: Id });
 export type ReadingCreate = z.input<typeof ReadingCreate>;
 
-export const WishCreate = WishFields.extend({ id: Id.optional() });
+/** `discarded` is legacy: a new wish cannot have it. */
+export const WishCreate = WishFields.extend({ id: Id.optional() }).refine((w) => w.status !== 'discarded', {
+  message: 'validation.wishDiscarded',
+  path: ['status'],
+});
 export type WishCreate = z.input<typeof WishCreate>;
 
 export const QuoteCreate = QuoteFields.extend({ id: Id.optional(), workId: Id });
@@ -220,7 +225,12 @@ export const LocationPatch = patchOf(
 );
 export const ReadingPatch = patchOf(ReadingFields);
 export type ReadingPatch = z.input<typeof ReadingPatch>;
-export const WishPatch = patchOf(WishFields);
+/** Older clients discard a wish to get rid of it; that deletes it now, so it cannot go with other changes. */
+export const WishPatch = patchOf(WishFields).refine(
+  (p) =>
+    p.fields.status !== 'discarded' || Object.values(p.fields).filter((v) => v !== undefined).length === 1,
+  { message: 'validation.wishDiscardedAlone', path: ['fields', 'status'] },
+);
 export const QuotePatch = patchOf(QuoteFields);
 export type QuotePatch = z.input<typeof QuotePatch>;
 export type WishPatch = z.input<typeof WishPatch>;

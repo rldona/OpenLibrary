@@ -179,6 +179,7 @@ export const SyncOp = z.discriminatedUnion('type', [
   z.object({ opId: Id, type: z.literal('wish.create'), wish: WishCreate }),
   z.object({ opId: Id, type: z.literal('quote.create'), quote: QuoteCreate }),
   z.object({ opId: Id, type: z.literal('quote.delete'), id: Id }),
+  z.object({ opId: Id, type: z.literal('wish.delete'), id: Id }),
   update('work.update', WorkPatch),
   update('edition.update', EditionPatch),
   update('copy.update', CopyPatch),

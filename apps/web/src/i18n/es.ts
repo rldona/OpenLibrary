@@ -126,8 +126,8 @@ export const es: Record<keyof typeof en, string> = {
   'wish.emptyText':
     'Añade los libros que quieres comprar; cuando consigas uno, márcalo con «Lo he comprado».',
   'wish.bought': 'Lo he comprado',
-  'wish.discard': 'Descartar',
-  'wish.history': 'Comprados y descartados ({n})',
+  'wish.delete': 'Eliminar',
+  'wish.deleteConfirm': '¿Eliminar «{title}» de tu lista de deseos? No se puede deshacer.',
   'wish.priority': 'Prioridad',
   'wish.priority.low': 'Baja',
   'wish.priority.normal': 'Normal',

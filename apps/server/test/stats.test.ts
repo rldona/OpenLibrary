@@ -102,8 +102,8 @@ async function library() {
   await c.post('/reading-sessions', { copyId: gone.copyId, status: 'read', finishedOn: '2025-02-02' });
 
   await c.post('/wishlist', { title: 'San Manuel Bueno, mártir' });
-  const bought = (await c.post('/wishlist', { title: 'Niebla' })).body;
-  await c.patch(`/wishlist/${bought.id}`, { baseVersion: 1, fields: { status: 'discarded' } });
+  const unwanted = (await c.post('/wishlist', { title: 'Niebla' })).body;
+  await c.del(`/wishlist/${unwanted.id}`);
   return { ...ctx, c };
 }
 
