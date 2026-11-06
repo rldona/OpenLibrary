@@ -336,6 +336,37 @@ export type LookupResult = {
   errors: string[];
 };
 
+/** One possible match for a title/author read on a cover photo. */
+export type MetadataCandidate = {
+  title: string;
+  subtitle: string | null;
+  authors: string[];
+  publisher: string | null;
+  publishedYear: number | null;
+  language: string | null;
+  /** ONLY when it is the ISBN of that exact volume (Google Books). */
+  isbn13: string | null;
+  coverUrl: string | null;
+  sources: string[];
+  /** An edition with this ISBN is already in the catalog. */
+  owned: boolean;
+};
+
+export type MetadataSearchResult = {
+  query: { title: string | null; author: string | null };
+  candidates: MetadataCandidate[];
+  /** Providers that answered. */
+  sources: string[];
+  /** Providers that failed, as in LookupResult. */
+  errors: string[];
+};
+
+/** Query of the cover-text search. A repeated parameter arrives as an array and must be rejected. */
+export const MetadataSearchParams = z.object({
+  title: z.string().max(200, { message: 'errors.lookupQueryTooLong' }).optional(),
+  author: z.string().max(200, { message: 'errors.lookupQueryTooLong' }).optional(),
+});
+
 export const FetchAssetRequest = z.object({ url: z.url() });
 export type AssetDTO = { id: string; mime: string; width: number; height: number; bytes: number };
 

@@ -12,7 +12,7 @@ Living document. Confirmed decisions (2026-11-04): full-management web app, acce
 |---|-------|-------------|----------|
 | A1 | **Role of the web app** | The conversation described the web as "catalog viewing", but the definition (§11) asks for manual entry, editing, copies, locations, import/export… | The web is the **full management station** (everything except scanning/photographing). Android is the **capture and browsing station**. Both edit; the web is online-only. **Decided:** full management. |
 | A2 | **Reading status: copy or work?** | §8 says "each copy can have a reading status", but reading is an experience of the work (owning two copies of *1984* does not mean reading it twice), and §15 asks to distinguish metrics per work and per copy. | Reading is recorded as a **`ReadingSession` linked to a copy** (the one you held), and the **work status is derived** (read if any session of any copy/edition is finished). The UI shows a single status and a "Re-read" button that starts another session. **Decided** (revisable). |
-| A3 | **Metadata with the PC off** | If ISBN lookup goes through the server, scanning with the PC off never retrieves data even if the phone has Internet. | Android queries the providers (Open Library, Google Books) **directly** when online; the web does it through the server (proxy). Same normalisation module in both. |
+| A3 | **Metadata with the PC off** | If ISBN lookup goes through the server, scanning with the PC off never retrieves data even if the phone has Internet. | Android queries the providers (Open Library, Google Books) **directly** when online; the web does it through the server (proxy). Same normalisation module in both. *As implemented (F3+), Android also uses the server proxy for ISBN and cover-text lookups; the OCR itself stays on the phone.* |
 | A4 | **Access from outside home** | Not specified whether Android syncs only on the home Wi-Fi. Exposing the PC to the Internet conflicts with §16 (privacy). | **Tailscale** (mesh VPN, no open ports): works at home and away, with no public exposure. **Decided:** access from outside. The architecture is ready to go public without code changes (§9.1). |
 | A5 | **"Server as central reference" vs offline edits** | If the server is authoritative and Android edits offline, we must define what happens when both touch the same data. | **Field-level** merge with a base version; conflict only if the *same field* changed on both sides → shown to the user (§6). |
 | A6 | **Provisional books** | Offline creation: does it complete itself later? | Marked `metadata_status = provisional`. When back online the lookup is **proposed** (not applied); the user reviews it. Manually edited data is never overwritten. |
@@ -56,6 +56,7 @@ Living document. Confirmed decisions (2026-11-04): full-management web app, acce
 | UC14 | Backups and restore | ✔ (trigger/view) + CLI | — | — |
 | UC15 | Sync and resolve conflicts | (online) | ✔ | persistent queue |
 | UC16 | Manage credentials and devices | ✔ | login/logout | — |
+| UC17 | Identify a book from its cover (OCR + text search) | — | ✔ | OCR offline; the provider search needs the server |
 
 ### Key flow UC01 — Scanning
 ```
@@ -154,7 +155,7 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 ┌──────────────── Android (Kotlin) ────────────────┐         ┌────────────── Ubuntu PC ───────────────┐
 │ Compose UI ─ ViewModels ─ Repositories            │         │ tailscale serve (TLS) ─ API (Fastify)  │
 │ Room + FTS4 (SQLCipher)   Operation outbox        │◀─HTTPS─▶│   ├ SQLite (WAL) + FTS5                │
-│ CameraX + ML Kit Barcode  WorkManager (sync)      │ Tailnet │   ├ /data/assets (covers by hash)      │
+│ CameraX + ML Kit Barcode/Text  WorkManager (sync) │ Tailnet │   ├ /data/assets (covers by hash)      │
 │ Coil (cover cache)        ISBN provider client    │         │   ├ ISBN providers (proxy for web)     │
 └───────────────────────────────────────────────────┘         │   └ Static web (React) served here     │
             Browser (React + Vite + TanStack Query) ─────────▶│ systemd timers: nightly backup         │
@@ -166,7 +167,7 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 | Area | Recommendation | Alternatives considered | Reason |
 |------|----------------|-------------------------|--------|
 | Mobile app | Native **Kotlin + Jetpack Compose** | Flutter, React Native, PWA | Native was requested. Direct CameraX/ML Kit access, WorkManager for reliable background sync, mature Room for offline. A PWA cannot reliably guarantee camera + persistent storage. |
-| Scanner | **ML Kit Barcode Scanning (bundled model)** | ZXing, cloud service | 100% offline, fast, no Google Play dependency with the *bundled* variant. |
+| Scanner | **ML Kit Barcode + Text Recognition (bundled models)** | ZXing, cloud OCR/vision | 100% offline, fast, no Google Play dependency with the *bundled* variants. Cover identification reads the title/author on the phone and searches by text, not by image embeddings. |
 | Mobile DB | **Room (SQLite) + FTS4**, encrypted with SQLCipher | Realm, DataStore | Standard SQL, offline full-text search over thousands of books in ms. |
 | Backend | **Node.js 24 + TypeScript + Fastify** | Kotlin/Ktor, Python/FastAPI, Go, PocketBase | Shares types and validation (Zod) with the web; simple ecosystem; low footprint. Ktor would allow sharing models with Android via KMP but adds build complexity not worth it for a one-person project. PocketBase/Supabase solve CRUD but not a sync protocol with field-level conflicts. |
 | Server DB | **SQLite (WAL) + FTS5**, via Drizzle ORM | PostgreSQL | One user, thousands of rows: SQLite is plenty. A single file → trivial backups and reliable restore. Drizzle allows moving to Postgres if ever needed. |
@@ -175,7 +176,7 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 | Contract | **OpenAPI 3.1** as source of truth, generated from Zod schemas | GraphQL, gRPC | REST + JSON is the simplest to consume from Kotlin (OpenAPI generator/Retrofit) and TS. |
 | Network | **Tailscale** + HTTPS with `tailscale serve` (automatic certificate, no extra proxy) | Port forwarding + DDNS, Cloudflare Tunnel | No open ports or public exposure, free for personal use, works at home and away. Cloudflare Tunnel exposes to the Internet (even behind Access). |
 | Deployment | **Docker Compose** (1 container: API + web) with a `/srv/openlibrary` volume, listening on 127.0.0.1 only | Native systemd | Isolated and reproducible; updates via `deploy/scripts/update.sh`. Backups run from a systemd timer on the host. |
-| Metadata | **Open Library** (primary) + **Google Books** (fallback) | ISBNdb (paid), BNE (SRU/MARC) | Free. BNE is very valuable for Spanish books: proposed for later (F5). |
+| Metadata | **Open Library** (primary) + **Google Books** (fallback) | ISBNdb (paid), BNE (SRU/MARC) | Free. BNE is very valuable for Spanish books: proposed for later (F5). Cover identification adds a title/author search: Open Library returns work-level candidates (no ISBN); Google Books returns the exact volume ISBN. |
 | Auth | Password (Argon2id) + **cookie session** (web) and long-lived revocable **device token** (Android) | OAuth/OIDC, Basic | Single user: OIDC is overkill. Per-device tokens allow revoking a lost phone. |
 
 ---
@@ -275,6 +276,7 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | POST / PATCH | `/copies`, `/copies/{id}` | add, move, edit, retire, restore | F1 ✔ |
 | GET / POST / PATCH / DELETE | `/locations[/{id}]` | tree with cumulative counts | F1 ✔ |
 | GET | `/lookup/isbn/{isbn}` | normalised metadata proposal (provider proxy, 30-day cache) + existing edition | F1 ✔ |
+| GET | `/lookup/search?title=&author=` | up to 8 candidates from text read on a cover (Open Library + Google Books; partial results if a provider fails; `owned` for candidates with an ISBN already in the catalog) | F6 ✔ |
 | POST / GET | `/assets` · `/assets/fetch` · `/assets/{sha256}?size=thumb\|full` | upload / fetch provider cover / download | F1 ✔ |
 | GET | `/sync/snapshot` · `/sync/pull?since=&epoch=&limit=` | full snapshot; state-based incremental pull (§6) | F2 ✔ |
 | POST | `/sync/push` | batch of offline ops, idempotent by `opId` (§6) | F3 ✔ |
@@ -412,10 +414,10 @@ Indicative total: **~11 weeks** part-time. Every phase ends with something usabl
 
 | Level | What | Tools |
 |-------|------|-------|
-| Unit | ISBN (shared TS/Kotlin vectors: valid, invalid, ISSN, ISMN, X), reading rules, field merge, status derivation, location cycles, language negotiation | Vitest, JUnit5 + Kotest |
+| Unit | ISBN (shared TS/Kotlin vectors: valid, invalid, ISSN, ISMN, X), reading rules, field merge, status derivation, location cycles, language negotiation, cover-text title/author heuristics | Vitest, JUnit5 + Kotest |
 | Property | Sync convergence: random op sequences on 2 replicas + reordering + duplication ⇒ same final state or an explicit conflict, never loss | fast-check (server), Kotest property |
 | Contract | Server conforms to `openapi.yaml`; the generated Android client compiles against it; response snapshots | Schemathesis / Dredd, deserialisation tests |
-| Server integration | Real API + temporary SQLite: CRUD, search, import/export round trip, `/sync/push` idempotency, messages in both languages | Vitest + Fastify inject |
+| Server integration | Real API + temporary SQLite: CRUD, search, text lookup, import/export round trip, `/sync/push` idempotency, messages in both languages | Vitest + Fastify inject |
 | Network faults | Fault proxy (Toxiproxy) between app and server: cut **after** the server commits and before the response arrives → retry ⇒ `duplicate`, no duplication; high latency; intermittent 500; server shut down mid-batch | Toxiproxy, MockWebServer (Android) |
 | Android | Room + migrations, outbox survives process death, WorkManager retries, Compose UI (offline search, scan flow with a test image) | Robolectric, Compose UI tests, WorkManager TestDriver |
 | Web E2E | Add, details, locations, wishlist, import with a broken file, language switch | Playwright |
@@ -433,6 +435,7 @@ Indicative total: **~11 weeks** part-time. Every phase ends with something usabl
 5. Several photos per copy (dedications, condition).
 6. Series as an entity, translators per edition.
 7. Suggest the existing work when adding an edition in another language (e.g. "Nineteen Eighty-Four" for "1984").
+8. Re-rank cover-search candidates by visual similarity (image embeddings) or fall back to a vision model when OCR fails: deferred. OCR + text search covers the normal case at zero cost and without a large model in the APK.
 
 ---
 

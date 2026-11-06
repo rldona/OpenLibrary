@@ -223,6 +223,31 @@ data class LookupResult(
 )
 
 @Serializable
+data class MetadataQuery(val title: String?, val author: String?)
+
+@Serializable
+data class MetadataCandidate(
+    val title: String,
+    val subtitle: String?,
+    val authors: List<String>,
+    val publisher: String?,
+    val publishedYear: Int?,
+    val language: String?,
+    val isbn13: String?,
+    val coverUrl: String?,
+    val sources: List<String>,
+    val owned: Boolean,
+)
+
+@Serializable
+data class MetadataSearchResult(
+    val query: MetadataQuery,
+    val candidates: List<MetadataCandidate>,
+    val sources: List<String>,
+    val errors: List<String>,
+)
+
+@Serializable
 data class Asset(val id: String, val mime: String, val width: Int, val height: Int, val bytes: Long)
 
 @Serializable

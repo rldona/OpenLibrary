@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { AssetId, FetchAssetRequest } from '@openlibrary/contracts';
+import { AssetId, FetchAssetRequest, MetadataSearchParams } from '@openlibrary/contracts';
 import { HttpError, notFound, parse } from '../errors.js';
 import { requireAuth } from '../auth/routes.js';
 import type { LookupService } from '../lookup/service.js';
@@ -50,5 +50,15 @@ export async function assetAndLookupRoutes(
   app.get<{ Params: { isbn: string }; Querystring: { refresh?: string } }>(
     '/lookup/isbn/:isbn',
     async (req) => lookup.byIsbn(req.params.isbn, { refresh: req.query.refresh === '1' }),
+  );
+
+  /**
+   * Identifies a cover by the title/author text read on the phone. The query is logged at warn level
+   * because it contains what the reader is looking at.
+   */
+  app.get<{ Querystring: { title?: string; author?: string } }>(
+    '/lookup/search',
+    { logLevel: 'warn' },
+    async (req) => lookup.search(parse(MetadataSearchParams, req.query, req.lang)),
   );
 }

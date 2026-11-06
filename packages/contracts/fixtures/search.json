@@ -1,0 +1,34 @@
+{
+  "query": {
+    "title": "existe la suerte",
+    "author": "taleb"
+  },
+  "candidates": [
+    {
+      "title": "Existe la suerte",
+      "subtitle": null,
+      "authors": ["Nassim Nicholas Taleb"],
+      "publisher": "Paidós",
+      "publishedYear": 2013,
+      "language": "es",
+      "isbn13": "9788432221477",
+      "coverUrl": "https://books.google.com/books/content?id=x&printsec=frontcover&img=1&zoom=1&source=gbs_api",
+      "sources": ["Google Books"],
+      "owned": false
+    },
+    {
+      "title": "Existe la suerte",
+      "subtitle": "Enganados por el azar",
+      "authors": ["Nassim Nicholas Taleb"],
+      "publisher": "Paidós",
+      "publishedYear": 2013,
+      "language": "es",
+      "isbn13": null,
+      "coverUrl": "https://covers.openlibrary.org/b/id/12344622-L.jpg",
+      "sources": ["Open Library"],
+      "owned": false
+    }
+  ],
+  "sources": ["Open Library", "Google Books"],
+  "errors": []
+}

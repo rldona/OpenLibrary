@@ -19,7 +19,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +44,7 @@ import io.github.rldona.openlibrary.data.EditionEntity
 import io.github.rldona.openlibrary.data.OwnedEdition
 import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.data.WorkEntity
+import io.github.rldona.openlibrary.network.MetadataCandidate
 import io.github.rldona.openlibrary.network.MetadataProposal
 import io.github.rldona.openlibrary.network.NewBook
 import io.github.rldona.openlibrary.network.NewCopy
@@ -149,21 +149,34 @@ class BookFormViewModel(
         lookup()
     }
 
-    /** Local duplicate check first (works offline), then the providers through the server. */
-    fun lookup() {
+    /** Invalidates the answer of a lookup still in flight when a newer one starts. */
+    private var lookupSeq = 0
+
+    /**
+     * Local duplicate check first (works offline), then the providers through the server. When a cover
+     * candidate is passed as [fallback], its summary fills the form if the lookup finds nothing.
+     */
+    fun lookup(fallback: MetadataCandidate? = null) {
         val r = normalizeIsbn(isbn)
         if (r !is IsbnResult.Ok) {
             notice = LookupNotice.InvalidIsbn((r as IsbnResult.Invalid).reason)
             return
         }
         isbn = r.isbn13
+        val seq = ++lookupSeq
         busy = true
         viewModelScope.launch {
             try {
                 if (!editing && wish == null) wish = c.db.catalog().openWishByIsbn(r.isbn13)
                 c.db.catalog().byIsbn(r.isbn13)?.let { if (!editing) { notice = LookupNotice.Owned(it); return@launch } }
-                val s = c.sessions.session.first() ?: return@launch
+                val s = c.sessions.session.first()
+                if (seq != lookupSeq) return@launch
+                if (s == null) {
+                    if (fallback != null) applySummary(fallback) else offline()
+                    return@launch
+                }
                 val result = withTimeout(8_000) { c.api(s.serverUrl, s.token).lookup(r.isbn13) }
+                if (seq != lookupSeq) return@launch
                 val p = result.proposal
                 if (result.found && p != null) {
                     fill(p)
@@ -173,19 +186,79 @@ class BookFormViewModel(
                     provisional = false
                     sources = result.sources
                     notice = LookupNotice.Found(result.sources)
+                } else if (fallback != null) {
+                    applySummary(fallback)
                 } else {
                     notice = LookupNotice.NotFound
                 }
             } catch (_: IOException) {
-                offline()
+                if (seq == lookupSeq) {
+                    if (fallback != null) applySummary(fallback) else offline()
+                }
             } catch (_: TimeoutCancellationException) {
-                offline()
+                if (seq == lookupSeq) {
+                    if (fallback != null) applySummary(fallback) else offline()
+                }
             } catch (_: Exception) {
-                notice = LookupNotice.NotFound
+                if (seq == lookupSeq) {
+                    if (fallback != null) applySummary(fallback) else notice = LookupNotice.NotFound
+                }
             } finally {
-                busy = false
+                if (seq == lookupSeq) busy = false
             }
         }
+    }
+
+    /** Set once a cover candidate filled the form, so a later candidate can replace it cleanly. */
+    private var identifiedOnce = false
+
+    /** A book chosen from the cover search: use its ISBN when known, or its summary directly. */
+    fun applyCandidate(c: MetadataCandidate) {
+        // An answer for a previous candidate must not land on top of this one.
+        lookupSeq++
+        busy = false
+        // Picking another book from the camera means "this one, not the previous one": clear the fields
+        // that the previous candidate wrote, so two books never end up mixed in one form. Location,
+        // condition, notes and the user's own photo are kept.
+        if (identifiedOnce) resetIdentifiedFields()
+        identifiedOnce = true
+        if (c.isbn13 != null) {
+            isbn = c.isbn13
+            lookup(fallback = c)
+        } else {
+            applySummary(c)
+        }
+    }
+
+    private fun resetIdentifiedFields() {
+        title = ""
+        subtitle = ""
+        authors = ""
+        publisher = ""
+        year = ""
+        language = ""
+        pages = ""
+        isbn = ""
+        providerCoverId = null
+        providerCoverSource = null
+        coverUrl = null
+        notice = null
+        titleMissing = false
+    }
+
+    /** Fills only what is still blank, so nothing the user typed is overwritten. */
+    private fun applySummary(c: MetadataCandidate) {
+        if (title.isBlank()) title = c.title
+        if (subtitle.isBlank()) subtitle = c.subtitle.orEmpty()
+        if (authors.isBlank()) authors = c.authors.joinToString("; ")
+        if (publisher.isBlank()) publisher = c.publisher.orEmpty()
+        if (year.isBlank()) year = c.publishedYear?.toString().orEmpty()
+        if (language.isBlank()) language = c.language.orEmpty()
+        coverUrl = c.coverUrl
+        sources = c.sources
+        notice = LookupNotice.Found(c.sources)
+        provisional = false
+        if (photoId == null && providerCoverId == null) c.coverUrl?.let { fetchProviderCover(it, c.sources.firstOrNull()) }
     }
 
     private fun offline() {
@@ -334,16 +407,13 @@ class BookFormViewModel(
 @Composable
 fun BookFormScreen(
     vm: BookFormViewModel,
-    scannedIsbn: String?,
-    photoId: String?,
     onScan: () -> Unit,
     onPhoto: () -> Unit,
     onOpenWork: (String) -> Unit,
     onSaved: (String) -> Unit,
     onWishAdded: () -> Unit = {},
+    onIdentify: () -> Unit = {},
 ) {
-    LaunchedEffect(scannedIsbn) { scannedIsbn?.let(vm::scanned) }
-    LaunchedEffect(photoId) { photoId?.let { vm.photoId = it } }
     val locations by vm.locations.collectAsState(emptyList())
 
     Column(
@@ -365,7 +435,12 @@ fun BookFormScreen(
                 Text(stringResource(if (vm.busy) R.string.form_searching else R.string.form_lookup))
             }
         }
-        if (!vm.editing) Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.add_scan)) }
+        if (!vm.editing) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onScan, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.add_scan)) }
+                OutlinedButton(onClick = onIdentify, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.add_identify)) }
+            }
+        }
 
         vm.wish?.let { Notice(it) }
         vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }

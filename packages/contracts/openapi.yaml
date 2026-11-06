@@ -125,6 +125,25 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LookupResult' }
         '400': { $ref: '#/components/responses/Problem' }
+  /lookup/search:
+    get:
+      operationId: searchMetadata
+      description: |
+        Candidates found by the title/author text read on a cover photo. The user chooses one; nothing is
+        stored. Providers that failed are listed in `errors` and partial results are still returned.
+        Open Library candidates never carry an ISBN (search results are work-level); Google Books
+        candidates carry the ISBN of that exact volume.
+      parameters:
+        - { name: title, in: query, required: false, schema: { type: string, maxLength: 200 } }
+        - { name: author, in: query, required: false, schema: { type: string, maxLength: 200 } }
+      responses:
+        '200':
+          description: Candidates, best match first (at most 8).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MetadataSearchResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
   /assets:
     post:
       operationId: uploadAsset
@@ -607,6 +626,41 @@ components:
                 workId: { type: string }
                 title: { type: string }
                 copies: { type: integer }
+        errors: { type: array, items: { type: string } }
+    MetadataCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        [title, subtitle, authors, publisher, publishedYear, language, isbn13, coverUrl, sources, owned]
+      properties:
+        title: { type: string }
+        subtitle: { type: [string, 'null'] }
+        authors: { type: array, items: { type: string } }
+        publisher: { type: [string, 'null'] }
+        publishedYear: { type: [integer, 'null'] }
+        language: { type: [string, 'null'] }
+        isbn13:
+          {
+            type: [string, 'null'],
+            description: Only when it is the ISBN of that exact volume (Google Books).,
+          }
+        coverUrl: { type: [string, 'null'] }
+        sources: { type: array, items: { type: string } }
+        owned: { type: boolean, description: An edition with this ISBN is already in the catalog. }
+    MetadataSearchResult:
+      type: object
+      additionalProperties: false
+      required: [query, candidates, sources, errors]
+      properties:
+        query:
+          type: object
+          additionalProperties: false
+          required: [title, author]
+          properties:
+            title: { type: [string, 'null'] }
+            author: { type: [string, 'null'] }
+        candidates: { type: array, items: { $ref: '#/components/schemas/MetadataCandidate' } }
+        sources: { type: array, items: { type: string } }
         errors: { type: array, items: { type: string } }
     Asset:
       type: object

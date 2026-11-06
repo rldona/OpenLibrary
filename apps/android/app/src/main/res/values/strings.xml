@@ -6,6 +6,7 @@
     <string name="add_cameraDenied">The camera is needed to scan or take photos. You can type the ISBN instead.</string>
     <string name="add_capture">Take photo</string>
     <string name="add_detected">Detected: {isbn}</string>
+    <string name="add_identify">Identify cover</string>
     <string name="add_notIsbn">That barcode is not an ISBN: {reason}</string>
     <string name="add_offline">No connection: it will be saved as provisional and you can complete it later.</string>
     <string name="add_photoHint">Fit the cover inside the frame; only that part is kept.</string>
@@ -53,6 +54,8 @@
     <string name="capture_cover">Cover</string>
     <string name="capture_coverHint">Centre the cover in the frame</string>
     <string name="capture_gallery">Choose from the gallery</string>
+    <string name="capture_identify">Identify</string>
+    <string name="capture_identifyHint">Centre the cover in the frame; its title is read on this phone</string>
     <string name="capture_isbn">ISBN</string>
     <string name="capture_isbnHint">Centre the barcode in the frame</string>
     <string name="common_cancel">Cancel</string>
@@ -216,6 +219,15 @@
     <string name="form_separateWithSemicolon">Separate several with ;</string>
     <string name="form_subjectsPlaceholder">Novel; Science fiction</string>
     <string name="form_updated">Details updated</string>
+    <string name="identify_failed">The search could not be completed. Check the connection and try again.</string>
+    <string name="identify_failedTitle">The search failed</string>
+    <string name="identify_keepScanning">Keep scanning</string>
+    <string name="identify_none">No matches. Move a little closer or type the title by hand.</string>
+    <string name="identify_noneTitle">No matches</string>
+    <string name="identify_owned">In your library</string>
+    <string name="identify_retry">Try again</string>
+    <string name="identify_searching">Looking for this book…</string>
+    <string name="identify_title">Is it one of these?</string>
     <string name="import_newerFormat">This export comes from a newer version of OpenLibrary. Update the app first.</string>
     <string name="import_notOurFormat">This is not an OpenLibrary export.</string>
     <string name="isbn_checksum">Wrong check digit.</string>
@@ -432,12 +444,15 @@
     <string name="validation_quoteRequired">The quote cannot be empty.</string>
     <string name="validation_titleRequired">The title is required.</string>
     <string name="validation_workOrWorkId">Provide either an existing work (workId) or a new one (work).</string>
+    <string name="wish_aboutBook">About the book</string>
     <string name="wish_add">Add wish</string>
     <string name="wish_added">\"{title}\" added to your wishlist</string>
+    <string name="wish_addedOn">Added</string>
     <string name="wish_addToWishlist">Add to wishlist</string>
     <string name="wish_alreadyWished">This ISBN is already in your wishlist.</string>
     <string name="wish_bought">I bought it</string>
     <string name="wish_discard">Discard</string>
+    <string name="wish_drawerLabel">Wish details</string>
     <string name="wish_editTitle">Edit wish</string>
     <string name="wish_emptyText">Add the books you want to buy; when you get one, mark it with \"I bought it\".</string>
     <string name="wish_emptyTitle">No wishes</string>
@@ -445,6 +460,7 @@
     <string name="wish_notes">Notes</string>
     <string name="wish_notesPlaceholder">Where to find it, which edition, a gift idea…</string>
     <string name="wish_offline">No connection: type the title yourself, the ISBN is kept.</string>
+    <string name="wish_openBook">See the book in your library</string>
     <string name="wish_owned">You already have «{title}» in your library.</string>
     <string name="wish_priority">Priority</string>
     <string name="wish_priority_high">High</string>
@@ -454,5 +470,6 @@
     <string name="wish_status_discarded">Discarded</string>
     <string name="wish_status_open">Wanted</string>
     <string name="wish_subtitle">Books you want. They do not count as yours until you buy them.</string>
+    <string name="wish_updatedOn">Last change</string>
     <string name="wish_willBeAcquired">\"{title}\" is on your wishlist: it will be marked as bought.</string>
 </resources>

@@ -1,20 +1,31 @@
 package io.github.rldona.openlibrary.ui.detail
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -134,24 +145,63 @@ private sealed interface Dialog {
     data class Add(val editionId: String) : Dialog
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String) -> Unit, onCover: (assetId: String, title: String) -> Unit) {
+fun DetailScreen(
+    vm: DetailViewModel,
+    editionId: String?,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onBack: () -> Unit,
+    onEdit: (workId: String, editionId: String) -> Unit,
+    onCover: (assetId: String, title: String) -> Unit,
+) {
     val s by vm.state.collectAsStateWithLifecycle()
     val work = s.work ?: return
     val active = s.copies.filter { it.status == "active" }
     var dialog by remember { mutableStateOf<Dialog?>(null) }
     val locations = s.locations.values.toList()
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // The bar belongs to this screen, so it slides in/out with the detail instead of appearing over the
+    // library. The outer Scaffold already handles the status bar, hence the zero content insets here.
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {},
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.detail_back))
+                    }
+                },
+                windowInsets = WindowInsets(0),
+            )
+        },
+        contentWindowInsets = WindowInsets(0),
+    ) { inner ->
+        Column(
+            Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            val coverId = s.editions.firstNotNullOfOrNull { it.coverAssetId }?.takeIf { vm.covers.has(it) }
+            val coverEdition =
+                s.editions.firstOrNull { it.id == editionId && it.coverAssetId != null && vm.covers.has(it.coverAssetId) }
+                    ?: s.editions.firstNotNullOfOrNull { e -> e.coverAssetId?.takeIf { assetId -> vm.covers.has(assetId) }?.let { e } }
+            val coverId = coverEdition?.coverAssetId
+            // The tapped edition carries the shared element; a different edition's cover is only a fallback.
+            val sharedKey = editionId?.takeIf { coverEdition?.id == it }?.let { "cover-$it" }
+            val coverModifier = if (sharedKey != null) {
+                with(sharedTransitionScope) {
+                    Modifier.sharedElement(rememberSharedContentState(sharedKey), animatedVisibilityScope)
+                }
+            } else Modifier
             // Tapping the cover opens it full screen, zoomable.
             Cover(
                 vm.covers,
                 coverId,
                 work.title,
                 128.dp,
-                if (coverId != null) Modifier.clickable { onCover(coverId, work.title) } else Modifier,
+                coverModifier.then(if (coverId != null) Modifier.clickable { onCover(coverId, work.title) } else Modifier),
                 authors = work.authors,
                 provisional = s.editions.any { it.metadataStatus == "provisional" },
             )
@@ -200,6 +250,7 @@ fun DetailScreen(vm: DetailViewModel, onEdit: (workId: String, editionId: String
                 onRestore = vm::restore,
             )
         }
+    }
     }
 
     when (val d = dialog) {

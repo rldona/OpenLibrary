@@ -1,11 +1,17 @@
 import { eq } from 'drizzle-orm';
-import { normalizeIsbn, type LookupResult, type MetadataProposal } from '@openlibrary/contracts';
+import {
+  normalizeIsbn,
+  type LookupResult,
+  type MetadataProposal,
+  type MetadataSearchResult,
+} from '@openlibrary/contracts';
 import type { Db } from '../db/client.js';
 import { lookupCache } from '../db/schema.js';
 import { badRequest } from '../errors.js';
 import type { Clock } from '../auth/service.js';
 import type { CatalogService } from '../catalog/service.js';
 import { mergeProposals, PROVIDERS, type Fetch } from './providers.js';
+import { searchCandidates } from './search.js';
 
 const FOUND_TTL_MS = 30 * 24 * 3600_000;
 const MISS_TTL_MS = 24 * 3600_000;
@@ -58,5 +64,26 @@ export class LookupService {
         .run();
     }
     return { ...base, found: !!proposal, sources, proposal, errors };
+  }
+
+  /** Identifies a cover by text: returns several candidates for the user to choose from. */
+  async search(raw: { title?: string; author?: string }): Promise<MetadataSearchResult> {
+    const title = raw.title?.trim() || null;
+    const author = raw.author?.trim() || null;
+    if (!title && !author) throw badRequest('errors.lookupQueryRequired');
+    if ((title?.length ?? 0) > 200 || (author?.length ?? 0) > 200) {
+      throw badRequest('errors.lookupQueryTooLong');
+    }
+
+    const result = await searchCandidates(this.fetchImpl, { title, author });
+    return {
+      query: { title, author },
+      candidates: result.candidates.map((candidate) => ({
+        ...candidate,
+        owned: candidate.isbn13 ? this.catalog.findByIsbn(candidate.isbn13) != null : false,
+      })),
+      sources: result.sources,
+      errors: result.errors,
+    };
   }
 }

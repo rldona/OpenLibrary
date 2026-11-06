@@ -82,6 +82,8 @@ const SERVER: Record<Lang, Dict> = {
     'errors.noCover': 'The provider has no cover for this book.',
     'errors.providerError': 'The provider answered {status}.',
     'errors.tooManyRedirects': 'Too many redirects.',
+    'errors.lookupQueryRequired': 'Type at least a title or an author.',
+    'errors.lookupQueryTooLong': 'The title or author is too long (200 characters at most).',
     // import / export
     'errors.importEmpty': 'The file is empty.',
     'errors.importUnreadable':
@@ -187,6 +189,8 @@ const SERVER: Record<Lang, Dict> = {
     'errors.noCover': 'El proveedor no tiene portada para este libro.',
     'errors.providerError': 'El proveedor respondió {status}.',
     'errors.tooManyRedirects': 'Demasiadas redirecciones.',
+    'errors.lookupQueryRequired': 'Escribe al menos un título o un autor.',
+    'errors.lookupQueryTooLong': 'El título o el autor son demasiado largos (200 caracteres como máximo).',
     // importar / exportar
     'errors.importEmpty': 'El archivo está vacío.',
     'errors.importUnreadable':

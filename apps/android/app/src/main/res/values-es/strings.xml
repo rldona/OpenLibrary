@@ -6,6 +6,7 @@
     <string name="add_cameraDenied">Hace falta la cámara para escanear o hacer fotos. También puedes escribir el ISBN.</string>
     <string name="add_capture">Hacer foto</string>
     <string name="add_detected">Detectado: {isbn}</string>
+    <string name="add_identify">Identificar portada</string>
     <string name="add_notIsbn">Ese código de barras no es un ISBN: {reason}</string>
     <string name="add_offline">Sin conexión: se guardará como provisional y podrás completarlo después.</string>
     <string name="add_photoHint">Encuadra la portada dentro del recuadro; solo se guarda esa parte.</string>
@@ -53,6 +54,8 @@
     <string name="capture_cover">Portada</string>
     <string name="capture_coverHint">Centra la portada en el marco</string>
     <string name="capture_gallery">Elegir de la galería</string>
+    <string name="capture_identify">Identificar</string>
+    <string name="capture_identifyHint">Centra la portada en el marco; el título se lee en este teléfono</string>
     <string name="capture_isbn">ISBN</string>
     <string name="capture_isbnHint">Centra el código de barras en el marco</string>
     <string name="common_cancel">Cancelar</string>
@@ -216,6 +219,15 @@
     <string name="form_separateWithSemicolon">Separa varios con ;</string>
     <string name="form_subjectsPlaceholder">Novela; Ciencia ficción</string>
     <string name="form_updated">Ficha actualizada</string>
+    <string name="identify_failed">No se pudo completar la búsqueda. Comprueba la conexión e inténtalo de nuevo.</string>
+    <string name="identify_failedTitle">La búsqueda falló</string>
+    <string name="identify_keepScanning">Seguir escaneando</string>
+    <string name="identify_none">Sin coincidencias. Acércate un poco o escribe el título a mano.</string>
+    <string name="identify_noneTitle">Sin coincidencias</string>
+    <string name="identify_owned">Ya está en tu biblioteca</string>
+    <string name="identify_retry">Reintentar</string>
+    <string name="identify_searching">Buscando este libro…</string>
+    <string name="identify_title">¿Es uno de estos?</string>
     <string name="import_newerFormat">Esta exportación es de una versión más nueva de OpenLibrary. Actualiza la app primero.</string>
     <string name="import_notOurFormat">No es una exportación de OpenLibrary.</string>
     <string name="isbn_checksum">Dígito de control incorrecto.</string>
@@ -432,12 +444,15 @@
     <string name="validation_quoteRequired">La cita no puede estar vacía.</string>
     <string name="validation_titleRequired">El título es obligatorio.</string>
     <string name="validation_workOrWorkId">Indica una obra existente (workId) o una nueva (work).</string>
+    <string name="wish_aboutBook">Sobre el libro</string>
     <string name="wish_add">Añadir deseo</string>
     <string name="wish_added">«{title}» añadido a tus deseos</string>
+    <string name="wish_addedOn">Añadido</string>
     <string name="wish_addToWishlist">Añadir a deseos</string>
     <string name="wish_alreadyWished">Este ISBN ya está en tu lista de deseos.</string>
     <string name="wish_bought">Lo he comprado</string>
     <string name="wish_discard">Descartar</string>
+    <string name="wish_drawerLabel">Detalle del deseo</string>
     <string name="wish_editTitle">Editar deseo</string>
     <string name="wish_emptyText">Añade los libros que quieres comprar; cuando consigas uno, márcalo con «Lo he comprado».</string>
     <string name="wish_emptyTitle">Sin deseos</string>
@@ -445,6 +460,7 @@
     <string name="wish_notes">Notas</string>
     <string name="wish_notesPlaceholder">Dónde encontrarlo, qué edición, idea para regalo…</string>
     <string name="wish_offline">Sin conexión: escribe tú el título, el ISBN se guarda.</string>
+    <string name="wish_openBook">Ver el libro en tu biblioteca</string>
     <string name="wish_owned">Ya tienes «{title}» en tu biblioteca.</string>
     <string name="wish_priority">Prioridad</string>
     <string name="wish_priority_high">Alta</string>
@@ -454,5 +470,6 @@
     <string name="wish_status_discarded">Descartado</string>
     <string name="wish_status_open">Lo quiero</string>
     <string name="wish_subtitle">Libros que quieres. No cuentan como tuyos hasta que los compras.</string>
+    <string name="wish_updatedOn">Último cambio</string>
     <string name="wish_willBeAcquired">«{title}» está en tus deseos: se marcará como comprado.</string>
 </resources>

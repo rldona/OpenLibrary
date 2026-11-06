@@ -54,6 +54,13 @@ class ApiClient(
 
     suspend fun lookup(isbn13: String): LookupResult = get("lookup/isbn/$isbn13")
 
+    /** Candidates for title/author text read on a cover; absent parameters are left out of the URL. */
+    suspend fun search(title: String?, author: String?): MetadataSearchResult =
+        get("lookup/search") {
+            if (title != null) addQueryParameter("title", title)
+            if (author != null) addQueryParameter("author", author)
+        }
+
     /** Uploads a cover photo; the returned id is the SHA-256 of [bytes]. */
     suspend fun uploadAsset(bytes: ByteArray): Asset =
         execute(request(url("assets")).post(bytes.toRequestBody(JPEG)).build()) {

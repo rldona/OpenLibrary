@@ -8,12 +8,12 @@ export type Fetch = typeof fetch;
 const UA = 'OpenLibrary-personal/0.1 (self-hosted personal library)';
 const TIMEOUT_MS = 6000;
 
-const yearOf = (s: unknown) => {
+export const yearOf = (s: unknown) => {
   const m = typeof s === 'string' ? s.match(/\b(1[4-9]\d\d|20\d\d)\b/) : null;
   return m ? Number(m[1]) : null;
 };
-const clean = (s: unknown) => (typeof s === 'string' && s.trim() ? s.trim() : null);
-const LANG3: Record<string, string> = {
+export const clean = (s: unknown) => (typeof s === 'string' && s.trim() ? s.trim() : null);
+export const LANG3: Record<string, string> = {
   spa: 'es',
   eng: 'en',
   fre: 'fr',
@@ -25,7 +25,7 @@ const LANG3: Record<string, string> = {
   cat: 'ca',
 };
 
-async function getJson(fetchImpl: Fetch, url: string): Promise<unknown> {
+export async function getJson(fetchImpl: Fetch, url: string): Promise<unknown> {
   const res = await fetchImpl(url, {
     headers: { 'user-agent': UA, accept: 'application/json' },
     signal: AbortSignal.timeout(TIMEOUT_MS),

@@ -24,6 +24,7 @@ const FIXTURE_SCHEMAS = {
   'pull.json': 'SyncPullPage',
   'push.json': 'SyncPushResponse',
   'lookup.json': 'LookupResult',
+  'search.json': 'MetadataSearchResult',
   'asset.json': 'Asset',
   'stats.json': 'Stats',
 } as const;
@@ -202,6 +203,47 @@ describe('openapi.yaml', () => {
           },
         });
       }
+      if (url.includes('openlibrary.org/search.json')) {
+        return Response.json({
+          numFound: 1,
+          docs: [
+            {
+              key: '/works/OL26397010W',
+              title: 'Existe la suerte',
+              subtitle: 'Enganados por el azar',
+              author_name: ['Nassim Nicholas Taleb'],
+              first_publish_year: 2013,
+              publisher: ['Paidós'],
+              language: ['spa'],
+              cover_i: 12344622,
+              edition_key: ['OL35637692M'],
+            },
+          ],
+        });
+      }
+      if (url.includes('googleapis.com/books')) {
+        const q = new URL(url).searchParams.get('q') ?? '';
+        if (q.startsWith('intitle:')) {
+          return Response.json({
+            items: [
+              {
+                volumeInfo: {
+                  title: 'Existe la suerte',
+                  authors: ['Nassim Nicholas Taleb'],
+                  publisher: 'Paidós',
+                  publishedDate: '2013',
+                  language: 'es',
+                  industryIdentifiers: [{ type: 'ISBN_13', identifier: isbn }],
+                  imageLinks: {
+                    thumbnail:
+                      'http://books.google.com/books/content?id=x&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api',
+                  },
+                },
+              },
+            ],
+          });
+        }
+      }
       if (url.startsWith('https://covers.openlibrary.org/')) {
         return new Response(jpeg, { headers: { 'content-type': 'image/jpeg' } });
       }
@@ -224,6 +266,13 @@ describe('openapi.yaml', () => {
     });
     expectSchema('LookupResult', missing.json());
 
+    const search = await app.inject({
+      url: '/api/v1/lookup/search?title=existe%20la%20suerte&author=taleb',
+      headers: auth,
+    });
+    expect(search.statusCode).toBe(200);
+    expectSchema('MetadataSearchResult', search.json());
+
     const upload = await app.inject({
       method: 'POST',
       url: '/api/v1/assets',
@@ -241,7 +290,11 @@ describe('openapi.yaml', () => {
     expect(fetched.statusCode).toBe(201);
     expectSchema('Asset', fetched.json());
 
-    writeFixtures({ 'lookup.json': lookup.json(), 'asset.json': upload.json() });
+    writeFixtures({
+      'lookup.json': lookup.json(),
+      'search.json': search.json(),
+      'asset.json': upload.json(),
+    });
   });
 
   it('the fixtures used by the Android tests match the spec', () => {

@@ -35,6 +35,28 @@ class ApiClientTest {
     }
 
     @Test
+    fun metadataSearchSendsTheCoverTextAndDecodesCandidates() = runBlocking {
+        server.enqueue(ok(fixture("search.json")))
+        val r = api.search("¿Existe la suerte?", "Taleb")
+        val request = server.takeRequest()
+        assertEquals("/api/v1/lookup/search", request.url.encodedPath)
+        assertEquals("¿Existe la suerte?", request.url.queryParameter("title"))
+        assertEquals("Taleb", request.url.queryParameter("author"))
+        assertEquals("Existe la suerte", r.candidates.first().title)
+        assertEquals(listOf("Nassim Nicholas Taleb"), r.candidates.first().authors)
+        assertEquals("9788432221477", r.candidates.first().isbn13)
+        assertEquals(false, r.candidates.first().owned)
+    }
+
+    @Test
+    fun metadataSearchOmitsAnAbsentAuthor() = runBlocking {
+        server.enqueue(ok(fixture("search.json")))
+        api.search("Taleb", null)
+        val request = server.takeRequest()
+        assertEquals(setOf("title"), request.url.queryParameterNames)
+    }
+
+    @Test
     fun coversAreUploadedAsJpegOrFetchedByUrl() = runBlocking {
         server.enqueue(ok(fixture("asset.json")))
         server.enqueue(ok(fixture("asset.json")))

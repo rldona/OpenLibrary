@@ -64,6 +64,7 @@ export const es: Record<keyof typeof en, string> = {
   'review.what.copy': 'Ejemplar',
   'review.what.location': 'Ubicación',
 
+  'add.identify': 'Identificar portada',
   'add.scan': 'Escanear ISBN',
   'add.scanHint':
     'Encuadra el código de barras de la contraportada dentro del recuadro. Toca la pantalla para enfocar.',
@@ -79,12 +80,24 @@ export const es: Record<keyof typeof en, string> = {
   'capture.cover': 'Portada',
   'capture.isbnHint': 'Centra el código de barras en el marco',
   'capture.coverHint': 'Centra la portada en el marco',
+  'capture.identify': 'Identificar',
+  'capture.identifyHint': 'Centra la portada en el marco; el título se lee en este teléfono',
   'capture.gallery': 'Elegir de la galería',
   'add.photoHint': 'Encuadra la portada dentro del recuadro; solo se guarda esa parte.',
   'add.detected': 'Detectado: {isbn}',
   'add.useIsbn': 'Usar este ISBN',
   'add.scanAgain': 'Seguir escaneando',
   'add.torch': 'Linterna',
+
+  'identify.searching': 'Buscando este libro…',
+  'identify.title': '¿Es uno de estos?',
+  'identify.keepScanning': 'Seguir escaneando',
+  'identify.owned': 'Ya está en tu biblioteca',
+  'identify.none': 'Sin coincidencias. Acércate un poco o escribe el título a mano.',
+  'identify.noneTitle': 'Sin coincidencias',
+  'identify.failed': 'No se pudo completar la búsqueda. Comprueba la conexión e inténtalo de nuevo.',
+  'identify.failedTitle': 'La búsqueda falló',
+  'identify.retry': 'Reintentar',
 
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',

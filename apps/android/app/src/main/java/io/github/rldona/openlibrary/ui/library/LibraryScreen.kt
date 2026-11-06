@@ -1,5 +1,8 @@
 package io.github.rldona.openlibrary.ui.library
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -144,12 +147,14 @@ fun subtree(all: List<LocationEntity>, root: String): List<String> {
     return out
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun LibraryScreen(
     vm: LibraryViewModel,
     now: Long,
-    onOpen: (workId: String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onOpen: (workId: String, editionId: String) -> Unit,
     onAdd: () -> Unit,
     onBulk: () -> Unit,
     onReview: () -> Unit,
@@ -208,7 +213,15 @@ fun LibraryScreen(
                     Empty(stringResource(R.string.library_noMatchesTitle), stringResource(R.string.library_noMatchesText))
                 state.items.isEmpty() ->
                     Empty(stringResource(R.string.library_emptyTitle), stringResource(R.string.library_emptyText))
-                else -> Books(state.items, covers, grid, onToggle = { grid = !grid }, onOpen = onOpen)
+                else -> Books(
+                    state.items,
+                    covers,
+                    grid,
+                    sharedTransitionScope,
+                    animatedVisibilityScope,
+                    onToggle = { grid = !grid },
+                    onOpen = onOpen,
+                )
             }
         }
     }
@@ -248,8 +261,17 @@ private fun Empty(title: String, text: String) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-private fun Books(items: List<LibraryItem>, covers: CoverStore, grid: Boolean, onToggle: () -> Unit, onOpen: (String) -> Unit) {
+private fun Books(
+    items: List<LibraryItem>,
+    covers: CoverStore,
+    grid: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onToggle: () -> Unit,
+    onOpen: (workId: String, editionId: String) -> Unit,
+) {
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -276,11 +298,24 @@ private fun Books(items: List<LibraryItem>, covers: CoverStore, grid: Boolean, o
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) { header() }
             items(items, key = { it.row.editionId }) { item ->
+                val coverModifier = with(sharedTransitionScope) {
+                    Modifier.sharedElement(
+                        rememberSharedContentState(key = "cover-${item.row.editionId}"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    )
+                }
                 Column(
-                    Modifier.clip(MaterialTheme.shapes.small).clickable { onOpen(item.row.workId) }.padding(2.dp),
+                    Modifier.clip(MaterialTheme.shapes.small).clickable { onOpen(item.row.workId, item.row.editionId) }.padding(2.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    FillCover(covers, item.row.coverAssetId, item.row.title, item.row.authors, item.row.metadataStatus == "provisional")
+                    FillCover(
+                        covers,
+                        item.row.coverAssetId,
+                        item.row.title,
+                        item.row.authors,
+                        item.row.metadataStatus == "provisional",
+                        modifier = coverModifier,
+                    )
                     Text(item.row.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
                         item.row.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
@@ -299,11 +334,25 @@ private fun Books(items: List<LibraryItem>, covers: CoverStore, grid: Boolean, o
         LazyColumn(Modifier.fillMaxSize().testTag("library"), contentPadding = PaddingValues(bottom = 96.dp)) {
             item { header() }
             items(items, key = { it.row.editionId }) { item ->
+                val coverModifier = with(sharedTransitionScope) {
+                    Modifier.sharedElement(
+                        rememberSharedContentState(key = "cover-${item.row.editionId}"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    )
+                }
                 Row(
-                    Modifier.fillMaxWidth().clickable { onOpen(item.row.workId) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().clickable { onOpen(item.row.workId, item.row.editionId) }.padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Cover(covers, item.row.coverAssetId, item.row.title, 52.dp, authors = item.row.authors, provisional = item.row.metadataStatus == "provisional")
+                    Cover(
+                        covers,
+                        item.row.coverAssetId,
+                        item.row.title,
+                        52.dp,
+                        modifier = coverModifier,
+                        authors = item.row.authors,
+                        provisional = item.row.metadataStatus == "provisional",
+                    )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(item.row.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(

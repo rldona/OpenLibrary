@@ -67,6 +67,8 @@ dependencies {
     implementation(libs.camera.mlkit)
     // Bundled model: scanning works offline and without Google Play services.
     implementation(libs.mlkit.barcode)
+    // Bundled Latin model: cover text recognition works offline and without Google Play services.
+    implementation(libs.mlkit.text)
     // Local database encrypted at rest (design A10); the key lives in the Android Keystore.
     implementation(libs.sqlcipher)
     implementation(libs.biometric)

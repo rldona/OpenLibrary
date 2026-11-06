@@ -90,23 +90,39 @@ import io.github.rldona.openlibrary.core.frameInImage
 import io.github.rldona.openlibrary.core.normalizeIsbn
 import io.github.rldona.openlibrary.core.sha256Hex
 import io.github.rldona.openlibrary.core.str
+import io.github.rldona.openlibrary.network.MetadataCandidate
+import io.github.rldona.openlibrary.network.MetadataSearchResult
 import io.github.rldona.openlibrary.sync.CoverStore
 import java.io.ByteArrayOutputStream
 
 private const val TAG = "OpenLibraryScanner"
 
-enum class CaptureMode { Isbn, Cover }
+enum class CaptureMode { Isbn, Cover, Identify }
 
-/** What the capture screen hands back to the book form; either part may be missing. */
-data class CaptureResult(val isbn: String?, val photoId: String?)
+/** What the capture screen hands back to the book form; any part may be missing. */
+data class CaptureResult(
+    val isbn: String?,
+    val photoId: String?,
+    val candidate: MetadataCandidate? = null,
+)
+
+/** Title/author text read on a cover, looked up by the server. */
+typealias IdentifySearch = suspend (title: String, author: String?) -> MetadataSearchResult
 
 /**
- * Full-screen camera for adding a book, with two modes as tabs: ISBN (scan the barcode) and Cover (photo
- * cropped to a 2:3 frame, or a picture from the gallery). Confirming an ISBN moves on to the cover, so a
- * book can be captured in one go; the top-left button closes and returns whatever was captured.
+ * Full-screen camera for adding a book, with up to three modes as tabs: ISBN (scan the barcode), Cover
+ * (photo cropped to a 2:3 frame, or a picture from the gallery) and Identify (read the title on the cover
+ * and search for it). Confirming an ISBN moves on to the cover, so a book can be captured in one go; the
+ * top-left button closes and returns whatever was captured.
  */
 @Composable
-fun CaptureScreen(covers: CoverStore, start: CaptureMode, showTabs: Boolean, onDone: (CaptureResult) -> Unit) {
+fun CaptureScreen(
+    covers: CoverStore,
+    start: CaptureMode,
+    showTabs: Boolean,
+    identify: IdentifySearch? = null,
+    onDone: (CaptureResult) -> Unit,
+) {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -129,6 +145,8 @@ fun CaptureScreen(covers: CoverStore, start: CaptureMode, showTabs: Boolean, onD
         when {
             granted && mode == CaptureMode.Isbn ->
                 IsbnCamera(torch, onIsbn = { isbn = it; if (showTabs) mode = CaptureMode.Cover else finish(null) })
+            granted && mode == CaptureMode.Identify && identify != null ->
+                IdentifyCamera(torch, search = identify, onCandidate = { onDone(CaptureResult(null, null, it)) })
             granted -> CoverCamera(covers, torch, onPhoto = { finish(it) }, onGallery = {
                 pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             })
@@ -159,6 +177,9 @@ fun CaptureScreen(covers: CoverStore, start: CaptureMode, showTabs: Boolean, onD
             ) {
                 ModeTab(stringResource(R.string.capture_isbn), mode == CaptureMode.Isbn) { mode = CaptureMode.Isbn }
                 ModeTab(stringResource(R.string.capture_cover), mode == CaptureMode.Cover) { mode = CaptureMode.Cover }
+                if (identify != null) {
+                    ModeTab(stringResource(R.string.capture_identify), mode == CaptureMode.Identify) { mode = CaptureMode.Identify }
+                }
             }
         }
     }
@@ -230,6 +251,14 @@ internal fun Viewfinder(hint: String, highlight: Boolean, onFrame: (PixelRect) -
 }
 
 internal fun PixelRect.contains(x: Float, y: Float) = x in left..right && y in top..bottom
+
+/** The portrait 2:3 cover frame, as large as fits between the top buttons and the shutter. */
+internal fun coverFrame(w: Float, h: Float): PixelRect {
+    val fh = minOf(h * 0.6f, w * 0.8f * 1.5f)
+    val fw = fh / 1.5f
+    val top = h * 0.44f - fh / 2
+    return PixelRect((w - fw) / 2, top, (w + fw) / 2, top + fh)
+}
 
 /**
  * EAN-13 scanning on the device (ML Kit, bundled model: works offline). Only codes inside the frame count,
@@ -329,13 +358,7 @@ private fun CoverCamera(covers: CoverStore, torch: Boolean, onPhoto: (assetId: S
     val controller = remember { LifecycleCameraController(context).apply { setEnabledUseCases(CameraController.IMAGE_CAPTURE) } }
     Box(Modifier.fillMaxSize().onSizeChanged { view = it.width to it.height }) {
         CameraPreview(controller, torch)
-        Viewfinder(stringResource(R.string.capture_coverHint), highlight = false, onFrame = { frame = it }) { w, h ->
-            // As large as fits between the top buttons and the shutter.
-            val fh = minOf(h * 0.6f, w * 0.8f * 1.5f)
-            val fw = fh / 1.5f
-            val top = h * 0.44f - fh / 2
-            PixelRect((w - fw) / 2, top, (w + fw) / 2, top + fh)
-        }
+        Viewfinder(stringResource(R.string.capture_coverHint), highlight = false, onFrame = { frame = it }, shape = ::coverFrame)
         Row(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().systemBarsPadding().padding(bottom = 72.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,

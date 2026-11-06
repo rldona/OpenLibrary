@@ -3,32 +3,37 @@ package io.github.rldona.openlibrary
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
@@ -47,12 +52,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import io.github.rldona.openlibrary.network.ApiJson
+import io.github.rldona.openlibrary.network.MetadataCandidate
 import io.github.rldona.openlibrary.sync.SyncStatus
 import io.github.rldona.openlibrary.sync.SyncWorker
 import io.github.rldona.openlibrary.ui.book.BookFormScreen
@@ -61,6 +69,7 @@ import io.github.rldona.openlibrary.ui.capture.CaptureMode
 import io.github.rldona.openlibrary.ui.capture.CaptureScreen
 import io.github.rldona.openlibrary.ui.capture.BulkScanScreen
 import io.github.rldona.openlibrary.ui.capture.BulkScanViewModel
+import io.github.rldona.openlibrary.ui.capture.IdentifySearch
 import io.github.rldona.openlibrary.ui.cover.CoverViewModel
 import io.github.rldona.openlibrary.ui.cover.CoverViewerScreen
 import io.github.rldona.openlibrary.ui.review.ReviewScreen
@@ -80,6 +89,7 @@ import io.github.rldona.openlibrary.ui.settings.SettingsViewModel
 import io.github.rldona.openlibrary.ui.setup.SetupScreen
 import io.github.rldona.openlibrary.ui.setup.SetupViewModel
 import io.github.rldona.openlibrary.ui.theme.OpenLibraryTheme
+import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -87,14 +97,14 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SetupRoute
 @Serializable data class LibraryRoute(val locationId: String? = null)
-@Serializable data class DetailRoute(val workId: String)
+@Serializable data class DetailRoute(val workId: String, val editionId: String? = null)
 @Serializable object LocationsRoute
 @Serializable object SettingsRoute
 @Serializable data class AddBookRoute(val wishId: String? = null)
 @Serializable object WishlistRoute
 @Serializable object StatsRoute
 @Serializable data class EditBookRoute(val workId: String, val editionId: String)
-/** Full-screen camera: `mode` is "isbn" or "cover"; `tabs` lets the user switch between them. */
+/** Full-screen camera: `mode` is "isbn", "cover" or "identify"; `tabs` lets the user switch between them. */
 @Serializable data class CaptureRoute(val mode: String, val tabs: Boolean)
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
@@ -136,7 +146,7 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun App(c: AppContainer, connected: Boolean) {
     val nav = rememberNavController()
@@ -146,7 +156,6 @@ private fun App(c: AppContainer, connected: Boolean) {
     val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "WishlistRoute", "StatsRoute", "SettingsRoute").any { r.contains(it) } } == true
     // Camera and cover viewer use the whole screen, without app bars.
     val fullScreen = dest?.route?.let { r -> "CaptureRoute" in r || "CoverRoute" in r || "BulkScanRoute" in r } == true
-    val inDetail = !inTabs && !fullScreen && dest?.route?.contains("SetupRoute") == false
     val status by c.sync.status.collectAsStateWithLifecycle()
 
     // Relative times ("2 min ago") refresh every half minute.
@@ -171,21 +180,13 @@ private fun App(c: AppContainer, connected: Boolean) {
     }
 
     Scaffold(
-        topBar = {
-            if (inDetail) {
-                TopAppBar(
-                    title = {},
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                    navigationIcon = {
-                        IconButton(onClick = { nav.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.detail_back))
-                        }
-                    },
-                )
-            }
-        },
         bottomBar = {
-            if (inTabs) {
+            // It belongs to the tab screens: slide it down as the detail comes in, and back up on return.
+            AnimatedVisibility(
+                visible = inTabs,
+                enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it },
+                exit = fadeOut(tween(120)) + slideOutVertically(tween(180)) { it },
+            ) {
                 Column {
                     // Like the web's sidebar: on the page background, separated by a `line` rule.
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -194,130 +195,169 @@ private fun App(c: AppContainer, connected: Boolean) {
             }
         },
     ) { padding ->
-        NavHost(
-            nav,
-            startDestination = if (connected) LibraryRoute() else SetupRoute,
-            modifier = if (fullScreen) Modifier else Modifier.padding(padding),
-            // Navigation's default is a 700 ms cross-fade, which feels sluggish: a short fade and a small
-            // slide instead, forwards and backwards.
-            enterTransition = { fadeIn(tween(180)) + slideInHorizontally(tween(220)) { it / 12 } },
-            exitTransition = { fadeOut(tween(120)) },
-            popEnterTransition = { fadeIn(tween(180)) },
-            popExitTransition = { fadeOut(tween(120)) + slideOutHorizontally(tween(180)) { it / 12 } },
-        ) {
-            composable<SetupRoute> {
-                val vm = viewModel<SetupViewModel>(
-                    factory = viewModelFactory {
-                        initializer {
-                            SetupViewModel(c) {
-                                SyncWorker.schedule(context)
-                                nav.navigate(LibraryRoute()) { popUpTo(0) }
+        // One shared-transition layout around the NavHost, so the cover can travel between the
+        // library item and the detail header while each destination keeps its own AnimatedVisibilityScope.
+        SharedTransitionLayout(modifier = if (fullScreen) Modifier else Modifier.padding(padding)) {
+            val sharedTransitionScope = this
+            NavHost(
+                nav,
+                startDestination = if (connected) LibraryRoute() else SetupRoute,
+                modifier = Modifier.fillMaxSize(),
+                // Material shared axis X: spatial motion forwards and backwards, with a short fade.
+                enterTransition = { sharedAxisEnter() },
+                exitTransition = { sharedAxisExit() },
+                popEnterTransition = { sharedAxisPopEnter() },
+                popExitTransition = { sharedAxisPopExit() },
+            ) {
+                composable<SetupRoute> {
+                    val vm = viewModel<SetupViewModel>(
+                        factory = viewModelFactory {
+                            initializer {
+                                SetupViewModel(c) {
+                                    SyncWorker.schedule(context)
+                                    nav.navigate(LibraryRoute()) { popUpTo(0) }
+                                }
                             }
+                        },
+                    )
+                    SetupScreen(vm)
+                }
+                composable<LibraryRoute> { e ->
+                    val route = e.toRoute<LibraryRoute>()
+                    val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, route.locationId) } })
+                    LibraryScreen(
+                        vm,
+                        now,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = this,
+                        onOpen = { workId, editionId -> nav.navigate(DetailRoute(workId, editionId)) },
+                        onAdd = { nav.navigate(AddBookRoute()) },
+                        onBulk = { nav.navigate(BulkScanRoute) },
+                        onReview = { nav.navigate(ReviewRoute) },
+                    )
+                }
+                // The shared cover carries the transition while the detail itself slides in.
+                composable<DetailRoute> { e ->
+                    val route = e.toRoute<DetailRoute>()
+                    val vm = viewModel<DetailViewModel>(factory = viewModelFactory { initializer { DetailViewModel(c, route.workId) } })
+                    DetailScreen(
+                        vm,
+                        editionId = route.editionId,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedVisibilityScope = this,
+                        onBack = { nav.popBackStack() },
+                        onEdit = { workId, editionId -> nav.navigate(EditBookRoute(workId, editionId)) },
+                        onCover = { id, title -> nav.navigate(CoverRoute(id, title)) },
+                    )
+                }
+                composable<AddBookRoute> { e ->
+                    val route = e.toRoute<AddBookRoute>()
+                    val vm = viewModel<BookFormViewModel>(
+                        factory = viewModelFactory { initializer { BookFormViewModel(c, null, null, route.wishId) } },
+                    )
+                    BookForm(vm, e.savedStateHandle, nav, onWishAdded = { nav.popBackStack() }) { workId ->
+                        nav.navigate(DetailRoute(workId)) { popUpTo<AddBookRoute> { inclusive = true } }
+                    }
+                }
+                composable<StatsRoute> {
+                    val vm = viewModel<StatsViewModel>(factory = viewModelFactory { initializer { StatsViewModel(c) } })
+                    StatsScreen(vm)
+                }
+                composable<WishlistRoute> { e ->
+                    val vm = viewModel<WishlistViewModel>(factory = viewModelFactory { initializer { WishlistViewModel(c) } })
+                    // The camera hands the ISBN back through this entry's SavedStateHandle.
+                    val scanned by e.savedStateHandle.getStateFlow<String?>("isbn", null).collectAsStateWithLifecycle()
+                    val photo by e.savedStateHandle.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
+                    LaunchedEffect(scanned) {
+                        scanned?.let {
+                            vm.scanned(it)
+                            e.savedStateHandle["isbn"] = null
                         }
-                    },
-                )
-                SetupScreen(vm)
-            }
-            composable<LibraryRoute> { e ->
-                val route = e.toRoute<LibraryRoute>()
-                val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, route.locationId) } })
-                LibraryScreen(
-                    vm,
-                    now,
-                    onOpen = { workId -> nav.navigate(DetailRoute(workId)) },
-                    onAdd = { nav.navigate(AddBookRoute()) },
-                    onBulk = { nav.navigate(BulkScanRoute) },
-                    onReview = { nav.navigate(ReviewRoute) },
-                )
-            }
-            composable<DetailRoute> { e ->
-                val route = e.toRoute<DetailRoute>()
-                val vm = viewModel<DetailViewModel>(factory = viewModelFactory { initializer { DetailViewModel(c, route.workId) } })
-                DetailScreen(
-                    vm,
-                    onEdit = { workId, editionId -> nav.navigate(EditBookRoute(workId, editionId)) },
-                    onCover = { id, title -> nav.navigate(CoverRoute(id, title)) },
-                )
-            }
-            composable<AddBookRoute> { e ->
-                val route = e.toRoute<AddBookRoute>()
-                val vm = viewModel<BookFormViewModel>(
-                    factory = viewModelFactory { initializer { BookFormViewModel(c, null, null, route.wishId) } },
-                )
-                BookForm(vm, e.savedStateHandle, nav, onWishAdded = { nav.popBackStack() }) { workId ->
-                    nav.navigate(DetailRoute(workId)) { popUpTo<AddBookRoute> { inclusive = true } }
+                    }
+                    LaunchedEffect(photo) {
+                        photo?.let {
+                            vm.photo(it)
+                            e.savedStateHandle["photo"] = null
+                        }
+                    }
+                    WishlistScreen(
+                        vm,
+                        onScan = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
+                        onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+                    ) { wishId -> nav.navigate(AddBookRoute(wishId)) }
                 }
-            }
-            composable<StatsRoute> {
-                val vm = viewModel<StatsViewModel>(factory = viewModelFactory { initializer { StatsViewModel(c) } })
-                StatsScreen(vm)
-            }
-            composable<WishlistRoute> { e ->
-                val vm = viewModel<WishlistViewModel>(factory = viewModelFactory { initializer { WishlistViewModel(c) } })
-                // The camera hands the ISBN back through this entry's SavedStateHandle.
-                val scanned by e.savedStateHandle.getStateFlow<String?>("isbn", null).collectAsStateWithLifecycle()
-                val photo by e.savedStateHandle.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
-                LaunchedEffect(scanned) {
-                    scanned?.let {
-                        vm.scanned(it)
-                        e.savedStateHandle["isbn"] = null
+                composable<EditBookRoute> { e ->
+                    val route = e.toRoute<EditBookRoute>()
+                    val vm = viewModel<BookFormViewModel>(
+                        factory = viewModelFactory { initializer { BookFormViewModel(c, route.workId, route.editionId) } },
+                    )
+                    BookForm(vm, e.savedStateHandle, nav) { nav.popBackStack() }
+                }
+                composable<CaptureRoute> { e ->
+                    val route = e.toRoute<CaptureRoute>()
+                    // The identify tab needs the server search; routes from the wishlist (tabs=false) do not show it.
+                    val identify: IdentifySearch? = remember(route.tabs) {
+                        if (!route.tabs) null
+                        else { title: String, author: String? ->
+                            val s = c.sessions.session.first() ?: throw IOException("Not connected")
+                            c.api(s.serverUrl, s.token).search(title, author)
+                        }
+                    }
+                    val start = when (route.mode) {
+                        "cover" -> CaptureMode.Cover
+                        "identify" -> CaptureMode.Identify
+                        else -> CaptureMode.Isbn
+                    }
+                    CaptureScreen(c.covers, start, route.tabs, identify = identify) { result ->
+                        nav.previousBackStackEntry?.savedStateHandle?.let { h ->
+                            result.isbn?.let { h["isbn"] = it }
+                            result.photoId?.let { h["photo"] = it }
+                            result.candidate?.let { h["candidate"] = ApiJson.encodeToString(MetadataCandidate.serializer(), it) }
+                        }
+                        nav.popBackStack()
                     }
                 }
-                LaunchedEffect(photo) {
-                    photo?.let {
-                        vm.photo(it)
-                        e.savedStateHandle["photo"] = null
-                    }
+                composable<CoverRoute> { e ->
+                    val route = e.toRoute<CoverRoute>()
+                    val vm = viewModel<CoverViewModel>(factory = viewModelFactory { initializer { CoverViewModel(c, route.assetId) } })
+                    CoverViewerScreen(vm, route.title) { nav.popBackStack() }
                 }
-                WishlistScreen(
-                    vm,
-                    onScan = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
-                    onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
-                ) { wishId -> nav.navigate(AddBookRoute(wishId)) }
-            }
-            composable<EditBookRoute> { e ->
-                val route = e.toRoute<EditBookRoute>()
-                val vm = viewModel<BookFormViewModel>(
-                    factory = viewModelFactory { initializer { BookFormViewModel(c, route.workId, route.editionId) } },
-                )
-                BookForm(vm, e.savedStateHandle, nav) { nav.popBackStack() }
-            }
-            composable<CaptureRoute> { e ->
-                val route = e.toRoute<CaptureRoute>()
-                CaptureScreen(c.covers, if (route.mode == "cover") CaptureMode.Cover else CaptureMode.Isbn, route.tabs) { result ->
-                    nav.previousBackStackEntry?.savedStateHandle?.let { h ->
-                        result.isbn?.let { h["isbn"] = it }
-                        result.photoId?.let { h["photo"] = it }
-                    }
-                    nav.popBackStack()
+                composable<BulkScanRoute> {
+                    val vm = viewModel<BulkScanViewModel>(factory = viewModelFactory { initializer { BulkScanViewModel(c) } })
+                    BulkScanScreen(vm, onOpen = { nav.navigate(DetailRoute(it)) }, onClose = { nav.popBackStack() })
                 }
-            }
-            composable<CoverRoute> { e ->
-                val route = e.toRoute<CoverRoute>()
-                val vm = viewModel<CoverViewModel>(factory = viewModelFactory { initializer { CoverViewModel(c, route.assetId) } })
-                CoverViewerScreen(vm, route.title) { nav.popBackStack() }
-            }
-            composable<BulkScanRoute> {
-                val vm = viewModel<BulkScanViewModel>(factory = viewModelFactory { initializer { BulkScanViewModel(c) } })
-                BulkScanScreen(vm, onOpen = { nav.navigate(DetailRoute(it)) }, onClose = { nav.popBackStack() })
-            }
-            composable<ReviewRoute> {
-                val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })
-                ReviewScreen(vm)
-            }
-            composable<LocationsRoute> {
-                val vm = viewModel<LocationsViewModel>(factory = viewModelFactory { initializer { LocationsViewModel(c) } })
-                LocationsScreen(vm) { id -> nav.navigate(LibraryRoute(id)) }
-            }
-            composable<SettingsRoute> {
-                val vm = viewModel<SettingsViewModel>(
-                    factory = viewModelFactory { initializer { SettingsViewModel(c) { nav.navigate(SetupRoute) { popUpTo(0) } } } },
-                )
-                SettingsScreen(vm, now, context) { nav.navigate(ReviewRoute) }
+                composable<ReviewRoute> {
+                    val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })
+                    ReviewScreen(vm)
+                }
+                composable<LocationsRoute> {
+                    val vm = viewModel<LocationsViewModel>(factory = viewModelFactory { initializer { LocationsViewModel(c) } })
+                    LocationsScreen(vm) { id -> nav.navigate(LibraryRoute(id)) }
+                }
+                composable<SettingsRoute> {
+                    val vm = viewModel<SettingsViewModel>(
+                        factory = viewModelFactory { initializer { SettingsViewModel(c) { nav.navigate(SetupRoute) { popUpTo(0) } } } },
+                    )
+                    SettingsScreen(vm, now, context) { nav.navigate(ReviewRoute) }
+                }
             }
         }
     }
 }
+
+// Material shared axis X: the incoming screen comes from the right, the outgoing one drifts a
+// quarter of the way left (and the other way round on pop), both with a short cross-fade.
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.sharedAxisEnter(): EnterTransition =
+    slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(120, delayMillis = 90))
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.sharedAxisExit(): ExitTransition =
+    slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 4 } + fadeOut(tween(90))
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.sharedAxisPopEnter(): EnterTransition =
+    slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 4 } + fadeIn(tween(120, delayMillis = 90))
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.sharedAxisPopExit(): ExitTransition =
+    slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) { it } + fadeOut(tween(90))
 
 /** The scanner and the camera hand their result back through the form's SavedStateHandle. */
 @Composable
@@ -330,16 +370,39 @@ private fun BookForm(
 ) {
     val isbn by state.getStateFlow<String?>("isbn", null).collectAsStateWithLifecycle()
     val photo by state.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
+    val candidateJson by state.getStateFlow<String?>("candidate", null).collectAsStateWithLifecycle()
+    val identified = remember(candidateJson) {
+        candidateJson?.let { runCatching { ApiJson.decodeFromString<MetadataCandidate>(it) }.getOrNull() }
+    }
+    // Consume each camera result once: otherwise a rotation or a trip to another screen would apply
+    // the same ISBN/photo/candidate again, overwriting what the user typed or fetching twice.
+    LaunchedEffect(isbn) {
+        isbn?.let {
+            vm.scanned(it)
+            state["isbn"] = null
+        }
+    }
+    LaunchedEffect(photo) {
+        photo?.let {
+            vm.photoId = it
+            state["photo"] = null
+        }
+    }
+    LaunchedEffect(identified) {
+        identified?.let {
+            vm.applyCandidate(it)
+            state["candidate"] = null
+        }
+    }
     BookFormScreen(
         vm,
-        scannedIsbn = isbn,
-        photoId = photo,
         // Adding a book: ISBN then cover in one camera session. Editing: just the camera for each.
         onScan = { nav.navigate(CaptureRoute("isbn", tabs = !vm.editing)) },
         onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
         onWishAdded = onWishAdded,
+        onIdentify = { nav.navigate(CaptureRoute("identify", tabs = !vm.editing)) },
     )
 }
 
