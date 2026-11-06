@@ -5,3 +5,4 @@ package-lock.json
 apps/android/**/build/
 apps/android/.gradle/
 apps/android/app/schemas/
+.flupcode/
