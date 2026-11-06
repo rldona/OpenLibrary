@@ -1064,62 +1064,29 @@ legend {
 }
 
 /* ---------- locations ---------- */
-.loc-wrap {
-  display: grid;
-  grid-template-columns: 290px 1fr;
-  gap: 22px;
-  align-items: start;
-}
-.tree {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 10px;
-  position: sticky;
-  top: 80px;
-}
-.tree hr {
-  border: 0;
-  border-top: 1px solid var(--line);
-  margin: 8px 4px;
-}
-.tnode {
+.loc-bar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 18px;
+}
+.loc-go {
+  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  border: 0;
-  background: none;
-  padding: 6px 8px;
-  border-radius: 7px;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.tnode:hover {
-  background: var(--chip);
-}
-.tnode.on {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-}
-.tnode svg {
+  min-width: 0;
+  flex: 1 1 260px;
+  max-width: 520px;
   color: var(--muted);
-  flex: none;
+  font-size: 13px;
+  font-weight: 400;
 }
-.tnode.on svg {
-  color: var(--accent);
-}
-.tnode .n {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--muted);
-}
-.tchildren {
-  margin-left: 14px;
-  border-left: 1px solid var(--line);
-  padding-left: 4px;
+.loc-go select {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 .crumbs {
   display: flex;
@@ -1267,12 +1234,6 @@ legend {
   }
   .view {
     padding: 18px 16px 60px;
-  }
-  .loc-wrap {
-    grid-template-columns: 1fr;
-  }
-  .tree {
-    position: static;
   }
   .kv {
     grid-template-columns: 1fr 1fr;

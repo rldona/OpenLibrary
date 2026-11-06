@@ -23,14 +23,6 @@ function subtreeOf(flat: { id: string; parentId: string | null }[], id: string):
   return out;
 }
 
-const KIND_ICON: Record<LocationKind, string> = {
-  home: 'home',
-  room: 'folder',
-  bookcase: 'tree',
-  shelf: 'shelf',
-  box: 'folder',
-  other: 'folder',
-};
 /** Suggested kind for a child, based on its parent. */
 const NEXT_KIND: Record<LocationKind, LocationKind> = {
   home: 'room',
@@ -88,26 +80,6 @@ export function Locations() {
     }
   }
 
-  const Node = ({ l }: { l: (typeof flat)[number] }) => (
-    <>
-      <button
-        className={`tnode ${sel === l.id ? 'on' : ''}`}
-        onClick={() => setParams({ id: l.id }, { replace: true })}
-      >
-        <Icon name={KIND_ICON[l.kind]} size={16} />
-        <span>{l.name}</span>
-        <span className="n">{l.copyCount}</span>
-      </button>
-      {children(l.id).length > 0 && (
-        <div className="tchildren">
-          {children(l.id).map((c) => (
-            <Node key={c.id} l={c} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-
   return (
     <>
       <div className="vh">
@@ -129,22 +101,27 @@ export function Locations() {
           </button>
         </div>
       ) : (
-        <div className="loc-wrap">
-          <nav className="tree" aria-label={t('locations.treeLabel')}>
-            {children(null).map((l) => (
-              <Node key={l.id} l={l} />
-            ))}
+        <div>
+          <div className="loc-bar">
+            <label className="loc-go">
+              <span>{t('locations.goTo')}</span>
+              <select
+                value={sel ?? ''}
+                onChange={(e) => setParams({ id: e.target.value }, { replace: true })}
+              >
+                {flat.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {`${l.path.join(' › ')} (${l.copyCount})`}
+                  </option>
+                ))}
+              </select>
+            </label>
             {!!tree.data?.unassigned && (
-              <>
-                <hr />
-                <button className="tnode" onClick={() => navigate('/?location=none')}>
-                  <Icon name="warn" size={16} />
-                  <span>{t('copy.noLocation')}</span>
-                  <span className="n">{tree.data.unassigned}</span>
-                </button>
-              </>
+              <button className="btn sm" onClick={() => navigate('/?location=none')}>
+                <Icon name="warn" size={14} /> {t('copy.noLocation')} · {tree.data.unassigned}
+              </button>
             )}
-          </nav>
+          </div>
 
           {loc && (
             <div>

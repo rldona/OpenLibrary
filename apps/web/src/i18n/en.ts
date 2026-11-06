@@ -253,7 +253,7 @@ export const en = {
   'locations.emptyTitle': 'No locations yet',
   'locations.emptyText': 'Create the top-level one (e.g. "Home") and then its rooms, bookcases and shelves.',
   'locations.createFirst': 'Create the first one',
-  'locations.treeLabel': 'Location tree',
+  'locations.goTo': 'Go to',
   'locations.addChild': '+ Sub-location',
   'locations.editMove': 'Edit / move',
   'locations.subdivisions': '{n} sub-locations',

@@ -258,7 +258,7 @@ export const es: Record<keyof typeof en, string> = {
   'locations.emptyText':
     'Crea la principal (por ejemplo «Casa») y luego sus habitaciones, estanterías y baldas.',
   'locations.createFirst': 'Crear la primera',
-  'locations.treeLabel': 'Árbol de ubicaciones',
+  'locations.goTo': 'Ir a',
   'locations.addChild': '+ Subdivisión',
   'locations.editMove': 'Editar / mover',
   'locations.subdivisions': '{n} subdivisiones',
