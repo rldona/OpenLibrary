@@ -1,5 +1,6 @@
 package io.github.rldona.openlibrary.ui.capture
 
+import android.content.pm.ApplicationInfo
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -72,6 +73,7 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val currentSearch by rememberUpdatedState(search)
+    val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     var frame by remember { mutableStateOf<PixelRect?>(null) }
     var dots by remember { mutableStateOf<List<OcrPoint>>(emptyList()) }
@@ -97,6 +99,7 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
         candidates = emptyList()
         sources = emptyList()
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (debuggable) Log.d(TAG, "cover query: title='${q.title}' author='${q.author}'")
         scope.launch {
             try {
                 val result = withTimeout(SEARCH_TIMEOUT_MS) {
@@ -104,8 +107,10 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
                 }
                 candidates = result.candidates
                 sources = result.sources
-            } catch (_: Exception) {
+                if (debuggable) Log.d(TAG, "cover search: ${result.candidates.size} candidates, sources=${result.sources}, errors=${result.errors}")
+            } catch (e: Exception) {
                 sources = emptyList()
+                if (debuggable) Log.w(TAG, "cover search failed", e)
             } finally {
                 searching = false
                 open = true

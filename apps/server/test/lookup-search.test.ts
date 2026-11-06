@@ -167,7 +167,7 @@ describe('metadata search by title/author', () => {
     expect(after.body.candidates[0]).toMatchObject({ isbn13: ISBN, owned: true });
   });
 
-  it('retries with the title alone when title+author finds nothing', async () => {
+  it('retries with the title alone and the author alone when title+author finds nothing', async () => {
     const openLibraryUrls: string[] = [];
     const fetchImpl = (async (input: string | URL | Request) => {
       const url = String(input);
@@ -185,9 +185,48 @@ describe('metadata search by title/author', () => {
     const r = await c.get('/lookup/search?title=existe%20la%20suerte&author=taleb');
     expect(r.status).toBe(200);
     expect(r.body.candidates.length).toBeGreaterThan(0);
-    expect(openLibraryUrls).toHaveLength(2);
-    expect(new URL(openLibraryUrls[0]!).searchParams.has('author')).toBe(true);
-    expect(new URL(openLibraryUrls[1]!).searchParams.has('author')).toBe(false);
+    const params = openLibraryUrls.map((u) => new URL(u).searchParams);
+    expect(params).toHaveLength(3);
+    expect(params[0]!.has('title') && params[0]!.has('author')).toBe(true);
+    expect(params.slice(1).some((p) => p.has('title') && !p.has('author'))).toBe(true);
+    expect(params.slice(1).some((p) => !p.has('title') && p.has('author'))).toBe(true);
+  });
+
+  it('finds the book when OCR misread a letter of the title', async () => {
+    // Real case: the "í" of "íntima" read as "f". Exact title searches find nothing; the author does.
+    const ESQUIROL_DOCS = [
+      {
+        key: '/works/OL1W',
+        title: 'Humano, más humano',
+        author_name: ['Josep Maria Esquirol Calaf'],
+        cover_i: 1,
+      },
+      { key: '/works/OL2W', title: 'La penúltima bondad', author_name: ['Josep María Esquirol'], cover_i: 2 },
+      {
+        key: '/works/OL3W',
+        title: 'La resistencia íntima',
+        author_name: ['Josep María Esquirol'],
+        cover_i: 3,
+      },
+    ];
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('openlibrary.org/search.json')) {
+        const p = new URL(url).searchParams;
+        return p.has('title') ? json({ numFound: 0, docs: [] }) : json({ numFound: 3, docs: ESQUIROL_DOCS });
+      }
+      if (url.includes('googleapis.com/books')) return new Response('slow down', { status: 429 });
+      return new Response('no', { status: 404 });
+    }) as Fetch;
+    const { app } = await makeApp({ fetch: fetchImpl });
+    const c = await webClient(app);
+
+    const r = await c.get('/lookup/search?title=La%20resistencia%20fntima&author=Josep%20Maria%20Esquirol');
+    expect(r.status).toBe(200);
+    expect(r.body.candidates[0]).toMatchObject({ title: 'La resistencia íntima' });
+    expect(r.body.candidates).toHaveLength(3);
+    expect(r.body.sources).toEqual(['Open Library']);
+    expect(r.body.errors).toEqual(['Google Books: HTTP 429']);
   });
 
   it('does not retry when every provider failed', async () => {

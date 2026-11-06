@@ -158,14 +158,40 @@ export function mergeCandidates(items: { source: string; candidate: Candidate }[
   return entries.map((e) => ({ ...e.candidate, sources: [...e.sources] }));
 }
 
+/** Edit distance between two short words, capped: OCR misreads a letter or two ("fntima" for "íntima"). */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + cost);
+      best = Math.min(best, row[j]!);
+    }
+    if (best > max) return max + 1;
+    prev = row;
+  }
+  return prev[b.length]!;
+}
+
+/** Short words must match exactly; longer ones forgive one OCR slip (two from eight letters). */
+function sameToken(token: string, wanted: string): boolean {
+  if (token === wanted) return true;
+  if (wanted.length < 4) return false;
+  const max = wanted.length >= 8 ? 2 : 1;
+  return editDistance(token, wanted, max) <= max;
+}
+
 function titleSimilarity(title: string, query: string): number {
   const normalized = normalizeText(title);
   if (!query) return 0;
   if (normalized === query) return 2;
-  const tokens = new Set(normalized.split(' ').filter(Boolean));
+  const tokens = normalized.split(' ').filter(Boolean);
   const wanted = query.split(' ').filter(Boolean);
   if (!wanted.length) return 0;
-  return wanted.filter((token) => tokens.has(token)).length / wanted.length;
+  return wanted.filter((w) => tokens.some((t) => sameToken(t, w))).length / wanted.length;
 }
 
 /** Deterministic ranking: title match, author bonus, cover and ISBN as tie-breakers. */
@@ -220,9 +246,14 @@ async function runProviders(fetchImpl: Fetch, query: SearchQuery) {
   return { items, sources, errors };
 }
 
+const unique = (values: string[]) => [...new Set(values)];
+
 /**
- * Searches both providers. If title+author finds nothing and an author was given, retries once
- * with the title alone: cover text often adds a name the catalog spells differently.
+ * Searches both providers. If title+author finds nothing and an author was given, retries once with
+ * the title alone and the author alone at the same time: cover text may add a name the catalog spells
+ * differently, and OCR often misreads a letter of the title ("La resistencia fntima"), which the
+ * providers' exact search never matches. The author's works are then ranked by a typo-tolerant title
+ * match, so the book on the cover comes first.
  */
 export async function searchCandidates(
   fetchImpl: Fetch,
@@ -233,11 +264,28 @@ export async function searchCandidates(
   // Retrying is only worth it when a provider answered with nothing: if every provider failed, the
   // second round would spend another 6 s and the client has already given up.
   if (!first.items.length && query.title && query.author && first.sources.length) {
-    const second = await runProviders(fetchImpl, { title: query.title, author: null });
+    const rounds = await Promise.all([
+      runProviders(fetchImpl, { title: query.title, author: null }),
+      runProviders(fetchImpl, { title: null, author: query.author }),
+    ]);
+    const sources = unique(rounds.flatMap((r) => r.sources));
+    // The same work can come back from both retries of one provider: keep it once.
+    const seen = new Set<string>();
+    const items = rounds
+      .flatMap((r) => r.items)
+      .filter((item) => {
+        const key = JSON.stringify(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     return {
-      candidates: rankCandidates(mergeCandidates(second.items), query),
-      sources: second.sources,
-      errors: second.errors,
+      candidates: rankCandidates(mergeCandidates(items), query),
+      sources,
+      // A provider that answered one of the two retries did not fail.
+      errors: unique(rounds.flatMap((r) => r.errors)).filter(
+        (e) => !sources.some((s) => e.startsWith(`${s}:`)),
+      ),
     };
   }
 

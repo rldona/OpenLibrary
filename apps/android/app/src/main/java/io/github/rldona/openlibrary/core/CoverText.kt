@@ -26,6 +26,10 @@ private const val MAX_HEIGHT_RATIO = 1.6f
 private const val MAX_VERTICAL_GAP = 0.6f
 private const val TITLE_REGION_FRACTION = 0.7f
 
+/** Words that start a title, not a person's name. */
+private val TITLE_STARTERS = setOf("el", "la", "los", "las", "un", "una", "unos", "unas", "the", "a", "an")
+private val NAME_STOPWORDS = TITLE_STARTERS + setOf("de", "del", "al", "y", "e", "o", "en", "por", "para", "con", "sin", "of", "and", "to")
+
 /**
  * Reads the title and author from the lines OCR found on a cover. Everything here is a plain heuristic:
  * it ignores product text, groups lines that belong to the same block, and trusts the largest text near
@@ -41,12 +45,16 @@ fun extractCoverQuery(lines: List<OcrLine>, frame: PixelRect? = null): CoverQuer
     // With a camera frame, ignore large text below it (promos on the table, the book's back cover).
     val titleLimit = frame?.let { it.top + it.height * TITLE_REGION_FRACTION }
     // The largest line height wins: a tall but small-area line is not a title.
-    val titleBand = bands
+    val base = bands
         .filter { titleLimit == null || centerY(it.bounds) <= titleLimit }
         // Tallest wins; a wider band breaks a tie (titles usually span more of the cover than names).
         .maxWithOrNull(compareBy<Band>({ it.lineHeight }, { it.bounds.width }, { -it.bounds.top }))
         ?: return null
 
+    // Many covers print the author above the title in the same size. If the tallest band looks like a
+    // person's name and the next one down looks like a title, the lower one is the title and the upper
+    // one is the author ("Josep Maria Esquirol" / "La resistencia íntima").
+    val titleBand = titleBelowAuthor(base, bands) ?: base
     val title = titleText(titleBand)
     if (title.count { it.isLetterOrDigit() } < MIN_TITLE_CHARS) return null
 
@@ -100,6 +108,14 @@ private fun bandsOf(lines: List<OcrLine>): List<Band> {
 
 /** Lines join a band when they are vertically close and their heights stay within a factor of 1.6. */
 private fun sameBand(band: List<OcrLine>, line: OcrLine): Boolean {
+    // Do not glue the author line to the title (or the title to an author below) just because they are
+    // set close together: they are different roles, even when the font size is the same.
+    val lastText = band.maxByOrNull { it.bounds.bottom }?.text
+    if (lastText != null) {
+        if (looksLikeName(lastText) && looksLikeTitle(line.text)) return false
+        if (looksLikeTitle(lastText) && looksLikeName(line.text)) return false
+    }
+
     val bandMin = band.minOf { it.bounds.height }
     val bandMax = band.maxOf { it.bounds.height }
     val minHeight = minOf(bandMin, line.bounds.height)
@@ -112,8 +128,38 @@ private fun sameBand(band: List<OcrLine>, line: OcrLine): Boolean {
 }
 
 private fun titleText(band: Band): String =
-    band.lines.sortedWith(READING_ORDER).take(MAX_TITLE_LINES)
+    band.lines
+        .sortedWith(READING_ORDER)
+        // A subtitle set very close may join the band; it is smaller than the title line.
+        .filter { it.bounds.height >= band.lineHeight * 0.85f }
+        .take(MAX_TITLE_LINES)
         .joinToString(" ") { collapse(it.text) }
+
+/** The tallest band is often the author: take the large title-like band directly below it. */
+private fun titleBelowAuthor(base: Band, bands: List<Band>): Band? {
+    if (!looksLikeName(base.text)) return null
+    val below =
+        bands
+            .filter { it !== base && centerY(it.bounds) > centerY(base.bounds) }
+            .minByOrNull { centerY(it.bounds) } ?: return null
+    if (below.lineHeight < base.lineHeight * 0.8f) return null
+    return if (looksLikeTitle(below.text) || below.bounds.width > base.bounds.width * 1.05f) below else null
+}
+
+private fun looksLikeName(text: String): Boolean {
+    val name = authorName(text) ?: return false
+    val words = name.split(' ').filter { it.isNotEmpty() }
+    val first = words.firstOrNull()?.lowercase() ?: return false
+    if (first in NAME_STOPWORDS) return false
+    return words.count { word -> word.firstOrNull()?.isUpperCase() == true } >= 2
+}
+
+private fun looksLikeTitle(text: String): Boolean {
+    val t = collapse(text)
+    if (t.isEmpty()) return false
+    if (t.first().isDigit() || t.first() in "¿¡\"'«") return true
+    return t.substringBefore(' ').lowercase() in TITLE_STARTERS
+}
 
 private fun authorOf(bands: List<Band>, titleBand: Band): String? {
     val titleCenter = centerY(titleBand.bounds)

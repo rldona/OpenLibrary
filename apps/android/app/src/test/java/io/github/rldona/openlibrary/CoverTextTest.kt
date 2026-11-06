@@ -80,6 +80,39 @@ class CoverTextTest {
     }
 
     @Test
+    fun readsTheTitleBelowAnAuthorOfTheSameSize() {
+        val frame = PixelRect(0f, 0f, 920f, 1380f)
+        val lines = listOf(
+            line("ACANTILADO", 290f, 355f, 630f, 375f),
+            line("Josep Maria Esquirol", 210f, 575f, 640f, 625f),
+            line("La resistencia íntima", 230f, 650f, 650f, 700f),
+            line("Ensayo de una filosofía", 260f, 710f, 620f, 735f),
+        )
+
+        assertEquals(CoverQuery("La resistencia íntima", "Josep Maria Esquirol"), extractCoverQuery(lines, frame))
+    }
+
+    @Test
+    fun prefersTheTitleBelowWhenTheAuthorIsWider() {
+        val lines = listOf(
+            line("ROSA MONTERO", 40f, 60f, 500f, 120f),
+            line("LA RIDÍCULA IDEA", 60f, 220f, 460f, 280f),
+        )
+
+        assertEquals(CoverQuery("LA RIDÍCULA IDEA", "ROSA MONTERO"), extractCoverQuery(lines))
+    }
+
+    @Test
+    fun dropsASmallerSubtitleMergedWithTheTitle() {
+        val lines = listOf(
+            line("La resistencia íntima", 60f, 100f, 500f, 150f),
+            line("Ensayo de una filosofía", 80f, 155f, 480f, 190f),
+        )
+
+        assertEquals(CoverQuery("La resistencia íntima", null), extractCoverQuery(lines))
+    }
+
+    @Test
     fun prefersTheWiderBandWhenTwoHeightsTie() {
         val lines = listOf(
             line("ROSA MONTERO", 60f, 60f, 260f, 120f),
