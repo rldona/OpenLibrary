@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,7 +73,7 @@ fun RetireDialog(code: String, onDismiss: () -> Unit, onRetire: (reason: String)
     var reason by remember { mutableStateOf("gifted") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(str(R.string.copyForm_retireTitle, "code" to code)) },
+        title = { Text(str(R.string.copyForm_retireTitle, "code" to code), color = MaterialTheme.colorScheme.error) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.copyForm_retireInfo))
@@ -85,7 +86,9 @@ fun RetireDialog(code: String, onDismiss: () -> Unit, onRetire: (reason: String)
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onRetire(reason) }) { Text(stringResource(R.string.copyForm_retireButton)) } },
+        confirmButton = {
+            TextButton(onClick = { onRetire(reason) }) { Text(stringResource(R.string.copyForm_retireButton), color = MaterialTheme.colorScheme.error) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

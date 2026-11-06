@@ -1,5 +1,10 @@
 package io.github.rldona.openlibrary.ui.detail
 
+import kotlinx.coroutines.flow.first
+import io.github.rldona.openlibrary.ui.components.readableWidth
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -14,17 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +54,32 @@ import io.github.rldona.openlibrary.data.QuoteEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.WorkEntity
 import io.github.rldona.openlibrary.sync.pathOf
+import io.github.rldona.openlibrary.core.format
+import io.github.rldona.openlibrary.ui.components.BackButton
 import io.github.rldona.openlibrary.ui.components.Cover
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.onClick
+import io.github.rldona.openlibrary.ui.components.EmptyState
+import androidx.compose.material.icons.filled.SearchOff
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Job
+import io.github.rldona.openlibrary.ui.components.TopBarInsets
+import io.github.rldona.openlibrary.ui.components.appBarColors
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MediumFlexibleTopAppBar
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.rldona.openlibrary.ui.components.LoadingState
+import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import java.util.Locale
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,10 +99,16 @@ data class DetailState(
     val locations: Map<String, LocationEntity> = emptyMap(),
     val readings: List<ReadingEntity> = emptyList(),
     val quotes: List<QuoteEntity> = emptyList(),
+    /** The database answered: a null [work] then means it does not exist (deleted elsewhere). */
+    val loaded: Boolean = false,
 )
 
 class DetailViewModel(private val c: AppContainer, private val workId: String) : ViewModel() {
     val covers = c.covers
+    /** Deleting a quote waits for the snackbar's "Undo" (app-wide, so it survives this view model). */
+    private val deletes = c.deletes
+    /** Retirements in flight, so "Undo" restores the copy only after its retirement was written. */
+    private val retiring = ConcurrentHashMap<String, Job>()
     val state: StateFlow<DetailState> =
         combine(
             c.db.catalog().work(workId),
@@ -81,8 +116,15 @@ class DetailViewModel(private val c: AppContainer, private val workId: String) :
             c.db.catalog().copiesOfWork(workId),
             c.db.catalog().locations(),
             c.db.catalog().readingsOfWork(workId),
-        ) { w, e, cp, l, r -> DetailState(w, e, cp, l.associateBy { it.id }, r) }
-            .combine(c.db.catalog().quotesOfWork(workId)) { st, q -> st.copy(quotes = q) }
+        ) { w, e, cp, l, r -> DetailState(w, e, cp, l.associateBy { it.id }, r, loaded = true) }
+            .combine(
+                combine(c.db.catalog().quotesOfWork(workId), deletes.hidden) { q, hidden ->
+                    deletes.settle(QUOTE, q.mapTo(HashSet()) { QUOTE + it.id })
+                    q.filterNot { QUOTE + it.id in hidden }
+                },
+            ) { st, q ->
+                st.copy(quotes = q)
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState())
 
     /** Sends only what changed, so another device's edits to other fields are merged, not overwritten. */
@@ -99,23 +141,59 @@ class DetailViewModel(private val c: AppContainer, private val workId: String) :
     fun addCopy(editionId: String, form: CopyForm) =
         viewModelScope.launch { c.writes.addCopy(editionId, form.locationId, form.condition, form.notes.trim()) }
 
-    fun retire(copy: CopyEntity, reason: String) = viewModelScope.launch { c.writes.retireCopy(copy, reason) }
+    /** In the app scope: the snackbar's "Undo" may come after this screen is gone. */
+    fun retire(copy: CopyEntity, reason: String) {
+        retiring[copy.id] = c.appScope.launch { c.writes.retireCopy(copy, reason) }
+    }
 
     fun restore(copy: CopyEntity) = viewModelScope.launch { c.writes.restoreCopy(copy) }
 
-    fun reading(action: ReadingAction) =
+    /** "Undo" after retiring: puts the copy back as it is now (the retirement already reached the outbox). */
+    fun undoRetire(copyId: String) =
+        c.appScope.launch {
+            retiring.remove(copyId)?.join()
+            c.db.catalog().copyById(copyId)?.takeIf { it.status != "active" }?.let { c.writes.restoreCopy(it) }
+        }
+
+    /** False when this quote is already waiting to be deleted. */
+    fun deleteQuote(q: QuoteEntity): Boolean = deletes.hide(QUOTE + q.id) { c.writes.deleteQuote(q) }
+
+    fun undoDeleteQuote(id: String) = deletes.undo(QUOTE + id)
+
+    fun commitDeleteQuote(id: String) = deletes.commit(QUOTE + id)
+
+    /** A reading change is being written (the card disables its status row meanwhile). */
+    var readingBusy by mutableStateOf(false)
+        private set
+
+    fun reading(action: ReadingAction) {
+        // One change at a time: a quick second tap must not start a second reading.
+        if (readingBusy) return
+        readingBusy = true
         viewModelScope.launch {
-            when (action) {
-                is ReadingAction.Start -> c.writes.startReading(action.copyId, action.status)
-                is ReadingAction.Edit -> c.writes.editReading(action.reading, JsonObject(action.fields.mapValues { (_, v) -> toJson(v) }))
+            try {
+                when (action) {
+                    is ReadingAction.Start -> {
+                        // Checked against the database, not the screen: with a reading in progress, "read"
+                        // finishes it and "reading" does nothing, instead of opening another one.
+                        val inProgress = currentReading(c.db.catalog().readingsOfWork(workId).first())
+                        when {
+                            inProgress == null -> c.writes.startReading(action.copyId, action.status)
+                            action.status == "read" -> c.writes.editReading(inProgress, JsonObject(mapOf("status" to JsonPrimitive("read"))))
+                        }
+                    }
+                    is ReadingAction.Edit -> c.writes.editReading(action.reading, JsonObject(action.fields.mapValues { (_, v) -> toJson(v) }))
+                }
+            } finally {
+                readingBusy = false
             }
         }
+    }
 
     fun quote(action: QuoteAction) =
         viewModelScope.launch {
             when (action) {
                 is QuoteAction.Add -> action.draft.let { c.writes.addQuote(workId, it.text, it.page, it.note, it.copyId) }
-                is QuoteAction.Delete -> c.writes.deleteQuote(action.quote)
                 is QuoteAction.Edit -> {
                     val q = action.quote
                     val d = action.draft
@@ -139,6 +217,8 @@ class DetailViewModel(private val c: AppContainer, private val workId: String) :
         }
 }
 
+private const val QUOTE = "quote:"
+
 private sealed interface Dialog {
     data class Edit(val copy: CopyEntity) : Dialog
     data class Retire(val copy: CopyEntity) : Dialog
@@ -155,32 +235,78 @@ fun DetailScreen(
     onBack: () -> Unit,
     onEdit: (workId: String, editionId: String) -> Unit,
     onCover: (assetId: String, title: String) -> Unit,
+    /** A subject was tapped: search the library for it. */
+    onSubject: (String) -> Unit = {},
 ) {
     val s by vm.state.collectAsStateWithLifecycle()
-    val work = s.work ?: return
+    val snackbar = LocalSnackbar.current
+    val quoteDeleted = stringResource(R.string.quotes_deleted)
+    val retired = stringResource(R.string.copyForm_retired)
+    val reasons = RETIRE_REASONS.associateWith { stringResource(retireLabel(it)) }
+    val work = s.work
     val active = s.copies.filter { it.status == "active" }
     var dialog by remember { mutableStateOf<Dialog?>(null) }
     val locations = s.locations.values.toList()
+    // The edition you came from (or the first one): what the bar's "Edit" and "Add copy" act on.
+    val primary = s.editions.firstOrNull { it.id == editionId } ?: s.editions.firstOrNull()
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // A title too long for the bar is shown in full under it, next to the cover.
+    var titleCut by remember(work?.title) { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
 
     // The bar belongs to this screen, so it slides in/out with the detail instead of appearing over the
-    // library. The outer Scaffold already handles the status bar, hence the zero content insets here.
-    androidx.compose.material3.Scaffold(
+    // library. It starts tall with the title and shrinks to a single row as the page scrolls.
+    Scaffold(
+        Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {},
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.detail_back))
+            MediumFlexibleTopAppBar(
+                title = {
+                    Text(
+                        work?.title.orEmpty(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { if (it.hasVisualOverflow) titleCut = true },
+                        modifier = Modifier.semantics { heading() },
+                    )
+                },
+                navigationIcon = { BackButton(onBack) },
+                actions = {
+                    if (work != null && primary != null) {
+                        IconButton(onClick = { onEdit(work.id, primary.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.drawer_editBook))
+                        }
+                        Box {
+                            IconButton(onClick = { menu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more))
+                            }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.drawer_addCopy)) },
+                                    onClick = { menu = false; dialog = Dialog.Add(primary.id) },
+                                )
+                            }
+                        }
                     }
                 },
-                windowInsets = WindowInsets(0),
+                windowInsets = TopBarInsets,
+                colors = appBarColors(),
+                scrollBehavior = scroll,
             )
         },
+        containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
     ) { inner ->
+        if (work == null) {
+            // Not read yet, or gone (deleted on another device while you looked at it).
+            if (s.loaded) {
+                EmptyState(Icons.Default.SearchOff, stringResource(R.string.detail_missing), Modifier.padding(inner), action = stringResource(R.string.detail_back) to onBack)
+            } else {
+                LoadingState(Modifier.padding(inner))
+            }
+            return@Scaffold
+        }
         Column(
-            Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -201,7 +327,13 @@ fun DetailScreen(
                 coverId,
                 work.title,
                 128.dp,
-                coverModifier.then(if (coverId != null) Modifier.clickable { onCover(coverId, work.title) } else Modifier),
+                coverModifier.then(
+                    if (coverId != null) {
+                        Modifier.clickable(onClickLabel = stringResource(R.string.cover_open), role = Role.Button) { onCover(coverId, work.title) }
+                    } else {
+                        Modifier
+                    },
+                ),
                 authors = work.authors,
                 provisional = s.editions.any { it.metadataStatus == "provisional" },
             )
@@ -214,7 +346,7 @@ fun DetailScreen(
                     ),
                     style = MaterialTheme.typography.labelMedium,
                 )
-                Text(work.title, style = MaterialTheme.typography.headlineSmall)
+                if (titleCut) Text(work.title, style = MaterialTheme.typography.headlineSmall)
                 work.subtitle?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text(
                     work.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
@@ -228,14 +360,24 @@ fun DetailScreen(
             }
         }
         if (work.subjects.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                work.subjects.take(4).forEach { AssistChip(onClick = {}, label = { Text(it) }) }
+            val searchFor = stringResource(R.string.subject_search)
+            // Each subject opens the library searched for it; they wrap onto as many lines as needed.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                work.subjects.forEach { subject ->
+                    SuggestionChip(
+                        onClick = { onSubject(subject) },
+                        label = { Text(subject) },
+                        modifier = Modifier.semantics { onClick(label = format(searchFor, "subject" to subject)) { onSubject(subject); true } },
+                    )
+                }
             }
         }
-        ReadingCard(s.readings, s.copies, vm::reading)
-        QuotesCard(s.quotes, s.copies, vm::quote)
+        ReadingCard(s.readings, s.copies, vm::reading, busy = vm.readingBusy)
+        QuotesCard(s.quotes, s.copies, vm::quote) { q ->
+            if (vm.deleteQuote(q)) snackbar.showUndo(quoteDeleted, onUndo = { vm.undoDeleteQuote(q.id) }, onDismiss = { vm.commitDeleteQuote(q.id) })
+        }
         work.description?.let {
-            Text(stringResource(R.string.book_synopsis), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.book_synopsis), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
         s.editions.forEach { e ->
@@ -273,7 +415,17 @@ fun DetailScreen(
                 onSave = { vm.addCopy(d.editionId, it); dialog = null },
             )
         is Dialog.Retire ->
-            RetireDialog(d.copy.code, onDismiss = { dialog = null }, onRetire = { vm.retire(d.copy, it); dialog = null })
+            RetireDialog(
+                d.copy.code,
+                onDismiss = { dialog = null },
+                onRetire = { reason ->
+                    vm.retire(d.copy, reason)
+                    dialog = null
+                    // The reason stays in the dialog; the snackbar confirms and offers the way back.
+                    val message = format(retired, "code" to d.copy.code.ifEmpty { "—" }, "reason" to reasons[reason].orEmpty())
+                    snackbar.showUndo(message, onUndo = { vm.undoRetire(d.copy.id) }, onDismiss = {})
+                },
+            )
         null -> Unit
     }
 }
@@ -291,7 +443,7 @@ private fun EditionCard(
 ) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.drawer_edition), style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.drawer_edition), style = MaterialTheme.typography.labelMedium, modifier = Modifier.semantics { heading() })
             Text(
                 listOfNotNull(
                     e.title,
@@ -311,9 +463,12 @@ private fun EditionCard(
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEditBook) { Text(stringResource(R.string.drawer_editBook)) }
-                OutlinedButton(onClick = onAddCopy) { Text(stringResource(R.string.drawer_addCopy)) }
+            // Two related actions on this edition: an Expressive button group (the pressed one widens).
+            val edit = stringResource(R.string.drawer_editBook)
+            val addCopy = stringResource(R.string.drawer_addCopy)
+            ButtonGroup(overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) }) {
+                clickableItem(onClick = onEditBook, label = edit, icon = { Icon(Icons.Default.Edit, contentDescription = null) })
+                clickableItem(onClick = onAddCopy, label = addCopy, icon = { Icon(Icons.Default.Add, contentDescription = null) })
             }
             Text(stringResource(R.string.drawer_copiesOfEdition), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
             copies.sortedBy { it.status != "active" }.forEach { c -> CopyLine(c, locations, onEditCopy, onRetire, onRestore) }
@@ -330,29 +485,50 @@ private fun CopyLine(
     onRestore: (CopyEntity) -> Unit,
 ) {
     val retired = c.status != "active"
-    Column(Modifier.padding(vertical = 4.dp)) {
-        Text(
-            c.code.ifEmpty { stringResource(R.string.copy_pendingCode) } + " · " +
-                (pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (retired) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            listOfNotNull(
-                stringResource(conditionLabel(c.condition)),
-                c.acquiredOn?.let { stringResource(R.string.copy_acquired) + " " + it },
-                if (retired) stringResource(R.string.detail_retired) + " (" + stringResource(retireLabel(c.retiredReason)) + ")" else null,
-            ).joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (c.notes.isNotBlank()) Text(c.notes, style = MaterialTheme.typography.bodySmall)
-        Row {
-            if (retired) {
-                TextButton(onClick = { onRestore(c) }) { Text(stringResource(R.string.drawer_restore)) }
-            } else {
-                TextButton(onClick = { onEdit(c) }) { Text(stringResource(R.string.drawer_moveEdit)) }
-                TextButton(onClick = { onRetire(c) }) { Text(stringResource(R.string.drawer_retire)) }
+    val code = c.code.ifEmpty { stringResource(R.string.copy_pendingCode) }
+    var menu by remember { mutableStateOf(false) }
+    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(1f).padding(top = 8.dp)) {
+            Text(
+                code + " · " + (pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (retired) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                listOfNotNull(
+                    stringResource(conditionLabel(c.condition)),
+                    c.acquiredOn?.let { stringResource(R.string.copy_acquired) + " " + it },
+                    if (retired) stringResource(R.string.detail_retired) + " (" + stringResource(retireLabel(c.retiredReason)) + ")" else null,
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (c.notes.isNotBlank()) Text(c.notes, style = MaterialTheme.typography.bodySmall)
+        }
+        // The copy's actions in its own menu, so each line stays one short block.
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(Icons.Default.MoreVert, contentDescription = str(R.string.copy_actions, "code" to code))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (retired) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.drawer_restore)) },
+                        leadingIcon = { Icon(Icons.Default.Restore, contentDescription = null) },
+                        onClick = { menu = false; onRestore(c) },
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.drawer_moveEdit)) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = { menu = false; onEdit(c) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.drawer_retire), color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; onRetire(c) },
+                    )
+                }
             }
         }
     }

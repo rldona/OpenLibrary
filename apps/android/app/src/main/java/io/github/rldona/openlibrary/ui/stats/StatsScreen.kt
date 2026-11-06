@@ -1,5 +1,6 @@
 package io.github.rldona.openlibrary.ui.stats
 
+import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,6 +39,8 @@ import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CountBy
 import io.github.rldona.openlibrary.data.Stats
 import io.github.rldona.openlibrary.data.computeStats
+import io.github.rldona.openlibrary.ui.components.LoadingState
+import io.github.rldona.openlibrary.ui.components.TabScaffold
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -53,10 +61,19 @@ class StatsViewModel(c: AppContainer) : ViewModel() {
 @Composable
 fun StatsScreen(vm: StatsViewModel) {
     val s by vm.stats.collectAsStateWithLifecycle()
-    val stats = s ?: return
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.stats_subtitle), style = MaterialTheme.typography.bodySmall)
-        Figures(stats)
+    TabScaffold(stringResource(R.string.nav_stats)) { inner ->
+        val stats = s
+        if (stats == null) {
+            LoadingState(Modifier.padding(inner))
+            return@TabScaffold
+        }
+        Column(
+            Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.stats_subtitle), style = MaterialTheme.typography.bodySmall)
+            Figures(stats)
+        }
     }
 }
 
@@ -107,7 +124,7 @@ private fun money(cents: Long, currency: String): String =
 private fun Section(title: String?, content: @Composable () -> Unit) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            title?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+            title?.let { Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() }) }
             content()
         }
     }
@@ -117,11 +134,12 @@ private fun Section(title: String?, content: @Composable () -> Unit) {
 private fun Tiles(vararg tiles: Pair<Any, String>) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.forEach { (n, label) ->
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(8.dp),
-            ) {
-                Text(n.toString(), style = MaterialTheme.typography.titleLarge)
-                Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            // A figure and its label, read together ("12, Works").
+            ElevatedCard(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                Column(Modifier.padding(8.dp)) {
+                    Text(n.toString(), style = MaterialTheme.typography.titleLarge)
+                    Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                }
             }
         }
     }
@@ -130,11 +148,17 @@ private fun Tiles(vararg tiles: Pair<Any, String>) {
 /** Horizontal bars relative to the largest value. */
 @Composable
 private fun Bars(title: String, rows: List<Triple<String, Int, String?>>) {
-    Text(title, style = MaterialTheme.typography.titleSmall)
+    Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
     if (rows.isEmpty()) Text(stringResource(R.string.stats_none), style = MaterialTheme.typography.bodySmall)
     val max = (rows.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
     rows.forEach { (label, value, note) ->
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val description = "$label: $value" + (note?.let { ", $it" } ?: "")
+        // The bar is a picture: TalkBack reads the row as its label and value instead.
+        Row(
+            Modifier.clearAndSetSemantics { contentDescription = description },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(label, Modifier.width(110.dp), style = MaterialTheme.typography.bodySmall, maxLines = 1)
             Box(Modifier.weight(1f).height(10.dp)) {
                 Box(Modifier.fillMaxWidth(value.toFloat() / max).fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.primary))

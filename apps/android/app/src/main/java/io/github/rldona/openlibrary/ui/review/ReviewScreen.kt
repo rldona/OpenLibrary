@@ -1,5 +1,6 @@
 package io.github.rldona.openlibrary.ui.review
 
+import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import io.github.rldona.openlibrary.ui.components.BackScaffold
+import io.github.rldona.openlibrary.ui.components.EmptyState
+import androidx.compose.foundation.layout.PaddingValues
+import io.github.rldona.openlibrary.ui.components.LoadingState
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,16 +57,28 @@ class ReviewViewModel(private val c: AppContainer) : ViewModel() {
 
 /** Conflicts (the same field changed elsewhere) and changes the server refused, one card each. */
 @Composable
-fun ReviewScreen(vm: ReviewViewModel) {
+fun ReviewScreen(vm: ReviewViewModel, onBack: () -> Unit) {
     val problems by vm.problems.collectAsStateWithLifecycle()
-    val list = problems ?: return
-    if (list.isEmpty()) {
-        Text(stringResource(R.string.review_empty), Modifier.padding(24.dp))
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text(stringResource(R.string.review_title), style = MaterialTheme.typography.headlineSmall) }
-        items(list, key = { it.opId }) { p -> ProblemCard(p, vm) }
+    BackScaffold(stringResource(R.string.review_title), onBack) { inner ->
+        val list = problems
+        when {
+            list == null -> LoadingState(Modifier.padding(inner))
+            list.isEmpty() ->
+                EmptyState(
+                    Icons.Default.CheckCircle,
+                    stringResource(R.string.review_emptyTitle),
+                    Modifier.padding(inner),
+                    text = stringResource(R.string.review_empty),
+                )
+            else ->
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(inner).readableWidth(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(list, key = { it.opId }) { p -> ProblemCard(p, vm) }
+                }
+        }
     }
 }
 

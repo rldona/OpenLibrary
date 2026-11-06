@@ -17,7 +17,12 @@ data class LibraryRow(
     val coverAssetId: String?,
     val metadataStatus: String,
     val activeCopies: Int,
+    /** When the edition entered the catalogue (ISO instant), for "Added (newest)" like the web. */
+    val addedAt: String,
 )
+
+/** A work's reading status ("reading", "read" or "pending"), derived like [workReadingStatus]. */
+data class WorkReadingStatus(val workId: String, val status: String)
 
 data class OwnedEdition(val editionId: String, val workId: String, val title: String, val copies: Int)
 
@@ -31,7 +36,8 @@ interface CatalogDao {
         SELECT e.id AS editionId, w.id AS workId, COALESCE(e.title, w.title) AS title,
                COALESCE(e.subtitle, w.subtitle) AS subtitle, w.authors AS authors, e.publisher AS publisher,
                e.publishedYear AS publishedYear, e.coverAssetId AS coverAssetId, e.metadataStatus AS metadataStatus,
-               (SELECT COUNT(*) FROM copies c WHERE c.editionId = e.id AND c.status = 'active') AS activeCopies
+               (SELECT COUNT(*) FROM copies c WHERE c.editionId = e.id AND c.status = 'active') AS activeCopies,
+               e.createdAt AS addedAt
         FROM editions e JOIN works w ON w.id = e.workId
         WHERE activeCopies > 0
           AND (:fts = '' OR e.id IN (SELECT editionId FROM book_fts WHERE book_fts MATCH :fts))
@@ -44,6 +50,19 @@ interface CatalogDao {
 
     @Query("SELECT editionId, locationId FROM copies WHERE status = 'active'")
     fun placements(): Flow<List<Placement>>
+
+    /** Works with at least one reading; the others are "pending". Same rule as [workReadingStatus]. */
+    @Query(
+        """
+        SELECT e.workId AS workId,
+               CASE WHEN SUM(r.status = 'reading') > 0 THEN 'reading'
+                    WHEN SUM(r.status = 'read') > 0 THEN 'read'
+                    ELSE 'pending' END AS status
+        FROM readings r JOIN copies c ON c.id = r.copyId JOIN editions e ON e.id = c.editionId
+        GROUP BY e.workId
+        """,
+    )
+    fun readingStatuses(): Flow<List<WorkReadingStatus>>
 
     @Query("SELECT * FROM locations ORDER BY sortOrder, name")
     fun locations(): Flow<List<LocationEntity>>
@@ -76,11 +95,11 @@ interface CatalogDao {
 
     @Query("SELECT * FROM readings WHERE id = :id") suspend fun readingById(id: String): ReadingEntity?
 
-    /** Open wishes first, by priority (high, normal, low), newest first; then bought and discarded. */
+    /** Open wishes by priority (high, normal, low), newest first. Bought ones are kept but not listed. */
     @Query(
         """
-        SELECT * FROM wishes ORDER BY status != 'open',
-            CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, createdAt DESC
+        SELECT * FROM wishes WHERE status = 'open'
+        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, createdAt DESC
         """,
     )
     fun wishes(): Flow<List<WishEntity>>

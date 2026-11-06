@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import io.github.rldona.openlibrary.R
@@ -33,17 +35,16 @@ data class QuoteDraft(val text: String, val page: Int?, val note: String, val co
 sealed interface QuoteAction {
     data class Add(val draft: QuoteDraft) : QuoteAction
     data class Edit(val quote: QuoteEntity, val draft: QuoteDraft) : QuoteAction
-    data class Delete(val quote: QuoteEntity) : QuoteAction
 }
 
+/** Deleting has no confirmation: the screen offers "Undo" instead ([onDelete]). */
 @Composable
-fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (QuoteAction) -> Unit) {
+fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (QuoteAction) -> Unit, onDelete: (QuoteEntity) -> Unit) {
     var editing by remember { mutableStateOf<QuoteEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<QuoteEntity?>(null) }
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.quotes_title), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.quotes_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             quotes.forEach { q ->
                 Column {
                     Text("“${q.text}”", style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
@@ -55,7 +56,7 @@ fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (Q
                     if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row {
                         TextButton(onClick = { editing = q }) { Text(stringResource(R.string.common_edit)) }
-                        TextButton(onClick = { deleting = q }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { onDelete(q) }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -70,16 +71,9 @@ fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (Q
             editing = null
         }
     }
-    deleting?.let { q ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            text = { Text(stringResource(R.string.quotes_deleteConfirm)) },
-            confirmButton = { TextButton(onClick = { onAction(QuoteAction.Delete(q)); deleting = null }) { Text(stringResource(R.string.common_delete)) } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
-        )
-    }
 }
 
+/** An alert dialog, not a sheet: three short fields (and a copy picker only with several copies) fit in it. */
 @Composable
 private fun QuoteDialog(quote: QuoteEntity?, copies: List<CopyEntity>, onDismiss: () -> Unit, onSave: (QuoteDraft) -> Unit) {
     var text by remember { mutableStateOf(quote?.text.orEmpty()) }

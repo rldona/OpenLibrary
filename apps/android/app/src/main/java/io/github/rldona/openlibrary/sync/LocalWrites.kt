@@ -113,7 +113,10 @@ class LocalWrites(
         enqueue(Op.WishUpdate(uuidv7(), wish.id, Patch(baseOf(wish.version), fields)))
     }
 
-    /** BR14: the wish is kept as history, linked to the copy that fulfilled it. Queue it after that copy's op. */
+    /** A wish you no longer want is deleted for good (a bought one is kept, so it is not offered). */
+    suspend fun deleteWish(wish: WishEntity) = enqueue(Op.WishDelete(uuidv7(), wish.id))
+
+    /** BR14: the wish is kept as a record, linked to the copy that fulfilled it. Queue it after that copy's op. */
     suspend fun acquireWish(wish: WishEntity, copyId: String) =
         editWish(wish, buildJsonObject { put("status", "acquired"); put("acquiredCopyId", copyId) })
 
@@ -234,6 +237,7 @@ class LocalWrites(
                     }
                 }
                 is Op.WishUpdate -> c.wishById(op.id)?.let { d.upsertWishes(listOf(patched(it, op.patch.fields, WishEntity.serializer()))) }
+                is Op.WishDelete -> d.deleteWishes(listOf(op.id))
                 is Op.ReadingUpdate -> c.readingById(op.id)?.let { r ->
                     val p = patched(r, op.patch.fields, ReadingEntity.serializer())
                     val dates = readingDates(op.patch.fields["status"]?.jsonPrimitive?.contentOrNull, p.startedOn, p.finishedOn)
@@ -306,6 +310,7 @@ private fun Op.typeName(): String =
         is Op.ReadingUpdate -> "reading.update"
         is Op.WishCreate -> "wish.create"
         is Op.WishUpdate -> "wish.update"
+        is Op.WishDelete -> "wish.delete"
         is Op.QuoteCreate -> "quote.create"
         is Op.QuoteUpdate -> "quote.update"
         is Op.QuoteDelete -> "quote.delete"
@@ -320,5 +325,6 @@ private fun Op.entityId(): String =
         is Op.WishCreate -> wish.id
         is Op.QuoteCreate -> quote.id
         is Op.QuoteDelete -> id
+        is Op.WishDelete -> id
         is Op.Update -> id
     }

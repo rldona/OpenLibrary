@@ -1,16 +1,34 @@
 package io.github.rldona.openlibrary.ui.book
 
+import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ImageSearch
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -51,6 +72,10 @@ import io.github.rldona.openlibrary.network.NewCopy
 import io.github.rldona.openlibrary.network.NewEdition
 import io.github.rldona.openlibrary.network.NewWork
 import io.github.rldona.openlibrary.ui.capture.isbnReasonLabel
+import io.github.rldona.openlibrary.network.ApiException
+import io.github.rldona.openlibrary.ui.components.BackScaffold
+import io.github.rldona.openlibrary.ui.components.DestructiveDialog
+import io.github.rldona.openlibrary.ui.components.BusyLabel
 import io.github.rldona.openlibrary.ui.components.Cover
 import io.github.rldona.openlibrary.ui.components.LocationPicker
 import io.github.rldona.openlibrary.ui.components.Picker
@@ -73,6 +98,8 @@ sealed interface LookupNotice {
     data object Offline : LookupNotice
     data class InvalidIsbn(val reason: String) : LookupNotice
     data class Owned(val edition: OwnedEdition) : LookupNotice
+    /** The server answered with an error (not a network failure): its translated message. */
+    data class Failed(val message: String) : LookupNotice
 }
 
 /** Add a book (workId/editionId null; `wishId` for "I bought it") or edit an existing work + edition. */
@@ -110,6 +137,9 @@ class BookFormViewModel(
         private set
     var busy by mutableStateOf(false)
         private set
+    /** Saving (a subset of [busy], which also covers the lookup): the bar's "Save" shows its progress. */
+    var saving by mutableStateOf(false)
+        private set
     var titleMissing by mutableStateOf(false)
         private set
     /** BR15: the wish this book fulfils (from "I bought it", or found by its ISBN); bought on save. */
@@ -122,6 +152,22 @@ class BookFormViewModel(
     private var work: WorkEntity? = null
     private var edition: EditionEntity? = null
 
+    /** Everything the user can change, to tell whether leaving would lose something. */
+    private data class Fields(
+        val isbn: String, val title: String, val subtitle: String, val authors: String, val publisher: String,
+        val year: String, val language: String, val pages: String, val provisional: Boolean, val locationId: String?,
+        val condition: String, val notes: String, val photoId: String?, val providerCoverId: String?,
+    )
+
+    private fun fields() =
+        Fields(isbn, title, subtitle, authors, publisher, year, language, pages, provisional, locationId, condition, notes, photoId, providerCoverId)
+
+    /** The form as it opened (empty, or the book being edited once loaded). */
+    private var baseline by mutableStateOf(fields())
+
+    /** Leaving now would lose changes: closing asks first. */
+    val dirty get() = fields() != baseline
+
     init {
         if (wishId != null) viewModelScope.launch {
             val w = c.db.catalog().wishById(wishId) ?: return@launch
@@ -130,7 +176,9 @@ class BookFormViewModel(
             authors = w.authors.joinToString("; ")
             // "I bought it": the wish's cover becomes the book's (it is on the server already).
             w.coverAssetId?.let { providerCoverId = it }
-            w.isbn13?.let { isbn = it; lookup() }
+            baseline = fields()
+            // What the automatic lookup fills in is part of the form as it opened, not a change of the user's.
+            w.isbn13?.let { isbn = it; lookup(initial = true) }
         }
         if (workId != null && editionId != null) viewModelScope.launch {
             work = c.db.catalog().workById(workId)
@@ -141,6 +189,7 @@ class BookFormViewModel(
                 language = it.language.orEmpty(); pages = it.pages?.toString().orEmpty(); provisional = it.metadataStatus == "provisional"
                 photoId = it.coverAssetId
             }
+            baseline = fields()
         }
     }
 
@@ -156,7 +205,8 @@ class BookFormViewModel(
      * Local duplicate check first (works offline), then the providers through the server. When a cover
      * candidate is passed as [fallback], its summary fills the form if the lookup finds nothing.
      */
-    fun lookup(fallback: MetadataCandidate? = null) {
+    /** [initial]: the lookup the form starts by itself ("I bought it"); what it fills counts as unchanged. */
+    fun lookup(fallback: MetadataCandidate? = null, initial: Boolean = false) {
         val r = normalizeIsbn(isbn)
         if (r !is IsbnResult.Ok) {
             notice = LookupNotice.InvalidIsbn((r as IsbnResult.Invalid).reason)
@@ -167,7 +217,8 @@ class BookFormViewModel(
         busy = true
         viewModelScope.launch {
             try {
-                if (!editing && wish == null) wish = c.db.catalog().openWishByIsbn(r.isbn13)
+                // A wish waiting for its "Undo" on the way to being deleted is not one to buy.
+                if (!editing && wish == null) wish = c.db.catalog().openWishByIsbn(r.isbn13)?.takeIf { "wish:" + it.id !in c.deletes.hidden.value }
                 c.db.catalog().byIsbn(r.isbn13)?.let { if (!editing) { notice = LookupNotice.Owned(it); return@launch } }
                 val s = c.sessions.session.first()
                 if (seq != lookupSeq) return@launch
@@ -181,7 +232,7 @@ class BookFormViewModel(
                 if (result.found && p != null) {
                     fill(p)
                     // A book being edited keeps the cover it has; a new one shows the provider's right away.
-                    if (photoId == null && providerCoverId == null) p.coverUrl?.let { fetchProviderCover(it, result.sources.firstOrNull()) }
+                    if (photoId == null && providerCoverId == null) p.coverUrl?.let { fetchProviderCover(it, result.sources.firstOrNull(), initial) }
                     // The data arrived: the book is no longer provisional (the user can still tick it).
                     provisional = false
                     sources = result.sources
@@ -199,12 +250,20 @@ class BookFormViewModel(
                 if (seq == lookupSeq) {
                     if (fallback != null) applySummary(fallback) else offline()
                 }
+            } catch (e: ApiException) {
+                if (seq == lookupSeq) {
+                    if (fallback != null) applySummary(fallback) else notice = LookupNotice.Failed(e.message)
+                }
             } catch (_: Exception) {
+                // An answer this app cannot read: treat it as nothing found and let the user type it.
                 if (seq == lookupSeq) {
                     if (fallback != null) applySummary(fallback) else notice = LookupNotice.NotFound
                 }
             } finally {
-                if (seq == lookupSeq) busy = false
+                if (seq == lookupSeq) {
+                    busy = false
+                    if (initial) baseline = fields()
+                }
             }
         }
     }
@@ -281,17 +340,21 @@ class BookFormViewModel(
     }
 
     fun save(onSaved: (workId: String) -> Unit) {
+        // A second tap while saving (or looking up) would add the book twice.
+        if (busy) return
         if (title.isBlank()) {
             titleMissing = true
             return
         }
         busy = true
+        saving = true
         viewModelScope.launch {
             try {
                 if (editing) saveEdits() else onSaved(saveNew())
                 if (editing) onSaved(workId!!)
             } finally {
                 busy = false
+                saving = false
             }
         }
     }
@@ -323,6 +386,7 @@ class BookFormViewModel(
 
     /** "I bought it" for an edition you already own: just another copy of it (no new work or edition). */
     fun addOwnedCopy(owned: OwnedEdition, onSaved: (workId: String) -> Unit) {
+        if (busy) return
         busy = true
         viewModelScope.launch {
             try {
@@ -337,18 +401,33 @@ class BookFormViewModel(
 
     /** Not bought yet: keep it in the wishlist instead (e.g. scanned in a bookshop). */
     fun addToWishlist(onDone: () -> Unit) {
+        if (busy) return
         if (title.isBlank()) {
             titleMissing = true
             return
         }
+        busy = true
         viewModelScope.launch {
-            c.writes.addWish(title, authorList(), (normalizeIsbn(isbn) as? IsbnResult.Ok)?.isbn13)
-            onDone()
+            try {
+                // The same cover the book would get: the photo taken here, else the provider's.
+                val cover = photoId ?: providerCoverId ?: providerCover()
+                c.writes.addWish(
+                    title,
+                    authorList(),
+                    (normalizeIsbn(isbn) as? IsbnResult.Ok)?.isbn13,
+                    coverAssetId = cover,
+                    // Only a photo taken on the phone needs uploading; the provider's is on the server already.
+                    coverPhoto = photoId,
+                )
+                onDone()
+            } finally {
+                busy = false
+            }
         }
     }
 
     /** Copies the provider's cover to the server and downloads it, so the form can show it. */
-    private fun fetchProviderCover(url: String, source: String?) =
+    private fun fetchProviderCover(url: String, source: String?, initial: Boolean = false) =
         viewModelScope.launch {
             val s = c.sessions.session.first() ?: return@launch
             runCatching {
@@ -357,6 +436,8 @@ class BookFormViewModel(
                 if (!c.covers.has(id)) c.covers.put(id, withTimeout(10_000) { api.asset(id) })
                 providerCoverId = id
                 providerCoverSource = source
+                // Only the cover, so nothing the user typed meanwhile is taken as unchanged.
+                if (initial) baseline = baseline.copy(providerCoverId = id)
             }
         }
 
@@ -404,6 +485,10 @@ class BookFormViewModel(
     private fun text(s: String): JsonElement = s.trim().ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull
 }
 
+/**
+ * Add or edit a book. The bar carries the way out (✕, which asks before losing changes) and "Save"; the form
+ * is grouped as the catalogue is: the work, this edition and, when adding, your copy.
+ */
 @Composable
 fun BookFormScreen(
     vm: BookFormViewModel,
@@ -413,94 +498,158 @@ fun BookFormScreen(
     onSaved: (String) -> Unit,
     onWishAdded: () -> Unit = {},
     onIdentify: () -> Unit = {},
+    onClose: () -> Unit = {},
 ) {
     val locations by vm.locations.collectAsState(emptyList())
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val close = { if (vm.dirty) confirmDiscard = true else onClose() }
+    // The back gesture asks too; with nothing changed it just leaves.
+    BackHandler(enabled = vm.dirty) { confirmDiscard = true }
 
-    Column(
-        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    BackScaffold(
+        stringResource(if (vm.editing) R.string.form_editTitle else R.string.book_add),
+        onBack = close,
+        close = true,
+        actions = {
+            TextButton(onClick = { vm.save(onSaved) }, enabled = !vm.busy, modifier = Modifier.testTag("save")) {
+                BusyLabel(vm.saving, stringResource(R.string.common_save))
+            }
+        },
+    ) { inner ->
+        Column(
+            Modifier.fillMaxSize().padding(inner).imePadding().verticalScroll(rememberScrollState()).readableWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = vm.isbn,
+                    onValueChange = { vm.isbn = it },
+                    label = { Text(stringResource(R.string.form_isbnOptional)) },
+                    placeholder = { Text(stringResource(R.string.form_isbnPlaceholder)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f).testTag("isbn"),
+                )
+                OutlinedButton(onClick = vm::lookup, enabled = !vm.busy && vm.isbn.isNotBlank()) {
+                    BusyLabel(vm.busy && !vm.saving, stringResource(if (vm.busy && !vm.saving) R.string.form_searching else R.string.form_lookup))
+                }
+            }
+            if (!vm.editing) CaptureButtons(onScan, onIdentify)
+
+            vm.wish?.let { Notice(it) }
+            vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
+
+            SectionTitle(stringResource(R.string.form_section_work))
+            Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
+            Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
+            Field(stringResource(R.string.book_authors), vm.authors, { vm.authors = it }, hint = stringResource(R.string.form_separateWithSemicolon))
+
+            SectionTitle(stringResource(R.string.drawer_edition))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Cover(vm.covers, vm.coverId, vm.title.ifBlank { "?" }, 72.dp, authors = vm.authors.split(';').map { it.trim() }.filter { it.isNotEmpty() })
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val fromProvider = vm.photoId == null && vm.providerCoverId != null
+                    if (fromProvider) {
+                        Text(
+                            str(R.string.form_providerCover, "source" to (vm.providerCoverSource ?: "")),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(onClick = onPhoto) {
+                        Text(stringResource(if (vm.coverId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
+                    }
+                    if (vm.photoId != null && !vm.editing) {
+                        OutlinedButton(onClick = { vm.photoId = null }) { Text(stringResource(R.string.add_removePhoto)) }
+                    }
+                    if (fromProvider) {
+                        TextButton(onClick = vm::dropProviderCover) { Text(stringResource(R.string.form_removeCover)) }
+                    }
+                }
+            }
+            Field(stringResource(R.string.book_publisher), vm.publisher, { vm.publisher = it })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Field(stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), number = true)
+                Field(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
+                Field(stringResource(R.string.book_language), vm.language, { vm.language = it.take(8) }, Modifier.weight(1f))
+            }
+            // The whole row is the checkbox, for touch and for TalkBack.
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = vm.provisional, role = Role.Checkbox, onValueChange = { vm.provisional = it }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = vm.provisional, onCheckedChange = null)
+                Text(stringResource(R.string.book_provisional), Modifier.padding(start = 12.dp))
+            }
+            if (!vm.editing) {
+                SectionTitle(stringResource(R.string.copy_yourCopy))
+                LocationPicker(locations, vm.locationId, { vm.locationId = it }, Modifier.fillMaxWidth())
+                Picker(
+                    stringResource(R.string.copy_condition),
+                    vm.condition,
+                    CONDITIONS.map { it to stringResource(conditionLabel(it)) },
+                    { vm.condition = it },
+                    Modifier.fillMaxWidth(),
+                )
+                Field(stringResource(R.string.copy_notes), vm.notes, { vm.notes = it }, hint = stringResource(R.string.copy_notesPlaceholder))
+            }
+            // "Save" is in the bar; keeping it in the wishlist instead is the other way to finish.
+            if (!vm.editing && !vm.fromWish) {
+                OutlinedButton(onClick = { vm.addToWishlist(onWishAdded) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.wish_addToWishlist))
+                }
+            }
+            Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    if (confirmDiscard) {
+        DestructiveDialog(
+            title = stringResource(R.string.form_discardTitle),
+            text = stringResource(R.string.form_discardText),
+            confirm = stringResource(R.string.form_discard),
+            onConfirm = { confirmDiscard = false; onClose() },
+            onDismiss = { confirmDiscard = false },
+            dismiss = stringResource(R.string.form_keepEditing),
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+}
+
+/** Scan the barcode or identify the cover: the two ways to fill the form from the camera (Expressive button group). */
+@Composable
+private fun CaptureButtons(onScan: () -> Unit, onIdentify: () -> Unit) {
+    val scan = stringResource(R.string.add_scan)
+    val identify = stringResource(R.string.add_identify)
+    ButtonGroup(
+        overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(stringResource(if (vm.editing) R.string.form_editTitle else R.string.book_add), style = MaterialTheme.typography.headlineSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = vm.isbn,
-                onValueChange = { vm.isbn = it },
-                label = { Text(stringResource(R.string.form_isbnOptional)) },
-                placeholder = { Text(stringResource(R.string.form_isbnPlaceholder)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f).testTag("isbn"),
-            )
-            OutlinedButton(onClick = vm::lookup, enabled = !vm.busy && vm.isbn.isNotBlank()) {
-                Text(stringResource(if (vm.busy) R.string.form_searching else R.string.form_lookup))
-            }
-        }
-        if (!vm.editing) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onScan, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.add_scan)) }
-                OutlinedButton(onClick = onIdentify, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.add_identify)) }
-            }
-        }
-
-        vm.wish?.let { Notice(it) }
-        vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(vm.covers, vm.coverId, vm.title.ifBlank { "?" }, 72.dp, authors = vm.authors.split(';').map { it.trim() }.filter { it.isNotEmpty() })
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                val fromProvider = vm.photoId == null && vm.providerCoverId != null
-                if (fromProvider) {
-                    Text(
-                        str(R.string.form_providerCover, "source" to (vm.providerCoverSource ?: "")),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        customItem(
+            buttonGroupContent = {
+                val source = remember { MutableInteractionSource() }
+                Button(onClick = onScan, shapes = ButtonDefaults.shapes(), interactionSource = source, modifier = Modifier.weight(1f).animateWidth(source)) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(scan, maxLines = 1)
                 }
-                OutlinedButton(onClick = onPhoto) {
-                    Text(stringResource(if (vm.coverId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
+            },
+            menuContent = { menu -> DropdownMenuItem(text = { Text(scan) }, onClick = { menu.dismiss(); onScan() }) },
+        )
+        customItem(
+            buttonGroupContent = {
+                val source = remember { MutableInteractionSource() }
+                FilledTonalButton(onClick = onIdentify, shapes = ButtonDefaults.shapes(), interactionSource = source, modifier = Modifier.weight(1f).animateWidth(source)) {
+                    Icon(Icons.Default.ImageSearch, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(identify, maxLines = 1)
                 }
-                if (vm.photoId != null && !vm.editing) {
-                    OutlinedButton(onClick = { vm.photoId = null }) { Text(stringResource(R.string.add_removePhoto)) }
-                }
-                if (fromProvider) {
-                    TextButton(onClick = vm::dropProviderCover) { Text(stringResource(R.string.form_removeCover)) }
-                }
-            }
-        }
-        Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
-        Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
-        Field(stringResource(R.string.book_authors), vm.authors, { vm.authors = it }, hint = stringResource(R.string.form_separateWithSemicolon))
-        Field(stringResource(R.string.book_publisher), vm.publisher, { vm.publisher = it })
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Field(stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), number = true)
-            Field(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
-            Field(stringResource(R.string.book_language), vm.language, { vm.language = it.take(8) }, Modifier.weight(1f))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = vm.provisional, onCheckedChange = { vm.provisional = it })
-            Text(stringResource(R.string.book_provisional))
-        }
-        if (!vm.editing) {
-            Text(stringResource(R.string.copy_yourCopy), style = MaterialTheme.typography.titleSmall)
-            LocationPicker(locations, vm.locationId, { vm.locationId = it }, Modifier.fillMaxWidth())
-            Picker(
-                stringResource(R.string.copy_condition),
-                vm.condition,
-                CONDITIONS.map { it to stringResource(conditionLabel(it)) },
-                { vm.condition = it },
-                Modifier.fillMaxWidth(),
-            )
-            Field(stringResource(R.string.copy_notes), vm.notes, { vm.notes = it }, hint = stringResource(R.string.copy_notesPlaceholder))
-        }
-        Button(onClick = { vm.save(onSaved) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth().testTag("save")) {
-            Text(stringResource(if (vm.editing) R.string.common_saveChanges else R.string.form_addToLibrary))
-        }
-        if (!vm.editing && !vm.fromWish) {
-            OutlinedButton(onClick = { vm.addToWishlist(onWishAdded) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.wish_addToWishlist))
-            }
-        }
-        Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall)
+            },
+            menuContent = { menu -> DropdownMenuItem(text = { Text(identify) }, onClick = { menu.dismiss(); onIdentify() }) },
+        )
     }
 }
 
@@ -522,6 +671,7 @@ private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (Ow
                 }
                 LookupNotice.NotFound -> Text(stringResource(R.string.form_notFoundTitle) + ". " + stringResource(R.string.form_fillManually))
                 LookupNotice.Offline -> Text(stringResource(R.string.add_offline))
+                is LookupNotice.Failed -> Text(str(R.string.form_lookupFailed, "error" to n.message), color = MaterialTheme.colorScheme.error)
                 is LookupNotice.InvalidIsbn ->
                     Text(str(R.string.form_isbnInvalid, "reason" to stringResource(isbnReasonLabel(n.reason))), color = MaterialTheme.colorScheme.error)
                 is LookupNotice.Owned -> {

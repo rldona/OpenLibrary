@@ -3,6 +3,8 @@ agp = "9.5.0"
 kotlin = "2.4.21"
 ksp = "2.3.13"
 composeBom = "2026.09.00"
+# Above the BOM (1.4.0) for the Expressive components: LoadingIndicator, FloatingActionButtonMenu, ButtonGroup, flexible app bars.
+material3 = "1.5.0-rc01"
 activity = "1.13.0"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
@@ -34,7 +36,7 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
-compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

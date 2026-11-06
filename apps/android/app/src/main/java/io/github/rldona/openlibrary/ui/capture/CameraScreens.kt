@@ -1,12 +1,19 @@
 package io.github.rldona.openlibrary.ui.capture
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.graphics.Matrix
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.HorizontalFloatingToolbar
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.ToggleButton
+import io.github.rldona.openlibrary.ui.components.Pill
+import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,21 +52,23 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -74,6 +83,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -83,17 +96,21 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import io.github.rldona.openlibrary.R
+import io.github.rldona.openlibrary.core.CoverEditState
 import io.github.rldona.openlibrary.core.IsbnResult
 import io.github.rldona.openlibrary.core.PixelRect
 import io.github.rldona.openlibrary.core.formatIsbn
 import io.github.rldona.openlibrary.core.frameInImage
+import io.github.rldona.openlibrary.core.initialEditState
 import io.github.rldona.openlibrary.core.normalizeIsbn
-import io.github.rldona.openlibrary.core.sha256Hex
 import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.network.MetadataCandidate
 import io.github.rldona.openlibrary.network.MetadataSearchResult
 import io.github.rldona.openlibrary.sync.CoverStore
-import java.io.ByteArrayOutputStream
+import io.github.rldona.openlibrary.ui.components.LocalSnackbar
+import kotlinx.coroutines.launch
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "OpenLibraryScanner"
 
@@ -109,11 +126,38 @@ data class CaptureResult(
 /** Title/author text read on a cover, looked up by the server. */
 typealias IdentifySearch = suspend (title: String, author: String?) -> MetadataSearchResult
 
+/** A picture in the crop editor: the prepared file and how it is being cropped. */
+private data class EditSession(val path: String, val state: CoverEditState)
+
+/** Keeps the editing session across configuration changes and process death, as plain values. */
+private val EditSessionSaver = listSaver<EditSession?, Any>(
+    save = { e ->
+        if (e == null) emptyList()
+        else with(e.state) {
+            listOf(e.path, imageWidth, imageHeight, crop.left, crop.top, crop.right, crop.bottom, quarterTurns, angleDeg, ratioLocked)
+        }
+    },
+    restore = { v ->
+        if (v.size < 10) null
+        else EditSession(
+            v[0] as String,
+            CoverEditState(
+                imageWidth = v[1] as Int,
+                imageHeight = v[2] as Int,
+                crop = PixelRect(v[3] as Float, v[4] as Float, v[5] as Float, v[6] as Float),
+                quarterTurns = v[7] as Int,
+                angleDeg = v[8] as Float,
+                ratioLocked = v[9] as Boolean,
+            ),
+        )
+    },
+)
+
 /**
  * Full-screen camera for adding a book, with up to three modes as tabs: ISBN (scan the barcode), Cover
- * (photo cropped to a 2:3 frame, or a picture from the gallery) and Identify (read the title on the cover
- * and search for it). Confirming an ISBN moves on to the cover, so a book can be captured in one go; the
- * top-left button closes and returns whatever was captured.
+ * (a photo or a picture from the gallery, then cropped in [CoverEditor]) and Identify (read the title on
+ * the cover and search for it). Confirming an ISBN moves on to the cover, so a book can be captured in one
+ * go; the top-left button closes and returns whatever was captured.
  */
 @Composable
 fun CaptureScreen(
@@ -131,14 +175,70 @@ fun CaptureScreen(
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it; asked = true }
     LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) }
 
-    var mode by remember { mutableStateOf(start) }
-    var isbn by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var mode by rememberSaveable { mutableStateOf(start) }
+    var isbn by rememberSaveable { mutableStateOf<String?>(null) }
     var torch by remember { mutableStateOf(false) }
+    var edit by rememberSaveable(stateSaver = EditSessionSaver) { mutableStateOf<EditSession?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    var saveFailed by remember { mutableStateOf(false) }
     val finish = { photoId: String? -> onDone(CaptureResult(isbn, photoId)) }
+    val snackbar = LocalSnackbar.current
+    val imageFailed = stringResource(R.string.capture_imageFailed)
+    val openEditor = { image: PreparedImage?, frame: PixelRect? ->
+        if (image == null) {
+            snackbar.showMessage(imageFailed)
+        } else {
+            saveFailed = false
+            edit = EditSession(image.file.path, initialEditState(image.width, image.height, frame))
+        }
+    }
 
-    // A picture from the gallery is used whole (it is usually a cover already), resized like a photo.
+    // Pictures left behind by earlier sessions (closed mid-edit, killed) go; a restored one stays.
+    LaunchedEffect(Unit) {
+        sweepEditCache(editCacheDir(context), keep = edit?.let { File(it.path) }, before = System.currentTimeMillis() - 2_000)
+    }
+
+    // A picture from the gallery starts with the largest centred 2:3 crop.
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) finish(storeGalleryImage(context, covers, uri))
+        if (uri != null) scope.launch { openEditor(prepareGalleryImage(context, uri), null) }
+    }
+
+    val session = edit
+    if (session != null) {
+        // The cameras are not composed meanwhile, so they are released.
+        CoverEditor(
+            file = File(session.path),
+            state = session.state,
+            busy = saving,
+            failed = saveFailed,
+            onState = { state -> edit = edit?.copy(state = state) },
+            onCancel = {
+                scope.launch { deleteEditFile(File(session.path)) }
+                edit = null
+                mode = CaptureMode.Cover
+            },
+            onConfirm = confirm@{
+                // A second tap while saving would finish (and pop the screen) twice.
+                if (saving) return@confirm
+                val current = edit ?: return@confirm
+                saving = true
+                saveFailed = false
+                scope.launch {
+                    val bytes = renderCrop(File(current.path), current.state)
+                    if (bytes == null) {
+                        saving = false
+                        saveFailed = true
+                        return@launch
+                    }
+                    val id = storeCover(covers, bytes)
+                    deleteEditFile(File(current.path))
+                    // Stays busy: the screen is leaving.
+                    finish(id)
+                }
+            },
+        )
+        return
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -147,10 +247,10 @@ fun CaptureScreen(
                 IsbnCamera(torch, onIsbn = { isbn = it; if (showTabs) mode = CaptureMode.Cover else finish(null) })
             granted && mode == CaptureMode.Identify && identify != null ->
                 IdentifyCamera(torch, search = identify, onCandidate = { onDone(CaptureResult(null, null, it)) })
-            granted -> CoverCamera(covers, torch, onPhoto = { finish(it) }, onGallery = {
+            granted -> CoverCamera(torch, onPhoto = openEditor, onGallery = {
                 pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             })
-            asked -> Text(stringResource(R.string.add_cameraDenied), Modifier.align(Alignment.Center).padding(32.dp), color = Color.White)
+            asked -> CameraDenied(Modifier.align(Alignment.Center))
         }
 
         // Top: close (keeping what was captured) and the torch.
@@ -160,9 +260,7 @@ fun CaptureScreen(
             }
             Spacer(Modifier.weight(1f))
             isbn?.let {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                    Text("ISBN ${formatIsbn(it)} ✓", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge)
-                }
+                Pill("ISBN ${formatIsbn(it)} ✓")
                 Spacer(Modifier.weight(1f))
             }
             FilledTonalIconButton(onClick = { torch = !torch }) {
@@ -170,33 +268,75 @@ fun CaptureScreen(
             }
         }
 
+        // Messages go under the top buttons, clear of the shutter and the mode tabs.
+        snackbar.ScreenHost(Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 64.dp), transient = true)
+
         if (showTabs) {
-            Row(
-                Modifier.align(Alignment.BottomCenter).systemBarsPadding().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            val modes = listOfNotNull(
+                CaptureMode.Isbn to R.string.capture_isbn,
+                CaptureMode.Cover to R.string.capture_cover,
+                (CaptureMode.Identify to R.string.capture_identify).takeIf { identify != null },
+            )
+            val modeLabel = stringResource(R.string.capture_mode)
+            // The modes as an Expressive floating toolbar over the picture; one of them is always on.
+            HorizontalFloatingToolbar(
+                expanded = true,
+                modifier = Modifier.align(Alignment.BottomCenter).systemBarsPadding().padding(bottom = 8.dp)
+                    .semantics { contentDescription = modeLabel }
+                    .selectableGroup(),
             ) {
-                ModeTab(stringResource(R.string.capture_isbn), mode == CaptureMode.Isbn) { mode = CaptureMode.Isbn }
-                ModeTab(stringResource(R.string.capture_cover), mode == CaptureMode.Cover) { mode = CaptureMode.Cover }
-                if (identify != null) {
-                    ModeTab(stringResource(R.string.capture_identify), mode == CaptureMode.Identify) { mode = CaptureMode.Identify }
+                modes.forEach { (m, labelId) ->
+                    val label = stringResource(labelId)
+                    // Read as one radio button ("ISBN, selected"), not as the toggle button's checkbox inside.
+                    Box(
+                        Modifier.clearAndSetSemantics {
+                            role = Role.RadioButton
+                            selected = mode == m
+                            contentDescription = label
+                            onClick { mode = m; true }
+                        },
+                    ) {
+                        ToggleButton(checked = mode == m, onCheckedChange = { mode = m }) { Text(label) }
+                    }
                 }
             }
         }
     }
 }
 
+/** The camera was refused: say so, and offer the app's settings page, where it can be allowed. */
 @Composable
-private fun ModeTab(label: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) Button(onClick = onClick) { Text(label) }
-    else TextButton(onClick = onClick) { Text(label, color = Color.White) }
+internal fun CameraDenied(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.add_cameraDenied), color = Color.White, textAlign = TextAlign.Center)
+        Button(
+            onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            },
+        ) { Text(stringResource(R.string.add_openSettings)) }
+    }
 }
 
 @Composable
 internal fun CameraPreview(controller: LifecycleCameraController, torch: Boolean) {
     val owner = LocalLifecycleOwner.current
+    // COMPATIBLE renders into a TextureView, which Compose clips: the default SurfaceView ignores the
+    // clip, and with FILL_CENTER it spills past a preview box that does not fill the screen (bulk scan).
+    // The scale type stays FILL_CENTER, which is what frameInImage assumes for the cover crop.
     AndroidView(
-        factory = { ctx -> PreviewView(ctx).apply { this.controller = controller; controller.bindToLifecycle(owner) } },
-        modifier = Modifier.fillMaxSize(),
+        factory = { ctx ->
+            PreviewView(ctx).apply {
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+                this.controller = controller
+                controller.bindToLifecycle(owner)
+            }
+        },
+        modifier = Modifier.fillMaxSize().clipToBounds(),
     )
     LaunchedEffect(torch) { controller.enableTorch(torch) }
     // Switching between the ISBN and cover tabs swaps controllers: release the camera for the next one.
@@ -345,17 +485,18 @@ private fun IsbnCamera(torch: Boolean, onIsbn: (String) -> Unit) {
 }
 
 /**
- * Cover photo inside a portrait frame (2:3, like a book). The picture is cropped to the frame, made
- * upright and resized to 1600 px, then stored under its SHA-256, which is the id the server will give it,
- * so the book can reference it before it is uploaded.
+ * Cover photo inside a portrait frame (2:3, like a book). The picture is made upright off the main thread
+ * and handed over with the frame's area in it, where the crop editor starts.
  */
 @Composable
-private fun CoverCamera(covers: CoverStore, torch: Boolean, onPhoto: (assetId: String) -> Unit, onGallery: () -> Unit) {
+private fun CoverCamera(torch: Boolean, onPhoto: (image: PreparedImage?, frame: PixelRect?) -> Unit, onGallery: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var frame by remember { mutableStateOf<PixelRect?>(null) }
     var view by remember { mutableStateOf(0 to 0) }
     val controller = remember { LifecycleCameraController(context).apply { setEnabledUseCases(CameraController.IMAGE_CAPTURE) } }
+    val shutterLabel = stringResource(R.string.add_capture)
     Box(Modifier.fillMaxSize().onSizeChanged { view = it.width to it.height }) {
         CameraPreview(controller, torch)
         Viewfinder(stringResource(R.string.capture_coverHint), highlight = false, onFrame = { frame = it }, shape = ::coverFrame)
@@ -364,8 +505,14 @@ private fun CoverCamera(covers: CoverStore, torch: Boolean, onPhoto: (assetId: S
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onGallery, modifier = Modifier.size(56.dp).border(BorderStroke(2.dp, Color.White), CircleShape)) {
-                Icon(Icons.Default.PhotoLibrary, contentDescription = stringResource(R.string.capture_gallery), tint = Color.White)
+            OutlinedIconButton(
+                onClick = onGallery,
+                enabled = !busy,
+                modifier = Modifier.size(56.dp),
+                border = BorderStroke(2.dp, Color.White),
+                colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = Color.White),
+            ) {
+                Icon(Icons.Default.PhotoLibrary, contentDescription = stringResource(R.string.capture_gallery))
             }
             // Shutter: a white disc inside a ring.
             Box(Modifier.size(80.dp).border(BorderStroke(4.dp, Color.White), CircleShape).padding(8.dp)) {
@@ -376,7 +523,21 @@ private fun CoverCamera(covers: CoverStore, torch: Boolean, onPhoto: (assetId: S
                             ContextCompat.getMainExecutor(context),
                             object : ImageCapture.OnImageCapturedCallback() {
                                 override fun onCaptureSuccess(image: ImageProxy) {
-                                    onPhoto(store(covers, image.use { toJpeg(it, view.first, view.second, frame) }))
+                                    val (viewW, viewH) = view
+                                    val shown = frame
+                                    // The coroutine owns the image once it starts; if it never does, close it here.
+                                    val taken = AtomicBoolean(false)
+                                    scope.launch {
+                                        taken.set(true)
+                                        val prepared = prepareCameraImage(context, image)
+                                        val crop = if (prepared != null && shown != null && viewW > 0 && viewH > 0) {
+                                            frameInImage(prepared.width, prepared.height, viewW, viewH, shown)
+                                        } else {
+                                            null
+                                        }
+                                        busy = false
+                                        onPhoto(prepared, crop)
+                                    }.invokeOnCompletion { if (!taken.get()) image.close() }
                                 }
 
                                 override fun onError(exception: ImageCaptureException) {
@@ -388,44 +549,16 @@ private fun CoverCamera(covers: CoverStore, torch: Boolean, onPhoto: (assetId: S
                     enabled = !busy && frame != null,
                     shape = CircleShape,
                     color = if (busy) Color.Gray else Color.White,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().semantics {
+                        contentDescription = shutterLabel
+                        role = Role.Button
+                    },
                 ) {}
             }
             // Keeps the shutter centred.
             Spacer(Modifier.size(56.dp))
         }
     }
-}
-
-private fun store(covers: CoverStore, bytes: ByteArray): String = sha256Hex(bytes).also { covers.put(it, bytes) }
-
-private fun storeGalleryImage(context: Context, covers: CoverStore, uri: Uri): String? =
-    runCatching {
-        val bmp = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { d, _, _ ->
-            d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-        }
-        store(covers, compress(bmp))
-    }.onFailure { Log.w(TAG, "could not read the picked image", it) }.getOrNull()
-
-private fun toJpeg(image: ImageProxy, viewW: Int, viewH: Int, frame: PixelRect?): ByteArray {
-    var bmp = image.toBitmap()
-    val rotation = image.imageInfo.rotationDegrees
-    if (rotation != 0) {
-        bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
-    }
-    if (frame != null && viewW > 0 && viewH > 0) {
-        val c = frameInImage(bmp.width, bmp.height, viewW, viewH, frame)
-        if (c.width >= 20 && c.height >= 20) {
-            bmp = Bitmap.createBitmap(bmp, c.left.toInt(), c.top.toInt(), c.width.toInt(), c.height.toInt())
-        }
-    }
-    return compress(bmp)
-}
-
-private fun compress(source: Bitmap): ByteArray {
-    val scale = minOf(1f, 1600f / maxOf(source.width, source.height))
-    val bmp = if (scale < 1f) Bitmap.createScaledBitmap(source, (source.width * scale).toInt(), (source.height * scale).toInt(), true) else source
-    return ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
 }
 
 fun isbnReasonLabel(reason: String): Int =

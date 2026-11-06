@@ -1,14 +1,17 @@
 package io.github.rldona.openlibrary.ui.capture
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.Color
+import io.github.rldona.openlibrary.ui.components.BookTitle
+import io.github.rldona.openlibrary.ui.components.Pill
+import io.github.rldona.openlibrary.ui.components.PillTone
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,7 +20,6 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -74,69 +76,57 @@ internal fun CandidateDialog(
 
 @Composable
 private fun CandidateRow(candidate: MetadataCandidate, onPick: (MetadataCandidate) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable { onPick(candidate) }.padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val cover = Modifier.width(44.dp).height(66.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
-        if (candidate.coverUrl != null) {
-            AsyncImage(
-                model = candidate.coverUrl,
-                contentDescription = candidate.title,
-                contentScale = ContentScale.Crop,
-                modifier = cover,
-            )
-        } else {
-            Box(cover, contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Book, contentDescription = candidate.title, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                candidate.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (candidate.authors.isNotEmpty()) {
-                Text(
-                    candidate.authors.joinToString(", "),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val imprint = listOfNotNull(candidate.publisher, candidate.publishedYear?.toString()).joinToString(" · ")
-            if (imprint.isNotEmpty()) {
-                Text(
-                    imprint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (candidate.sources.isNotEmpty()) {
-                Text(
-                    candidate.sources.joinToString(", "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (candidate.owned) {
-                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(
-                        stringResource(R.string.identify_owned),
-                        Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
+    // One element for TalkBack: the title is read once, the cover adds nothing.
+    ListItem(
+        onClick = { onPick(candidate) },
+        leadingContent = {
+            val cover = Modifier.width(44.dp).height(66.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+            if (candidate.coverUrl != null) {
+                AsyncImage(model = candidate.coverUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = cover)
+            } else {
+                Box(cover, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Book, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        },
+        supportingContent = { CandidateDetails(candidate) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        contentPadding = PaddingValues(vertical = 8.dp),
+    ) {
+        Text(candidate.title, style = BookTitle.compact, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun CandidateDetails(candidate: MetadataCandidate) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (candidate.authors.isNotEmpty()) {
+            Text(
+                candidate.authors.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+        val imprint = listOfNotNull(candidate.publisher, candidate.publishedYear?.toString()).joinToString(" · ")
+        if (imprint.isNotEmpty()) {
+            Text(
+                imprint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (candidate.sources.isNotEmpty()) {
+            Text(
+                candidate.sources.joinToString(", "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (candidate.owned) Pill(stringResource(R.string.identify_owned), tone = PillTone.Neutral, small = true)
     }
 }

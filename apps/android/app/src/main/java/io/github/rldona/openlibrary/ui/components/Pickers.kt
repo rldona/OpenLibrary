@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -43,10 +44,16 @@ fun <T> Picker(label: String, value: T, options: List<Pair<T, String>>, onChange
 
 /** Location chooser showing full paths ("Casa › Salón › Balda 3"), plus "No location". */
 @Composable
-fun LocationPicker(locations: List<LocationEntity>, value: String?, onChange: (String?) -> Unit, modifier: Modifier = Modifier) {
+fun LocationPicker(
+    locations: List<LocationEntity>,
+    value: String?,
+    onChange: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = stringResource(R.string.copy_location),
+) {
     val byId = remember(locations) { locations.associateBy { it.id } }
     val options =
         listOf<Pair<String?, String>>(null to stringResource(R.string.copy_noLocation)) +
             locations.map { it.id to pathOf(byId, it.id).joinToString(" › ") }.sortedBy { it.second }
-    Picker(stringResource(R.string.copy_location), value, options, onChange, modifier)
+    Picker(label, value, options, onChange, modifier)
 }

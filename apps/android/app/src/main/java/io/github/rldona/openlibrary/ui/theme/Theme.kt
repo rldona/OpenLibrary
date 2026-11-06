@@ -2,7 +2,8 @@ package io.github.rldona.openlibrary.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -15,9 +16,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /*
- * The web's colours (apps/web/src/styles.css, :root and its dark variant), token for token: every colour
- * of the app is one of these, so both look the same. Material roles the web has no equivalent for reuse
- * the closest web token (noted below).
+ * The web's colours (apps/web/src/styles.css, :root and its dark variant), token for token, plus the roles
+ * the web has no equivalent for: a stronger outline, a ladder of surface containers and the inverse colours,
+ * all derived from the same warm palette so the identity stays the web's.
  */
 private object Web {
     object L {
@@ -53,8 +54,63 @@ private object Web {
     }
 }
 
+/** Roles with no web token, one set per theme. */
+private class Extra(
+    /** Borders of fields, outlined cards and buttons: at least 3:1 against every surface (WCAG 1.4.11). */
+    val outline: Color,
+    /** Secondary text: at least 4.5:1 on every surface, the highest container (search bar, fields) included. */
+    val onSurfaceVariant: Color,
+    val inverseSurface: Color,
+    val inverseOnSurface: Color,
+    /** The other theme's accent, as Material defines it (snackbar actions on the inverse surface). */
+    val inversePrimary: Color,
+    // From the page (`bg`) towards the most raised surface: sheets, cards, menus, dialogs, fields.
+    val lowest: Color,
+    val low: Color,
+    val container: Color,
+    val high: Color,
+    val highest: Color,
+    val dim: Color,
+    val bright: Color,
+)
+
+// Contrast of `outline` (WCAG ratio): 3.97 on bg, 4.33 on panel, 3.64 on high, 3.41 on highest.
+private val LightExtra = Extra(
+    outline = Color(0xFF80776D),
+    // The web's muted (#6F685F) is 4.27:1 on surfaceContainerHighest; this one is 4.60 there, 5.35 on bg.
+    onSurfaceVariant = Color(0xFF6A635A),
+    inverseSurface = Color(0xFF33302C),
+    inverseOnSurface = Color(0xFFF7F1E9),
+    inversePrimary = Web.D.accent,
+    lowest = Color(0xFFFFFFFF),
+    low = Color(0xFFFAF7F2),
+    container = Color(0xFFF4F0EA),
+    high = Color(0xFFEEE9E2),
+    highest = Color(0xFFE8E2D9),
+    dim = Color(0xFFE1DAD0),
+    bright = Web.L.panel,
+)
+
+// Contrast of `outline` (WCAG ratio): 5.23 on bg, 4.84 on panel, 4.18 on high, 3.59 on highest.
+private val DarkExtra = Extra(
+    outline = Color(0xFF8F877C),
+    // The web's muted: 4.81:1 on surfaceContainerHighest, 7.0 on bg.
+    onSurfaceVariant = Web.D.muted,
+    inverseSurface = Web.D.ink,
+    inverseOnSurface = Color(0xFF33302C),
+    inversePrimary = Web.L.accent,
+    lowest = Color(0xFF100E0C),
+    low = Color(0xFF1A1815),
+    container = Color(0xFF221F1B),
+    high = Color(0xFF2B2723),
+    highest = Color(0xFF36322D),
+    dim = Web.D.bg,
+    bright = Color(0xFF3A3631),
+)
+
 private fun scheme(
     dark: Boolean,
+    x: Extra,
     bg: Color, panel: Color, ink: Color, muted: Color, line: Color,
     accent: Color, accentInk: Color, accentSoft: Color, chip: Color,
     warn: Color, warnSoft: Color, err: Color, errSoft: Color,
@@ -63,7 +119,7 @@ private fun scheme(
     onPrimary = accentInk,
     primaryContainer = accentSoft,
     onPrimaryContainer = accent, // the web puts accent text on accent-soft (.nav.on, badges)
-    inversePrimary = accent,
+    inversePrimary = x.inversePrimary,
     // Secondary and tertiary: the web's chips and warnings.
     secondary = muted,
     onSecondary = panel,
@@ -73,38 +129,53 @@ private fun scheme(
     onTertiary = panel,
     tertiaryContainer = warnSoft,
     onTertiaryContainer = warn,
-    // The page is `bg`; anything that sits on it (outlined cards, sheets, menus) is a `panel`.
+    // The page is `bg`; anything that sits on it (outlined cards) is a `panel`.
     background = bg,
     onBackground = ink,
     surface = panel,
     onSurface = ink,
     surfaceVariant = chip,
-    onSurfaceVariant = muted,
+    onSurfaceVariant = x.onSurfaceVariant,
     surfaceTint = accent,
-    // Panels, cards, menus and dialogs are all the web's panel.
-    surfaceBright = panel,
-    surfaceDim = bg,
-    surfaceContainerLowest = panel,
-    surfaceContainerLow = panel,
-    surfaceContainer = panel,
-    surfaceContainerHigh = panel,
-    surfaceContainerHighest = panel,
-    inverseSurface = ink,
-    inverseOnSurface = bg,
-    outline = line,
+    // Raised surfaces step away from the page, so dialogs, menus and sheets stand out from it.
+    surfaceBright = x.bright,
+    surfaceDim = x.dim,
+    surfaceContainerLowest = x.lowest,
+    surfaceContainerLow = x.low,
+    surfaceContainer = x.container,
+    surfaceContainerHigh = x.high,
+    surfaceContainerHighest = x.highest,
+    inverseSurface = x.inverseSurface,
+    inverseOnSurface = x.inverseOnSurface,
+    outline = x.outline,
+    // Dividers keep the web's soft `line`.
     outlineVariant = line,
     error = err,
     onError = panel,
     errorContainer = errSoft,
     onErrorContainer = err,
     scrim = Color.Black,
+    // Fixed roles are the same in both themes: the light theme's soft tints and the dark theme's accents.
+    primaryFixed = Web.L.accentSoft,
+    primaryFixedDim = Web.D.accent,
+    onPrimaryFixed = Web.D.accentInk,
+    // A deeper accent: 4.98:1 on primaryFixedDim (the dark accent), 10.05 on primaryFixed.
+    onPrimaryFixedVariant = Color(0xFF5C2406),
+    secondaryFixed = Web.L.chip,
+    secondaryFixedDim = Color(0xFFD9D1C5),
+    onSecondaryFixed = Web.L.ink,
+    onSecondaryFixedVariant = Web.L.muted,
+    tertiaryFixed = Web.L.warnSoft,
+    tertiaryFixedDim = Web.D.warn,
+    onTertiaryFixed = Web.L.ink,
+    onTertiaryFixedVariant = Web.L.warn,
 )
 
-private val Light = with(Web.L) {
-    scheme(false, bg, panel, ink, muted, line, accent, accentInk, accentSoft, chip, warn, warnSoft, err, errSoft)
+internal val LightColors = with(Web.L) {
+    scheme(false, LightExtra, bg, panel, ink, muted, line, accent, accentInk, accentSoft, chip, warn, warnSoft, err, errSoft)
 }
-private val Dark = with(Web.D) {
-    scheme(true, bg, panel, ink, muted, line, accent, accentInk, accentSoft, chip, warn, warnSoft, err, errSoft)
+internal val DarkColors = with(Web.D) {
+    scheme(true, DarkExtra, bg, panel, ink, muted, line, accent, accentInk, accentSoft, chip, warn, warnSoft, err, errSoft)
 }
 
 /** Serif for titles and headings (the system's Noto Serif), sans for everything else, like the web. */
@@ -134,10 +205,16 @@ private val AppShapes =
         extraLarge = RoundedCornerShape(24.dp),
     )
 
+/**
+ * Material 3 Expressive with the web's identity: its colours, the serif headings and its corner radii, plus
+ * the expressive motion scheme (springy components: FAB menu, button groups, toggles, lists). Whole-page
+ * transitions use the standard scheme instead (see MainActivity).
+ */
 @Composable
 fun OpenLibraryTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) Dark else Light,
+    MaterialExpressiveTheme(
+        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        motionScheme = MotionScheme.expressive(),
         typography = typography(),
         shapes = AppShapes,
         content = content,

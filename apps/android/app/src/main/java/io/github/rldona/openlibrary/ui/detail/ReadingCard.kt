@@ -1,16 +1,23 @@
 package io.github.rldona.openlibrary.ui.detail
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.rldona.openlibrary.ui.components.RatingBar
+import io.github.rldona.openlibrary.ui.components.Spacing
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.core.str
@@ -29,8 +38,6 @@ import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.workReadingStatus
 import io.github.rldona.openlibrary.ui.components.Picker
-
-private val RATINGS = listOf(0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
 
 fun stars(r: Double): String = "★".repeat(r.toInt()) + if (r % 1 != 0.0) "½" else ""
 
@@ -50,42 +57,70 @@ sealed interface ReadingAction {
 }
 
 /**
- * Reading of the work (BR11–BR13): derived status, actions on the latest session (finish, abandon) or a
- * new one (start, read again, mark as read), its rating and notes, and earlier readings.
+ * The session in progress: the latest one still "reading", even if a later one was abandoned (the same
+ * rule that makes the work's status "reading", see [workReadingStatus]).
+ */
+fun currentReading(readings: List<ReadingEntity>): ReadingEntity? = readings.lastOrNull { it.status == "reading" }
+
+/** The statuses the card offers, in order; "abandoned" is a session outcome, shown in the history only. */
+private val STATUSES = listOf("pending", "reading", "read")
+
+/**
+ * What choosing [target] in the status row does, given the work's [status] and the session in progress
+ * ([current]): start (or read again), finish, or mark as read. Null when there is nothing to do: the
+ * status already is that one, or it would mean undoing readings ("not read" is where a work starts; a
+ * reading in progress is left with "Abandon").
+ */
+fun statusChange(status: String, current: ReadingEntity?, target: String, copyId: String?): ReadingAction? =
+    when {
+        target == status -> null
+        target == "reading" -> copyId?.let { ReadingAction.Start(it, "reading") }
+        target == "read" && current != null -> ReadingAction.Edit(current, mapOf("status" to "read"))
+        target == "read" -> copyId?.let { ReadingAction.Start(it, "read") }
+        else -> null
+    }
+
+/**
+ * Reading of the work (BR11–BR13): the derived status as a segmented choice (choosing one starts, finishes
+ * or marks the reading), "Abandon" for the one in progress, its rating as stars and its notes, and earlier
+ * readings.
  */
 @Composable
-fun ReadingCard(readings: List<ReadingEntity>, copies: List<CopyEntity>, onAction: (ReadingAction) -> Unit) {
+fun ReadingCard(
+    readings: List<ReadingEntity>,
+    copies: List<CopyEntity>,
+    onAction: (ReadingAction) -> Unit,
+    /** A change is being written: the status row waits, so a second tap cannot start a second reading. */
+    busy: Boolean = false,
+) {
     val status = workReadingStatus(readings)
     val latest = readings.lastOrNull()
-    val current = latest?.takeIf { it.status == "reading" }
+    val current = currentReading(readings)
     var copyId by remember(copies) { mutableStateOf(copies.firstOrNull { it.status == "active" }?.id ?: copies.firstOrNull()?.id) }
     var editingNotes by remember { mutableStateOf(false) }
     val codeOf = { id: String -> copies.firstOrNull { it.id == id }?.code?.ifEmpty { null } ?: "—" }
 
     OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.reading_title), style = MaterialTheme.typography.titleSmall)
-                AssistChip(onClick = {}, label = { Text(stringResource(readingStatusLabel(status))) })
+        Column(Modifier.padding(Spacing.item), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.reading_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+            if (current == null && copies.size > 1) {
+                Picker(stringResource(R.string.reading_copy), copyId, copies.map { it.id to codeOf(it.id) }, { copyId = it }, Modifier.fillMaxWidth())
+            }
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                STATUSES.forEachIndexed { i, target ->
+                    val change = statusChange(status, current, target, copyId)
+                    SegmentedButton(
+                        selected = status == target,
+                        onClick = { change?.let(onAction) },
+                        shape = SegmentedButtonDefaults.itemShape(i, STATUSES.size),
+                        // The current one stays highlighted; the others only when choosing them does something.
+                        enabled = !busy && (status == target || change != null),
+                    ) { Text(stringResource(readingStatusLabel(target)), maxLines = 1) }
+                }
             }
             if (current != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onAction(ReadingAction.Edit(current, mapOf("status" to "read"))) }) { Text(stringResource(R.string.reading_finish)) }
-                    OutlinedButton(onClick = { onAction(ReadingAction.Edit(current, mapOf("status" to "abandoned"))) }) {
-                        Text(stringResource(R.string.reading_abandon))
-                    }
-                }
-            } else {
-                if (copies.size > 1) {
-                    Picker(stringResource(R.string.reading_copy), copyId, copies.map { it.id to codeOf(it.id) }, { copyId = it }, Modifier.fillMaxWidth())
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { copyId?.let { onAction(ReadingAction.Start(it, "reading")) } }, enabled = copyId != null) {
-                        Text(stringResource(if (status == "read") R.string.reading_reread else R.string.reading_start))
-                    }
-                    OutlinedButton(onClick = { copyId?.let { onAction(ReadingAction.Start(it, "read")) } }, enabled = copyId != null) {
-                        Text(stringResource(R.string.reading_markRead))
-                    }
+                TextButton(onClick = { onAction(ReadingAction.Edit(current, mapOf("status" to "abandoned"))) }) {
+                    Text(stringResource(R.string.reading_abandon))
                 }
             }
             latest?.let { r ->
@@ -97,15 +132,19 @@ fun ReadingCard(readings: List<ReadingEntity>, copies: List<CopyEntity>, onActio
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Picker(
-                    stringResource(R.string.reading_rating),
-                    r.rating,
-                    listOf<Pair<Double?, String>>(null to stringResource(R.string.reading_noRating)) + RATINGS.map { it to "${stars(it)} $it" },
-                    { onAction(ReadingAction.Edit(r, mapOf("rating" to it))) },
-                    Modifier.fillMaxWidth(),
-                )
-                TextButton(onClick = { editingNotes = true }) {
-                    Text(r.notes.ifBlank { stringResource(R.string.reading_notes) }, maxLines = 3)
+                RatingBar(r.rating, onRate = { onAction(ReadingAction.Edit(r, mapOf("rating" to it))) })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        r.notes.ifBlank { stringResource(R.string.reading_notes) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (r.notes.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { editingNotes = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.reading_editNotes))
+                    }
                 }
                 if (editingNotes) NotesDialog(r.notes, onDismiss = { editingNotes = false }) {
                     editingNotes = false

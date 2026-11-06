@@ -39,7 +39,8 @@ class LockPolicy(private val timeoutMs: Long = 60_000) {
     }
 }
 
-private val Context.prefs by preferencesDataStore("prefs")
+/** Small app preferences (one file for the whole app: DataStore allows one instance per file). */
+internal val Context.prefs by preferencesDataStore("prefs")
 
 /** The "lock the app" switch. */
 class LockSettings(private val context: Context) {

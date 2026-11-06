@@ -1,6 +1,5 @@
 package io.github.rldona.openlibrary.ui.locations
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,10 +29,23 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import io.github.rldona.openlibrary.core.format
+import io.github.rldona.openlibrary.ui.components.Spacing
+import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -42,9 +54,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import io.github.rldona.openlibrary.core.str
+import io.github.rldona.openlibrary.ui.components.EmptyState
+import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.Picker
+import io.github.rldona.openlibrary.ui.components.TabScaffold
+import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import io.github.rldona.openlibrary.ui.components.LocationPicker
 
 data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int)
@@ -79,86 +95,102 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
 @Composable
 fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
     var adding by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize()) {
-        LocationTree(vm, onOpen)
-        ExtendedFloatingActionButton(
-            onClick = { adding = true },
-            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            text = { Text(stringResource(R.string.locations_add)) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        )
+    val fab = rememberFabVisibility()
+    TabScaffold(
+        stringResource(R.string.nav_locations),
+        Modifier.nestedScroll(fab.connection),
+        fab = {
+            ExtendedFloatingActionButton(
+                onClick = { adding = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.locations_add)) },
+                expanded = fab.visible,
+            )
+        },
+    ) { inner ->
+        Box(Modifier.fillMaxSize().padding(inner)) { LocationTree(vm, onOpen, onAdd = { adding = true }) }
     }
-    if (adding) NewLocationDialog(vm, onDismiss = { adding = false })
+    if (adding) NewLocationSheet(vm, onDismiss = { adding = false })
 }
 
-/** Simple creation from the phone; reorganising the tree stays on the web (design §6). */
+/**
+ * Simple creation from the phone; reorganising the tree stays on the web (design §6). A bottom sheet: it has
+ * two drop-downs and the keyboard, which an alert dialog squeezes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NewLocationDialog(vm: LocationsViewModel, onDismiss: () -> Unit) {
+private fun NewLocationSheet(vm: LocationsViewModel, onDismiss: () -> Unit) {
     val all by vm.all.collectAsState(emptyList())
     var name by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("shelf") }
     var parent by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.locations_newTitle)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it.take(80) },
-                    label = { Text(stringResource(R.string.locations_name)) },
-                    placeholder = { Text(stringResource(R.string.locations_namePlaceholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Picker(
-                    stringResource(R.string.locations_kind),
-                    kind,
-                    listOf("home", "room", "bookcase", "shelf", "box", "other").map { it to stringResource(locationKindLabel(it)) },
-                    { kind = it },
-                    Modifier.fillMaxWidth(),
-                )
-                LocationPicker(all, parent, { parent = it }, Modifier.fillMaxWidth())
-                Text(stringResource(R.string.locations_inside) + ": " + if (parent == null) stringResource(R.string.locations_noParent) else "", style = MaterialTheme.typography.bodySmall)
+    val sheet = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.page).padding(bottom = Spacing.page),
+            verticalArrangement = Arrangement.spacedBy(Spacing.item),
+        ) {
+            Text(stringResource(R.string.locations_newTitle), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(80) },
+                label = { Text(stringResource(R.string.locations_name)) },
+                placeholder = { Text(stringResource(R.string.locations_namePlaceholder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Picker(
+                stringResource(R.string.locations_kind),
+                kind,
+                listOf("home", "room", "bookcase", "shelf", "box", "other").map { it to stringResource(locationKindLabel(it)) },
+                { kind = it },
+                Modifier.fillMaxWidth(),
+            )
+            LocationPicker(all, parent, { parent = it }, Modifier.fillMaxWidth(), label = stringResource(R.string.locations_inside))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                Button(onClick = { vm.create(parent, name, kind); onDismiss() }, enabled = name.isNotBlank()) {
+                    Text(stringResource(R.string.common_save))
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { vm.create(parent, name, kind); onDismiss() }, enabled = name.isNotBlank()) {
-                Text(str(R.string.common_save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-    )
+        }
+    }
 }
 
 @Composable
-private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
+private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onAdd: () -> Unit) {
     val tree by vm.tree.collectAsStateWithLifecycle()
-    val nodes = tree ?: return
-    if (nodes.isEmpty()) {
-        Column(Modifier.fillMaxSize().padding(32.dp)) {
-            Text(stringResource(R.string.locations_emptyTitle), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.locations_emptyText), modifier = Modifier.padding(top = 8.dp))
-        }
+    val nodes = tree
+    if (nodes == null) {
+        LoadingState()
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    if (nodes.isEmpty()) {
+        EmptyState(
+            Icons.Default.Place,
+            stringResource(R.string.locations_emptyTitle),
+            text = stringResource(R.string.locations_emptyText),
+            action = stringResource(R.string.locations_add) to onAdd,
+        )
+        return
+    }
+    val level = stringResource(R.string.locations_level)
+    // Bottom room so the floating button never covers the last location.
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
         item {
-            Text(stringResource(R.string.locations_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp))
+            Text(stringResource(R.string.locations_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.page))
         }
         items(nodes, key = { it.location.id }) { n ->
-            Row(
-                Modifier.fillMaxWidth().clickable { onOpen(n.location.id) }
-                    .padding(start = (16 + 20 * n.depth).dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(n.location.name, style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(locationKindLabel(n.location.kind)), style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium)
-            }
-            HorizontalDivider()
+            // Indented by depth; TalkBack hears the depth too ("Level 2"), since it cannot see the indent.
+            ListItem(
+                onClick = { onOpen(n.location.id) },
+                modifier = Modifier.semantics { stateDescription = format(level, "n" to n.depth + 1) },
+                supportingContent = { Text(stringResource(locationKindLabel(n.location.kind))) },
+                trailingContent = { Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium) },
+                colors = pageListItemColors(),
+                contentPadding = PaddingValues(start = (16 + 20 * n.depth).dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            ) { Text(n.location.name) }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }

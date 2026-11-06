@@ -131,6 +131,9 @@ sealed interface Op {
     @Serializable @SerialName("quote.delete")
     data class QuoteDelete(override val opId: String, val id: String) : Op
 
+    @Serializable @SerialName("wish.delete")
+    data class WishDelete(override val opId: String, val id: String) : Op
+
     sealed interface Update : Op {
         val id: String
         val patch: Patch

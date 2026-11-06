@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#E2925F</color>
+    <!-- The page background of ui/theme/Theme.kt, shown before Compose draws (and by the system splash). -->
+    <color name="window_background">#FFF6F3EE</color>
 </resources>

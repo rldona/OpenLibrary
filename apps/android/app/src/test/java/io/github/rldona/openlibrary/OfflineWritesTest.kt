@@ -247,6 +247,20 @@ class OfflineWritesTest {
     }
 
     @Test
+    fun aWishKeepsItsCoverAndOnlyAPhotoTakenOnThePhoneIsUploaded() = runBlocking {
+        // The provider's cover is already on the server: nothing to upload.
+        writes.addWish("Misericordia", listOf("Galdós"), "9788437604800", coverAssetId = "provider-cover")
+        assertEquals("provider-cover", db.catalog().openWishByIsbn("9788437604800")!!.coverAssetId)
+        val op = ApiJson.parseToJsonElement(db.outbox().allPending().single().payload).jsonObject
+        assertEquals("provider-cover", op["wish"]!!.jsonObject["coverAssetId"]!!.jsonPrimitive.content)
+        assertTrue(db.outbox().uploads().isEmpty())
+
+        // A photo taken on the phone goes up before the wish.
+        writes.addWish("Fortunata y Jacinta", listOf("Galdós"), null, coverAssetId = "photo", coverPhoto = "photo")
+        assertEquals(listOf("photo"), db.outbox().uploads().map { it.assetId })
+    }
+
+    @Test
     fun iBoughtItAddsTheBookAndThenMarksTheWishAcquired() = runBlocking {
         writes.addWish("Misericordia", listOf("Galdós"), "9788437604800")
         val wish = db.catalog().openWishByIsbn("9788437604800")!!
@@ -263,6 +277,24 @@ class OfflineWritesTest {
         assertEquals(listOf("wish.create", "book.create", "wish.update"), db.outbox().allPending().map { it.type })
         // A wish is not part of the library (BR14): only the bought book is.
         assertEquals(listOf("e1", "e2"), db.catalog().library("", true, emptyList()).first().map { it.editionId }.sorted())
+    }
+
+    @Test
+    fun aWishIsDeletedOfflineAndTheListOnlyShowsOpenWishes() = runBlocking {
+        writes.addWish("Misericordia", listOf("Galdós"), "9788437604800")
+        writes.addWish("Nazarín", listOf("Galdós"), null)
+        val unwanted = db.catalog().wishes().first().single { it.title == "Nazarín" }
+        writes.deleteWish(unwanted)
+        assertEquals(null, db.catalog().wishById(unwanted.id))
+        assertEquals(listOf("Misericordia"), db.catalog().wishes().first().map { it.title })
+        assertEquals(listOf("wish.create", "wish.create", "wish.delete"), db.outbox().allPending().map { it.type })
+        assertEquals(unwanted.id, db.outbox().allPending().last().entityId)
+
+        // A bought wish is kept as a record, but the wishlist no longer lists it.
+        val bought = db.catalog().openWishByIsbn("9788437604800")!!
+        writes.acquireWish(bought, "c1")
+        assertEquals("acquired", db.catalog().wishById(bought.id)!!.status)
+        assertTrue(db.catalog().wishes().first().isEmpty())
     }
 
     @Test

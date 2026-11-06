@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.rldona.openlibrary.data.AppDatabase
 import io.github.rldona.openlibrary.data.DataStoreSessionStore
 import io.github.rldona.openlibrary.data.LockPolicy
+import io.github.rldona.openlibrary.data.LibraryPrefs
 import io.github.rldona.openlibrary.data.LockSettings
 import io.github.rldona.openlibrary.data.SessionStore
 import io.github.rldona.openlibrary.network.ApiClient
@@ -12,6 +13,9 @@ import io.github.rldona.openlibrary.sync.LocalWrites
 import io.github.rldona.openlibrary.sync.SyncRepository
 import io.github.rldona.openlibrary.sync.SyncWorker
 import java.io.File
+import android.util.Log
+import io.github.rldona.openlibrary.core.PendingDeletes
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,8 +33,15 @@ class AppContainer(app: Application) {
     /** Every local change schedules a sync a few seconds later (several quick edits share one push). */
     val writes by lazy { LocalWrites(db, onQueued = { SyncWorker.soon(app) }) }
     /** Work that must finish even if the screen that started it closes (e.g. books scanned in bulk). */
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val appScope =
+        CoroutineScope(
+            SupervisorJob() + Dispatchers.Default +
+                CoroutineExceptionHandler { _, e -> Log.w("OpenLibrary", "background work failed", e) },
+        )
+    /** Deletes waiting for the snackbar's "Undo", shared by every screen ("wish:<id>", "quote:<id>"). */
+    val deletes = PendingDeletes(appScope)
     val lockSettings = LockSettings(app)
+    val libraryPrefs = LibraryPrefs(app)
     val lock = LockPolicy()
 }
 

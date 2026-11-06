@@ -1,5 +1,7 @@
 package io.github.rldona.openlibrary.ui.setup
 
+import io.github.rldona.openlibrary.ui.components.readableWidth
+import androidx.compose.material3.ButtonDefaults
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,7 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.VisualTransformation
+import io.github.rldona.openlibrary.ui.components.BusyLabel
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -83,11 +96,13 @@ class SetupViewModel(private val c: AppContainer, private val onConnected: () ->
 
 @Composable
 fun SetupScreen(vm: SetupViewModel) {
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    val canConnect = !vm.busy && vm.password.isNotEmpty()
     Column(
-        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).readableWidth().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
         Text(stringResource(R.string.setup_text), style = MaterialTheme.typography.bodyMedium)
         OutlinedTextField(
             value = vm.server,
@@ -103,6 +118,7 @@ fun SetupScreen(vm: SetupViewModel) {
             onValueChange = { vm.deviceName = it },
             label = { Text(stringResource(R.string.setup_deviceName)) },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth().testTag("deviceName"),
         )
         OutlinedTextField(
@@ -110,8 +126,18 @@ fun SetupScreen(vm: SetupViewModel) {
             onValueChange = { vm.password = it },
             label = { Text(stringResource(R.string.login_password)) },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { showPassword = !showPassword }) {
+                    Icon(
+                        if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = stringResource(if (showPassword) R.string.setup_hidePassword else R.string.setup_showPassword),
+                    )
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            // "Done" connects, as the button would.
+            keyboardActions = KeyboardActions(onDone = { if (canConnect) vm.connect() }),
             modifier = Modifier.fillMaxWidth().testTag("password"),
         )
         vm.error?.let {
@@ -125,10 +151,12 @@ fun SetupScreen(vm: SetupViewModel) {
         }
         Button(
             onClick = vm::connect,
-            enabled = !vm.busy && vm.password.isNotEmpty(),
+            shapes = ButtonDefaults.shapes(),
+            enabled = canConnect,
             modifier = Modifier.fillMaxWidth().testTag("connect"),
         ) {
-            Text(
+            BusyLabel(
+                vm.busy,
                 stringResource(
                     when {
                         vm.downloading -> R.string.sync_downloadingLibrary
