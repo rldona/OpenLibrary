@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query';
 import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts';
 import { api, ApiError, errorText } from './api';
-import { Icon } from './components/ui';
+import { Icon, Logo } from './components/ui';
 import { navigate, setParams, useLocation } from './lib/router';
 import { useLocations, useWishlist } from './lib/queries';
 import { LanguageSwitch, useI18n } from './i18n';
@@ -150,9 +150,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       </a>
       <aside className="side">
         <div className="brand">
-          <span className="logo" aria-hidden>
-            <Icon name="book" size={18} />
-          </span>
+          <Logo className="logo" />
           OpenLibrary
         </div>
         <nav aria-label={t('a11y.mainNav')}>
@@ -284,9 +282,7 @@ function Login({ onDone }: { onDone: () => void }) {
       <form className="panel narrow" onSubmit={submit}>
         <div className="row-between">
           <div className="brand">
-            <span className="logo" aria-hidden>
-              <Icon name="book" size={18} />
-            </span>
+            <Logo className="logo" />
             OpenLibrary
           </div>
           <LanguageSwitch />

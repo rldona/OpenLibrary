@@ -139,13 +139,8 @@ a {
   font-weight: 700;
 }
 .logo {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  display: grid;
-  place-items: center;
+  display: block;
+  flex: none;
 }
 .nav {
   display: flex;

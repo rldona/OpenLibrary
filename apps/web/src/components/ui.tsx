@@ -45,6 +45,22 @@ export function Icon({ name, size = 18 }: { name: keyof typeof PATHS | string; s
   );
 }
 
+/** App icon: the rounded brown tile with an open book used by the favicon and the Android launcher. */
+export function Logo({ size = 30, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#8a3b12" />
+      <path
+        d="M7 9h6a3 3 0 0 1 3 3v12a2.5 2.5 0 0 0-2.5-2.5H7zM25 9h-6a3 3 0 0 0-3 3v12a2.5 2.5 0 0 1 2.5-2.5H25z"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ---------- Cover ----------
 const PALETTES = [
   ['#7a2e2e', '#e8c07d', '#fdf6e9'],
