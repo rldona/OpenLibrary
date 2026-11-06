@@ -34,6 +34,23 @@ export async function getJson(fetchImpl: Fetch, url: string): Promise<unknown> {
   return res.json();
 }
 
+/**
+ * Adds the Google Books API key to Google Books requests, so they use the owner's own quota.
+ * Other hosts are untouched; without a key the fetch is returned as is.
+ */
+export function withGoogleBooksKey(fetchImpl: Fetch, key: string | undefined): Fetch {
+  if (!key) return fetchImpl;
+  return ((input: string | URL | Request, init?: RequestInit) => {
+    const raw = input instanceof Request ? input.url : String(input);
+    const url = new URL(raw);
+    if (url.hostname !== 'www.googleapis.com' || !url.pathname.startsWith('/books/')) {
+      return fetchImpl(input, init);
+    }
+    url.searchParams.set('key', key);
+    return fetchImpl(url.toString(), init);
+  }) as Fetch;
+}
+
 /** Open Library: good coverage of covers and editions; no synopsis in this API. */
 export async function openLibrary(fetchImpl: Fetch, isbn13: string): Promise<MetadataProposal | null> {
   const data = (await getJson(

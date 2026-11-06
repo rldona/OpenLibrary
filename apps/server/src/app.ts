@@ -24,7 +24,7 @@ import { StatsService } from './stats/service.js';
 import { ExportService } from './portability/export.js';
 import { ImportService } from './portability/import.js';
 import { portabilityRoutes } from './portability/routes.js';
-import type { Fetch } from './lookup/providers.js';
+import { withGoogleBooksKey, type Fetch } from './lookup/providers.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -88,7 +88,12 @@ export async function buildApp(deps: {
   const auth = new AuthService(db, config.sessionTtlMs, deps.now);
   const catalog = new CatalogService(db, deps.now);
   const assets = new AssetService(db, config.assetsDir, deps.fetch);
-  const lookup = new LookupService(db, catalog, deps.fetch, deps.now);
+  const lookup = new LookupService(
+    db,
+    catalog,
+    withGoogleBooksKey(deps.fetch ?? fetch, config.googleBooksKey),
+    deps.now,
+  );
   const sync = new SyncService(db, catalog, deps.now);
 
   const app = Fastify({

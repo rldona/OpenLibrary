@@ -113,6 +113,33 @@ class CoverTextTest {
     }
 
     @Test
+    fun prefersTheAuthorBelowTheTitleOverTextFarAboveTheCover() {
+        // Real case: a bookmark with another author's name sticks out above "Intelectos colectivos".
+        val frame = PixelRect(95f, 245f, 890f, 1430f)
+        val lines = listOf(
+            line("Benjamín", 340f, 255f, 435f, 278f),
+            line("Labatut", 345f, 283f, 432f, 305f),
+            line("INTELECTOS", 240f, 630f, 720f, 695f),
+            line("COLECTIVOS", 240f, 715f, 720f, 780f),
+            line("Pensadores para el siglo XXI", 255f, 795f, 710f, 830f),
+            line("≡ McKenzie Wark", 275f, 850f, 690f, 885f),
+            line("Traducción de Javier de la Morena Corrales", 300f, 905f, 680f, 930f),
+        )
+
+        assertEquals(CoverQuery("INTELECTOS COLECTIVOS", "McKenzie Wark"), extractCoverQuery(lines, frame))
+    }
+
+    @Test
+    fun aSubtitleBelowTheTitleIsNotTheAuthor() {
+        val lines = listOf(
+            line("INTELECTOS COLECTIVOS", 40f, 100f, 500f, 160f),
+            line("Pensadores para el siglo XXI", 60f, 170f, 480f, 200f),
+        )
+
+        assertEquals(CoverQuery("INTELECTOS COLECTIVOS", null), extractCoverQuery(lines))
+    }
+
+    @Test
     fun prefersTheWiderBandWhenTwoHeightsTie() {
         val lines = listOf(
             line("ROSA MONTERO", 60f, 60f, 260f, 120f),

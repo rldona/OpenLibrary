@@ -22,6 +22,11 @@ const EnvSchema = z.object({
   /** Folder with the built web app. If missing, only the API is served. */
   WEB_DIST: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /**
+   * Optional free Google Books API key. Without it, requests share Google's anonymous daily quota,
+   * which is often exhausted (HTTP 429) and leaves only Open Library.
+   */
+  GOOGLE_BOOKS_API_KEY: z.string().trim().optional(),
 });
 
 export type Config = {
@@ -38,6 +43,7 @@ export type Config = {
   trustProxy: boolean;
   webDist: string | undefined;
   logLevel: string;
+  googleBooksKey: string | undefined;
   version: string;
 };
 
@@ -67,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: e.TRUST_PROXY ?? false,
     webDist: e.WEB_DIST ? path.resolve(e.WEB_DIST) : undefined,
     logLevel: e.LOG_LEVEL,
+    googleBooksKey: e.GOOGLE_BOOKS_API_KEY || undefined,
     version: process.env.npm_package_version ?? process.env.OL_VERSION ?? '0.1.0',
   };
 }

@@ -275,6 +275,24 @@ describe('metadata search by title/author', () => {
     expect(r.body.errors).toEqual(['Open Library: HTTP 500']);
   });
 
+  it('sends the Google Books API key only to Google Books when one is configured', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (input: string | URL | Request) => {
+      urls.push(String(input));
+      if (String(input).includes('openlibrary.org')) return json({ numFound: 0, docs: [] });
+      return emptyGoogle();
+    }) as Fetch;
+    const { app } = await makeApp({ fetch: fetchImpl, env: { GOOGLE_BOOKS_API_KEY: 'test-key' } });
+    const c = await webClient(app);
+
+    await c.get('/lookup/search?title=ridicula');
+    const google = urls.map((u) => new URL(u)).filter((u) => u.hostname === 'www.googleapis.com');
+    const others = urls.map((u) => new URL(u)).filter((u) => u.hostname !== 'www.googleapis.com');
+    expect(google.length).toBeGreaterThan(0);
+    expect(google.every((u) => u.searchParams.get('key') === 'test-key')).toBe(true);
+    expect(others.every((u) => !u.searchParams.has('key'))).toBe(true);
+  });
+
   it('requires a title or an author', async () => {
     const { app } = await makeApp();
     const c = await webClient(app);

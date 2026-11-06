@@ -161,24 +161,55 @@ private fun looksLikeTitle(text: String): Boolean {
     return t.substringBefore(' ').lowercase() in TITLE_STARTERS
 }
 
+/** Lowercase words a name may contain ("Josep de la Fuente", "Ludwig van Beethoven"). */
+private val NAME_PARTICLES = setOf("de", "del", "la", "las", "los", "y", "i", "van", "von", "der", "den", "da", "di", "du", "le", "dos", "das")
+private const val MAX_LINES_BELOW = 3
+
 private fun authorOf(bands: List<Band>, titleBand: Band): String? {
-    val titleCenter = centerY(titleBand.bounds)
+    val title = titleBand.bounds
 
-    // The author normally sits above the title; take the closest band that looks like a name.
+    // Above the title: the closest band that looks like a name.
     val above = bands
-        .filter { it !== titleBand && centerY(it.bounds) < titleCenter }
+        .filter { it !== titleBand && centerY(it.bounds) < centerY(title) }
         .sortedByDescending { centerY(it.bounds) }
-    above.firstNotNullOfOrNull { authorName(it.text) }?.let { return it }
+        .firstNotNullOfOrNull { band -> authorName(band.text)?.let { band.bounds to it } }
 
-    // Below the title only an explicit "by/de/por" is trustworthy: an unprefixed line is a subtitle.
+    // Below the title, past a subtitle at most: an explicit "by/de/por", or a line that is clearly a
+    // name (every word capitalised but particles). Anything else is a subtitle or a tagline. Lines, not
+    // bands: subtitle, author and translator are often set close together in one block.
     val below = bands
-        .filter { it !== titleBand && centerY(it.bounds) > titleCenter }
-        .minByOrNull { centerY(it.bounds) } ?: return null
-    return if (AUTHOR_PREFIX.containsMatchIn(below.text)) authorName(below.text) else null
+        .filter { it !== titleBand && centerY(it.bounds) > centerY(title) }
+        .flatMap { it.lines }
+        .sortedWith(READING_ORDER)
+        .take(MAX_LINES_BELOW)
+        .firstNotNullOfOrNull { line ->
+            val name = authorName(line.text) ?: return@firstNotNullOfOrNull null
+            val prefixed = AUTHOR_PREFIX.containsMatchIn(collapse(line.text).trimStart { !it.isLetter() })
+            if (prefixed || strictName(name)) line.bounds to name else null
+        }
+
+    // Text far above the cover (a bookmark, a sticker, another book) must not beat the real author
+    // printed just below the title: the nearer one wins.
+    val gapAbove = above?.let { title.top - it.first.bottom }
+    val gapBelow = below?.let { it.first.top - title.bottom }
+    return when {
+        above == null -> below?.second
+        below == null -> above.second
+        gapBelow!! < gapAbove!! -> below.second
+        else -> above.second
+    }
+}
+
+private fun strictName(name: String): Boolean {
+    val words = name.split(' ').filter { it.isNotEmpty() }
+    if (words.first().lowercase() in NAME_STOPWORDS) return false
+    return words.all { it.first().isUpperCase() || it.lowercase() in NAME_PARTICLES } &&
+        words.count { it.first().isUpperCase() } >= 2
 }
 
 private fun authorName(raw: String): String? {
-    val text = AUTHOR_PREFIX.replace(collapse(raw), "")
+    // OCR adds stray marks at the ends of a line ("≡ McKenzie Wark", "Labatut ."): trim them first.
+    val text = AUTHOR_PREFIX.replace(collapse(raw).trim { !it.isLetter() }, "").trim { !it.isLetter() }
     val words = text.split(' ').filter { it.isNotEmpty() }
     if (text.length > MAX_AUTHOR_CHARS) return null
     if (words.size !in 2..5) return null
