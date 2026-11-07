@@ -10,6 +10,17 @@
  */
 import { z } from 'zod';
 import { normalizeIsbn } from './isbn.js';
+import {
+  CONDITIONS,
+  LIBRARY_SORTS,
+  LOCATION_KINDS,
+  READING_STATUSES,
+  RETIRE_REASONS,
+  WISH_PRIORITIES,
+  WISH_STATUSES,
+  WORK_READING_STATUSES,
+  type WorkReadingStatus,
+} from './constants.js';
 import { SHA256_RE, UUID_RE } from './ids.js';
 
 export const Id = z.string().regex(UUID_RE, 'validation.invalidId');
@@ -42,23 +53,19 @@ export const IsbnField = z
     return r.isbn13;
   });
 
-// ---------- Enumerations (labels live in i18n.ts) ----------
-export const LOCATION_KINDS = ['home', 'room', 'bookcase', 'shelf', 'box', 'other'] as const;
+// ---------- Enumerations (the arrays and their labels: constants.ts and i18n.ts) ----------
 export const LocationKind = z.enum(LOCATION_KINDS);
 export type LocationKind = z.infer<typeof LocationKind>;
 
-export const CONDITIONS = ['new', 'fine', 'good', 'used', 'fair', 'poor'] as const;
 export const Condition = z.enum(CONDITIONS);
 export type Condition = z.infer<typeof Condition>;
 
-export const RETIRE_REASONS = ['gifted', 'sold', 'lost', 'damaged', 'other'] as const;
 export const RetireReason = z.enum(RETIRE_REASONS);
 export type RetireReason = z.infer<typeof RetireReason>;
 
 export const MetadataStatus = z.enum(['complete', 'provisional']);
 
 /** Reading of one copy (design §4, BR11–BR13). "pending" is also what a work without sessions is. */
-export const READING_STATUSES = ['pending', 'reading', 'read', 'abandoned'] as const;
 export const ReadingStatus = z.enum(READING_STATUSES);
 export type ReadingStatus = z.infer<typeof ReadingStatus>;
 
@@ -124,8 +131,6 @@ export type ReadingFields = z.infer<typeof ReadingFields>;
  * edition/work if missing) and then sets `status: acquired` with `acquiredCopyId`; the wish is kept.
  * An open wish you no longer want is deleted; `discarded` is a legacy status kept for compatibility.
  */
-export const WISH_PRIORITIES = ['low', 'normal', 'high'] as const;
-export const WISH_STATUSES = ['open', 'acquired', 'discarded'] as const;
 export const WishFields = z.object({
   title: text(500).min(1, 'validation.titleRequired'),
   authors: nameList.default([]),
@@ -276,25 +281,27 @@ export type WorkDetail = {
   /** Every reading session of any copy of the work, oldest first. */
   readings: ReadingDTO[];
   /** Derived (BR13): reading if a session is active, read if any finished, otherwise pending. */
-  readingStatus: 'pending' | 'reading' | 'read';
+  readingStatus: WorkReadingStatus;
   /** Quotes from the work, in page order (those without a page last). */
   quotes: QuoteDTO[];
 };
 
-/** BR13, shared by the server and the web (Android ports it). */
-export function workReadingStatus(sessions: { status: ReadingStatus }[]): WorkDetail['readingStatus'] {
-  if (sessions.some((s) => s.status === 'reading')) return 'reading';
-  if (sessions.some((s) => s.status === 'read')) return 'read';
-  return 'pending';
-}
+/** `true`/`false` in a query string, or a boolean from code. */
+const QueryFlag = z.union([
+  z.boolean(),
+  z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1'),
+]);
 
-export const LIBRARY_SORTS = ['title', 'author', 'acquired', 'location', 'added'] as const;
 export const LibraryQuery = z.object({
   q: z.string().trim().max(200).optional(),
   /** Location id (sub-locations included) or "none" for copies without a location. */
   location: z.union([Id, z.literal('none')]).optional(),
   subject: z.string().max(200).optional(),
   language: z.string().max(8).optional(),
+  /** The work's derived reading status (BR13): "pending" is "not read yet", abandoned readings included. */
+  reading: z.enum(WORK_READING_STATUSES).optional(),
+  /** Only provisional editions: those still to complete. */
+  provisional: QueryFlag.optional(),
   sort: z.enum(LIBRARY_SORTS).default('title'),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),

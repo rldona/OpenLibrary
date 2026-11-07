@@ -24,11 +24,10 @@ import {
   WishFields,
   WorkFields,
 } from './catalog.js';
+import { IMPORT_ENTITIES } from './constants.js';
 
 export const EXPORT_FORMAT = 'openlibrary';
 export const EXPORT_FORMAT_VERSION = 1;
-/** Uploads to /import (a zip with covers can be large). */
-export const IMPORT_MAX_BYTES = 512 * 1024 * 1024;
 
 const Timestamp = z.string().regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/, 'validation.invalidTimestamp');
 const meta = { id: Id, createdAt: Timestamp, updatedAt: Timestamp };
@@ -128,16 +127,6 @@ export const CSV_LIST_SEPARATOR = '; ';
 export const CSV_PATH_SEPARATOR = ' / ';
 
 // ---------- Import report ----------
-export const IMPORT_ENTITIES = [
-  'works',
-  'editions',
-  'copies',
-  'locations',
-  'readings',
-  'quotes',
-  'wishes',
-  'assets',
-] as const;
 export type ImportEntity = (typeof IMPORT_ENTITIES)[number];
 
 export type ImportCounts = { created: number; duplicates: number; invalid: number };
@@ -174,8 +163,6 @@ export const ImportQuery = z.object({
 });
 
 // ---------- Backups ----------
-/** A backup older than this is reported as stale (design §9). */
-export const BACKUP_STALE_DAYS = 3;
 export type BackupStatus = {
   /** End of the last successful backup (written by deploy/scripts/backup.sh), null if never. */
   lastSuccessAt: string | null;

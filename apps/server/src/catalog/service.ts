@@ -72,6 +72,16 @@ const toEdition = ({ deletedAt: _d, ...e }: EditionRow): EditionDTO => ({
   isbn10: e.isbn13 ? isbn13to10(e.isbn13) : null,
 });
 
+/**
+ * The work's derived reading status in SQL (BR13, as workReadingStatus in contracts and the Android
+ * `readingStatuses` query): reading if any session is, read if any was, otherwise pending. Every live
+ * session of any copy of the work counts, retired copies and other editions included.
+ */
+const WORK_READING_STATUS = `(SELECT CASE WHEN SUM(r.status = 'reading') > 0 THEN 'reading'
+  WHEN SUM(r.status = 'read') > 0 THEN 'read' ELSE 'pending' END
+  FROM reading_sessions r JOIN copies rc ON rc.id = r.copy_id JOIN editions re ON re.id = rc.edition_id
+  WHERE re.work_id = w.id AND r.deleted_at IS NULL AND rc.deleted_at IS NULL AND re.deleted_at IS NULL)`;
+
 export class CatalogService {
   constructor(
     private readonly db: Db,
@@ -301,6 +311,11 @@ export class CatalogService {
       where.push('e.language = ?');
       params.push(q.language);
     }
+    if (q.reading) {
+      where.push(`${WORK_READING_STATUS} = ?`);
+      params.push(q.reading);
+    }
+    if (q.provisional) where.push("e.metadata_status = 'provisional'");
     const from = `FROM editions e JOIN works w ON w.id = e.work_id WHERE ${where.join(' AND ')}`;
     const lastAcq =
       "(SELECT max(c2.acquired_on) FROM copies c2 WHERE c2.edition_id = e.id AND c2.deleted_at IS NULL AND c2.status = 'active')";

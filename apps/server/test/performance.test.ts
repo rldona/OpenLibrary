@@ -1,5 +1,6 @@
 /**
- * F1 criterion: search < 150 ms with 10,000 synthetic copies.
+ * F1 criterion: search < 150 ms with 10,000 synthetic copies, a third of them with readings (filters
+ * by reading status and "to complete" included).
  * F2: the first sync (snapshot) of that library stays well within the 10 s budget.
  * Data is inserted straight through the service (no HTTP) so the setup is fast.
  */
@@ -7,7 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { CatalogService } from '../src/catalog/service.js';
 import { SyncService } from '../src/sync/service.js';
 import { openDb } from '../src/db/client.js';
-import { LibraryQuery } from '@openlibrary/contracts';
+import { LibraryQuery, uuidv7 } from '@openlibrary/contracts';
+import { readingSessions } from '../src/db/schema.js';
 
 const WORDS = [
   'sombra',
@@ -47,8 +49,9 @@ describe('performance', () => {
       }
     }
     const t0 = performance.now();
+    const copyIds: string[] = [];
     for (let i = 0; i < 10_000; i++) {
-      cat.createBook({
+      const book = cat.createBook({
         work: {
           title: `${pick(WORDS, i)} ${pick(WORDS, i * 7 + 3)} ${i}`,
           subtitle: null,
@@ -70,7 +73,7 @@ describe('performance', () => {
           format: null,
           isbn13: null,
           coverAssetId: null,
-          metadataStatus: 'complete',
+          metadataStatus: i % 10 === 3 ? 'provisional' : 'complete',
           metadataSource: null,
         },
         copy: {
@@ -83,7 +86,27 @@ describe('performance', () => {
         },
         allowDuplicateIsbn: false,
       });
+      copyIds.push(book.created.copyId);
     }
+    // Readings on a third of the books: read, reading, abandoned, and read twice for some.
+    const now = new Date().toISOString();
+    const statuses = ['read', 'reading', 'abandoned', 'read'] as const;
+    const sessions = copyIds.flatMap((copyId, i) =>
+      i % 3
+        ? []
+        : [statuses[i % 4]!, ...(i % 7 === 0 ? (['read'] as const) : [])].map((status) => ({
+            id: uuidv7(),
+            version: 1,
+            createdAt: now,
+            updatedAt: now,
+            copyId,
+            status,
+          })),
+    );
+    for (let i = 0; i < sessions.length; i += 500)
+      db.insert(readingSessions)
+        .values(sessions.slice(i, i + 500))
+        .run();
     const setup = performance.now() - t0;
 
     const room1 = cat.locationTree().items.find((l) => l.name === 'Habitación 1')!.id;
@@ -96,6 +119,10 @@ describe('performance', () => {
       { sort: 'acquired' },
       { sort: 'location' },
       { q: 'mar tiempo', language: 'es' },
+      { reading: 'read' },
+      { reading: 'pending', sort: 'location' },
+      { provisional: true },
+      { reading: 'reading', language: 'en' },
     ] as const;
     const times: Record<string, number> = {};
     for (const q of queries) {
