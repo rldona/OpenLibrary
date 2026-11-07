@@ -14,7 +14,7 @@ internal const val T = "2026-11-04T10:00:00.000Z"
 internal val COVER = "ab".repeat(32)
 
 internal fun work(id: String, title: String, authors: List<String>, version: Int = 1) =
-    SyncWork(id, version, T, T, title, null, authors, listOf("Novela"), null, null, null, null, null)
+    SyncWork(id, version, T, T, title, null, authors, listOf("Novela"), null, null, null, null, null, favorite = false)
 
 internal fun edition(id: String, workId: String, cover: String? = null) =
     SyncEdition(id, 1, T, T, workId, null, null, "Cátedra", 1887, "es", 500, null, null, cover, "complete", null)

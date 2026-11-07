@@ -71,6 +71,8 @@ import io.github.rldona.openlibrary.ui.components.TopBarInsets
 import io.github.rldona.openlibrary.ui.components.appBarColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -128,6 +130,11 @@ class DetailViewModel(private val c: AppContainer, private val workId: String) :
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState())
 
     /** Sends only what changed, so another device's edits to other fields are merged, not overwritten. */
+    /** The heart in the header: a normal work update, synced like any other field. */
+    fun toggleFavorite(work: WorkEntity) = viewModelScope.launch {
+        c.writes.editWork(work, JsonObject(mapOf("favorite" to JsonPrimitive(!work.favorite))))
+    }
+
     fun editCopy(copy: CopyEntity, form: CopyForm) =
         viewModelScope.launch {
             val fields = buildJsonObject {
@@ -283,6 +290,15 @@ fun DetailScreen(
                 },
                 navigationIcon = { BackButton(onBack) },
                 actions = {
+                    if (work != null) {
+                        IconButton(onClick = { vm.toggleFavorite(work) }) {
+                            Icon(
+                                if (work.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = stringResource(if (work.favorite) R.string.favorites_remove else R.string.favorites_add),
+                                tint = if (work.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     if (work != null && primary != null) {
                         IconButton(onClick = { onEdit(work.id, primary.id) }) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.drawer_editBook))

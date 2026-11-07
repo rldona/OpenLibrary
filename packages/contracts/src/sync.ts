@@ -48,6 +48,7 @@ export type SyncWork = SyncMeta & {
   originalLanguage: string | null;
   series: string | null;
   seriesIndex: number | null;
+  favorite: boolean;
 };
 
 export type SyncEdition = SyncMeta & {

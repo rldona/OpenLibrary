@@ -80,6 +80,8 @@ export const WorkFields = z.object({
   originalLanguage: optText(8),
   series: optText(200),
   seriesIndex: z.number().min(0).max(100_000).nullish().default(null),
+  /** A favorite mark, shared by web and Android through the work's sync record. */
+  favorite: z.boolean().default(false),
 });
 export type WorkFields = z.infer<typeof WorkFields>;
 

@@ -45,6 +45,7 @@ data class SyncWork(
     val originalLanguage: String?,
     val series: String?,
     val seriesIndex: Double?,
+    val favorite: Boolean = false,
 )
 
 @Serializable

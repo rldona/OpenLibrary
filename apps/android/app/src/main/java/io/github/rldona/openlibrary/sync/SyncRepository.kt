@@ -296,7 +296,7 @@ fun pathOf(locations: Map<String, LocationEntity>, id: String?): List<String> {
 private fun SyncWork.toEntity() =
     WorkEntity(
         id, version, title, subtitle, authors, subjects, description, originalTitle, originalLanguage,
-        series, seriesIndex, createdAt, updatedAt, sortTitle = fold(title),
+        series, seriesIndex, createdAt, updatedAt, sortTitle = fold(title), favorite = favorite,
     )
 
 private fun SyncEdition.toEntity() =

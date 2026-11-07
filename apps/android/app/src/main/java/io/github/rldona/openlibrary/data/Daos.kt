@@ -19,6 +19,10 @@ data class LibraryRow(
     val activeCopies: Int,
     /** When the edition entered the catalogue (ISO instant), for "Added (newest)" like the web. */
     val addedAt: String,
+    /** Latest rating of any reading of the work, for the cover's score flap. */
+    val rating: Double? = null,
+    /** Favorite mark, shared with the web through the work. */
+    val favorite: Boolean = false,
 )
 
 /** A work's reading status ("reading", "read" or "pending"), derived like [workReadingStatus]. */
@@ -37,7 +41,13 @@ interface CatalogDao {
                COALESCE(e.subtitle, w.subtitle) AS subtitle, w.authors AS authors, e.publisher AS publisher,
                e.publishedYear AS publishedYear, e.coverAssetId AS coverAssetId, e.metadataStatus AS metadataStatus,
                (SELECT COUNT(*) FROM copies c WHERE c.editionId = e.id AND c.status = 'active') AS activeCopies,
-               e.createdAt AS addedAt
+               e.createdAt AS addedAt,
+               w.favorite AS favorite,
+               (SELECT r.rating FROM readings r
+                  JOIN copies rc ON rc.id = r.copyId
+                  JOIN editions re ON re.id = rc.editionId
+                 WHERE re.workId = w.id AND r.rating IS NOT NULL
+                 ORDER BY r.createdAt DESC, r.id DESC LIMIT 1) AS rating
         FROM editions e JOIN works w ON w.id = e.workId
         WHERE activeCopies > 0
           AND (:fts = '' OR e.id IN (SELECT editionId FROM book_fts WHERE book_fts MATCH :fts))
@@ -119,6 +129,10 @@ interface CatalogDao {
     suspend fun openWishByIsbn(isbn13: String): WishEntity?
 
     @Query("SELECT * FROM works WHERE id = :id") suspend fun workById(id: String): WorkEntity?
+
+    /** Every genre already used, for the form's suggestions. */
+    @Query("SELECT DISTINCT value FROM works, json_each(works.subjects) ORDER BY value")
+    suspend fun subjects(): List<String>
     @Query("SELECT * FROM editions WHERE id = :id") suspend fun editionById(id: String): EditionEntity?
     @Query("SELECT * FROM copies WHERE id = :id") suspend fun copyById(id: String): CopyEntity?
     @Query("SELECT * FROM locations WHERE id = :id") suspend fun locationById(id: String): LocationEntity?

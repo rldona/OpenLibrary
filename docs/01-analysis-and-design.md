@@ -140,7 +140,7 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 - BR11. Moving to `reading` sets `started_on` = today if empty; to `read`, `finished_on` = today. Dates are editable.
 - BR12. Rating and notes per session; the details view shows the latest.
 - BR13. Work status: `reading` if any session is active; `read` if any is finished; otherwise `pending`.
-- *Favorites (web):* a per-work mark in `work_favorites`, outside the sync entities. The library listing returns `favorite` and the latest rating of the work, so the web can draw the orange heart (bottom-right of the cover) and the score flap (top-right); `POST`/`DELETE /works/{id}/favorite` toggles it.
+- *Favorites:* a `favorite` field on the work, so it syncs to Android and the web shares the same marks. The library listing returns `favorite` and the latest rating of the work, so both clients draw the orange heart (bottom-right of the cover) and the score flap (top-right); `POST`/`DELETE /works/{id}/favorite` toggles it.
 - *Reset (web and Android):* choosing "not read yet" resets every live reading of the work (finished and in progress) to `pending` and clears their dates, so the work returns to `pending`. Ratings and notes are kept. It is the way to undo a read or a reread.
 
 **Wishlist**
@@ -274,7 +274,7 @@ Base: `https://openlibrary.<tailnet>.ts.net/api/v1` · JSON · errors as RFC 945
 | GET | `/library?q=&location=&subject=&language=&favorite=&sort=&limit=&offset=` · `/library/facets` | paginated listing with FTS search; facets; each item carries `favorite` and the latest rating | F1 ✔ |
 | POST | `/books` | work (new or existing) + edition + first copy, atomically; 409 `duplicate-isbn` | F1 ✔ |
 | GET / PATCH | `/works/{id}` | work + editions + copies; PATCH with `baseVersion` and field merge | F1 ✔ |
-| POST / DELETE | `/works/{id}/favorite` | web favorite mark (outside the sync format) | Web ✔ |
+| POST / DELETE | `/works/{id}/favorite` | favorite mark (a synced work field; web and Android) | Web ✔ · Android ✔ |
 | PATCH / DELETE | `/editions/{id}` | update / delete an edition | F1 ✔ |
 | POST / PATCH | `/copies`, `/copies/{id}` | add, move, edit, retire, restore | F1 ✔ |
 | GET / POST / PATCH / DELETE | `/locations[/{id}]` | tree with cumulative counts | F1 ✔ |

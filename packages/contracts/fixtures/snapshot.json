@@ -1,10 +1,10 @@
 {
-  "epoch": "c0268147-ff35-4824-8d71-db4bd4b98212",
+  "epoch": "5cf86c02-886a-4048-be13-48fdbdee60d5",
   "cursor": 15,
   "serverTime": "2026-11-04T10:00:00.000Z",
   "works": [
     {
-      "id": "01a1b25f-4b72-71ff-beb0-76cb80e2f16c",
+      "id": "01a1b7de-f8ec-7c0c-81a2-723b61ddc078",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -16,10 +16,11 @@
       "originalTitle": null,
       "originalLanguage": null,
       "series": "Nivolas",
-      "seriesIndex": 1
+      "seriesIndex": 1,
+      "favorite": false
     },
     {
-      "id": "01a1b25f-4b84-7f21-9f91-4c891eb10d18",
+      "id": "01a1b7de-f8fd-72cc-aa26-993698ce080b",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -31,16 +32,17 @@
       "originalTitle": null,
       "originalLanguage": null,
       "series": null,
-      "seriesIndex": null
+      "seriesIndex": null,
+      "favorite": false
     }
   ],
   "editions": [
     {
-      "id": "01a1b25f-4b74-7244-8449-2ff47e5d21a3",
+      "id": "01a1b7de-f8ed-7e6e-ae45-200a06314748",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1b25f-4b72-71ff-beb0-76cb80e2f16c",
+      "workId": "01a1b7de-f8ec-7c0c-81a2-723b61ddc078",
       "title": null,
       "subtitle": null,
       "publisher": "Cátedra",
@@ -54,11 +56,11 @@
       "metadataSource": null
     },
     {
-      "id": "01a1b25f-4b85-7dd9-a3a3-8d5af8bb30ff",
+      "id": "01a1b7de-f8fd-76b2-a36c-f8562071c493",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1b25f-4b84-7f21-9f91-4c891eb10d18",
+      "workId": "01a1b7de-f8fd-72cc-aa26-993698ce080b",
       "title": null,
       "subtitle": null,
       "publisher": null,
@@ -74,13 +76,13 @@
   ],
   "copies": [
     {
-      "id": "01a1b25f-4b75-7f2a-8d3b-3d690c421742",
+      "id": "01a1b7de-f8ef-7d84-8d77-a74b9b8ba8ca",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1b25f-4b74-7244-8449-2ff47e5d21a3",
+      "editionId": "01a1b7de-f8ed-7e6e-ae45-200a06314748",
       "code": "EJ-0001",
-      "locationId": "01a1b25f-4b64-7d0f-acdd-bd3b551546c3",
+      "locationId": "01a1b7de-f8e0-7920-af64-fb6f8bf76887",
       "condition": "good",
       "acquiredOn": "2020-05-01",
       "priceCents": 1200,
@@ -91,11 +93,11 @@
       "retiredOn": "2026-11-04"
     },
     {
-      "id": "01a1b25f-4b85-7b01-8f7a-073c3f9470b4",
+      "id": "01a1b7de-f8fe-7b1f-9eb1-e33c29d8e880",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "editionId": "01a1b25f-4b85-7dd9-a3a3-8d5af8bb30ff",
+      "editionId": "01a1b7de-f8fd-76b2-a36c-f8562071c493",
       "code": "EJ-0002",
       "locationId": null,
       "condition": "good",
@@ -110,7 +112,7 @@
   ],
   "locations": [
     {
-      "id": "01a1b25f-4b64-7d0f-acdd-bd3b551546c3",
+      "id": "01a1b7de-f8e0-7920-af64-fb6f8bf76887",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -122,11 +124,11 @@
   ],
   "readings": [
     {
-      "id": "01a1b25f-4b8b-735e-babd-bb97d1163b45",
+      "id": "01a1b7de-f904-70b4-9f47-83c11b7acf2e",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1b25f-4b75-7f2a-8d3b-3d690c421742",
+      "copyId": "01a1b7de-f8ef-7d84-8d77-a74b9b8ba8ca",
       "status": "read",
       "startedOn": "2024-01-02",
       "finishedOn": "2026-11-04",
@@ -134,11 +136,11 @@
       "notes": "Nivola"
     },
     {
-      "id": "01a1b25f-4b90-794a-803c-f21a6436c2b9",
+      "id": "01a1b7de-f907-7136-a473-28930655c0e0",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "copyId": "01a1b25f-4b75-7f2a-8d3b-3d690c421742",
+      "copyId": "01a1b7de-f8ef-7d84-8d77-a74b9b8ba8ca",
       "status": "reading",
       "startedOn": "2026-11-04",
       "finishedOn": null,
@@ -148,7 +150,7 @@
   ],
   "wishes": [
     {
-      "id": "01a1b25f-4bb3-7dd2-b776-77ff6fd11e59",
+      "id": "01a1b7de-f924-7bd9-b8e9-b5f66be0bbd8",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -163,7 +165,7 @@
       "coverAssetId": null
     },
     {
-      "id": "01a1b25f-4bb6-7c43-8075-3d6bc3c32061",
+      "id": "01a1b7de-f927-74ec-842f-0be9b71c912a",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -174,11 +176,11 @@
       "priority": "normal",
       "notes": "",
       "status": "acquired",
-      "acquiredCopyId": "01a1b25f-4b75-7f2a-8d3b-3d690c421742",
+      "acquiredCopyId": "01a1b7de-f8ef-7d84-8d77-a74b9b8ba8ca",
       "coverAssetId": null
     },
     {
-      "id": "01a1b25f-4bb8-7bff-ba79-bb2750f4ccc1",
+      "id": "01a1b7de-f928-7476-8926-e415527a8d98",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -195,22 +197,22 @@
   ],
   "quotes": [
     {
-      "id": "01a1b25f-4ba3-78d1-b3bb-e302d2003e1a",
+      "id": "01a1b7de-f91c-782f-8cca-41d106ad8724",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1b25f-4b72-71ff-beb0-76cb80e2f16c",
-      "copyId": "01a1b25f-4b75-7f2a-8d3b-3d690c421742",
+      "workId": "01a1b7de-f8ec-7c0c-81a2-723b61ddc078",
+      "copyId": "01a1b7de-f8ef-7d84-8d77-a74b9b8ba8ca",
       "text": "Mi vida es una niebla.",
       "page": 12,
       "note": ""
     },
     {
-      "id": "01a1b25f-4bae-741f-bfaf-32bd7419cdaa",
+      "id": "01a1b7de-f920-7068-9b66-bf6c4d955d21",
       "version": 1,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
-      "workId": "01a1b25f-4b72-71ff-beb0-76cb80e2f16c",
+      "workId": "01a1b7de-f8ec-7c0c-81a2-723b61ddc078",
       "copyId": null,
       "text": "Borrar",
       "page": null,

@@ -1,8 +1,8 @@
 {
-  "epoch": "c0268147-ff35-4824-8d71-db4bd4b98212",
+  "epoch": "5cf86c02-886a-4048-be13-48fdbdee60d5",
   "works": [
     {
-      "id": "01a1b25f-4b72-71ff-beb0-76cb80e2f16c",
+      "id": "01a1b7de-f8ec-7c0c-81a2-723b61ddc078",
       "version": 2,
       "createdAt": "2026-11-04T10:00:00.000Z",
       "updatedAt": "2026-11-04T10:00:00.000Z",
@@ -14,7 +14,8 @@
       "originalTitle": null,
       "originalLanguage": null,
       "series": "Nivolas",
-      "seriesIndex": 1
+      "seriesIndex": 1,
+      "favorite": false
     }
   ],
   "editions": [],
@@ -26,31 +27,31 @@
   "deleted": [
     {
       "entity": "work",
-      "id": "01a1b25f-4b84-7f21-9f91-4c891eb10d18",
+      "id": "01a1b7de-f8fd-72cc-aa26-993698ce080b",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "edition",
-      "id": "01a1b25f-4b85-7dd9-a3a3-8d5af8bb30ff",
+      "id": "01a1b7de-f8fd-76b2-a36c-f8562071c493",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "copy",
-      "id": "01a1b25f-4b85-7b01-8f7a-073c3f9470b4",
+      "id": "01a1b7de-f8fe-7b1f-9eb1-e33c29d8e880",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "wish",
-      "id": "01a1b25f-4bb8-7bff-ba79-bb2750f4ccc1",
+      "id": "01a1b7de-f928-7476-8926-e415527a8d98",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     },
     {
       "entity": "quote",
-      "id": "01a1b25f-4bae-741f-bfaf-32bd7419cdaa",
+      "id": "01a1b7de-f920-7068-9b66-bf6c4d955d21",
       "version": 2,
       "deletedAt": "2026-11-04T10:00:00.000Z"
     }

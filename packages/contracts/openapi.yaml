@@ -288,6 +288,7 @@ components:
           originalLanguage,
           series,
           seriesIndex,
+          favorite,
         ]
       properties:
         id: { type: string }
@@ -298,6 +299,7 @@ components:
         subtitle: { type: [string, 'null'] }
         authors: { type: array, items: { type: string } }
         subjects: { type: array, items: { type: string } }
+        favorite: { type: boolean, description: Favorite mark, shared with the web. }
         description: { type: [string, 'null'] }
         originalTitle: { type: [string, 'null'] }
         originalLanguage: { type: [string, 'null'] }

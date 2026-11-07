@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -35,6 +38,8 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ImageSearch
@@ -56,6 +61,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -110,6 +116,8 @@ import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import io.github.rldona.openlibrary.ui.components.SyncBar
 import io.github.rldona.openlibrary.ui.components.TopBarInsets
 import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import io.github.rldona.openlibrary.ui.detail.readingStatusLabel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -139,13 +147,18 @@ data class LibraryState(
     /** "pending", "reading" or "read"; null shows every book. */
     val reading: String? = null,
     val sort: LibrarySort = LibrarySort.Title,
+    val favoritesOnly: Boolean = false,
 ) {
     val filtered get() = location != null || onlyProvisional || reading != null
 }
 
 /** Library list over the local copy: works with the server off. */
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewModel() {
+class LibraryViewModel(
+    private val c: AppContainer,
+    locationId: String?,
+    private val favoritesOnly: Boolean = false,
+) : ViewModel() {
     val query = MutableStateFlow("")
     /** A search to put in the search field (handed over by another screen); the screen clears it once applied. */
     val searchRequest = MutableStateFlow<String?>(null)
@@ -175,12 +188,13 @@ class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewM
                     prefs.sort,
                 ) { rows, places, statuses, sort ->
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
-                    val shown = shapeLibrary(rows, statuses.associate { it.workId to it.status }, f.reading, f.prov, sort)
+                    val shown = shapeLibrary(rows, statuses.associate { it.workId to it.status }, f.reading, f.prov, sort, favoritesOnly)
                     LibraryState(
                         provisional = rows.count { it.metadataStatus == "provisional" },
                         onlyProvisional = f.prov,
                         reading = f.reading,
                         sort = sort,
+                        favoritesOnly = favoritesOnly,
                         items = shown.map { r ->
                             val inFilter = firstPlace[r.editionId].orEmpty().firstOrNull { f.loc == null || it in ids }
                             LibraryItem(r, pathOf(byId, inFilter))
@@ -209,6 +223,12 @@ class LibraryViewModel(private val c: AppContainer, locationId: String?) : ViewM
 
     fun setSort(sort: LibrarySort) = viewModelScope.launch { prefs.setSort(sort) }
 
+    /** The heart on a card or row: a normal work update, so it syncs with the web. */
+    fun toggleFavorite(row: LibraryRow) = viewModelScope.launch {
+        val work = c.db.catalog().workById(row.workId) ?: return@launch
+        c.writes.editWork(work, JsonObject(mapOf("favorite" to JsonPrimitive(!work.favorite))))
+    }
+
     fun rememberSearch(q: String) = viewModelScope.launch { prefs.addRecentSearch(q) }
 
     fun forgetSearch(q: String) = viewModelScope.launch { prefs.removeRecentSearch(q) }
@@ -232,9 +252,12 @@ fun shapeLibrary(
     reading: String?,
     onlyProvisional: Boolean,
     sort: LibrarySort,
+    favoritesOnly: Boolean = false,
 ): List<LibraryRow> {
     val kept = rows.filter { r ->
-        (!onlyProvisional || r.metadataStatus == "provisional") && (reading == null || (statuses[r.workId] ?: "pending") == reading)
+        (!favoritesOnly || r.favorite) &&
+            (!onlyProvisional || r.metadataStatus == "provisional") &&
+            (reading == null || (statuses[r.workId] ?: "pending") == reading)
     }
     return when (sort) {
         LibrarySort.Title -> kept
@@ -389,6 +412,12 @@ fun LibraryScreen(
                         stringResource(R.string.library_noMatchesTitle),
                         text = stringResource(R.string.library_noMatchesText),
                     )
+                state.items.isEmpty() && state.favoritesOnly ->
+                    EmptyState(
+                        Icons.Default.FavoriteBorder,
+                        stringResource(R.string.favorites_emptyTitle),
+                        text = stringResource(R.string.favorites_emptyText),
+                    )
                 state.items.isEmpty() ->
                     EmptyState(
                         Icons.AutoMirrored.Filled.LibraryBooks,
@@ -396,7 +425,15 @@ fun LibraryScreen(
                         text = stringResource(R.string.library_emptyText),
                         action = stringResource(R.string.book_add) to onAdd,
                     )
-                else -> Books(state.items, covers, grid, sharedTransitionScope, animatedVisibilityScope, onOpen = openBook)
+                else -> Books(
+                    state.items,
+                    covers,
+                    grid,
+                    sharedTransitionScope,
+                    animatedVisibilityScope,
+                    onOpen = openBook,
+                    onFavorite = vm::toggleFavorite,
+                )
             }
         }
     }
@@ -572,6 +609,37 @@ private fun SearchResults(items: List<LibraryItem>, covers: CoverStore, onOpen: 
     }
 }
 
+@Composable
+private fun RatingFlap(value: Double, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(99.dp), color = MaterialTheme.colorScheme.primary) {
+        Text(
+            "★ $value",
+            Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
+@Composable
+private fun FavoriteButton(favorite: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 2.dp,
+    ) {
+        IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+            Icon(
+                if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = stringResource(if (favorite) R.string.favorites_remove else R.string.favorites_add),
+                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun Books(
@@ -581,6 +649,7 @@ private fun Books(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onOpen: (workId: String, editionId: String) -> Unit,
+    onFavorite: (LibraryRow) -> Unit,
 ) {
     val header: @Composable () -> Unit = {
         Text(
@@ -610,14 +679,24 @@ private fun Books(
                     animateGridItem().clip(MaterialTheme.shapes.small).clickable { onOpen(item.row.workId, item.row.editionId) }.padding(2.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    FillCover(
-                        covers,
-                        item.row.coverAssetId,
-                        item.row.title,
-                        item.row.authors,
-                        item.row.metadataStatus == "provisional",
-                        modifier = coverModifier,
-                    )
+                    Box(Modifier.fillMaxWidth()) {
+                        FillCover(
+                            covers,
+                            item.row.coverAssetId,
+                            item.row.title,
+                            item.row.authors,
+                            item.row.metadataStatus == "provisional",
+                            modifier = coverModifier,
+                        )
+                        item.row.rating?.let {
+                            RatingFlap(it, Modifier.align(Alignment.TopEnd).padding(6.dp))
+                        }
+                        FavoriteButton(
+                            item.row.favorite,
+                            onClick = { onFavorite(item.row) },
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+                        )
+                    }
                     Text(item.row.title, style = BookTitle.grid, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
                         item.row.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
@@ -657,6 +736,12 @@ private fun Books(
                                 authors = item.row.authors,
                                 provisional = item.row.metadataStatus == "provisional",
                             )
+                        },
+                        trailingContent = {
+                            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                item.row.rating?.let { RatingFlap(it) }
+                                FavoriteButton(item.row.favorite, onClick = { onFavorite(item.row) })
+                            }
                         },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

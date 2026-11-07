@@ -28,7 +28,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.rldona.openlibrary.ui.components.BackButton
@@ -54,10 +57,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +76,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +102,7 @@ import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import io.github.rldona.openlibrary.ui.components.Cover
 import io.github.rldona.openlibrary.ui.components.EmptyState
+import io.github.rldona.openlibrary.ui.components.FillCover
 import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import kotlinx.coroutines.flow.SharingStarted
@@ -304,9 +315,18 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
     }
 
     val fab = rememberFabVisibility()
+    var grid by rememberSaveable { mutableStateOf(false) }
     TabScaffold(
         stringResource(R.string.nav_wishlist),
         Modifier.nestedScroll(fab.connection),
+        actions = {
+            IconButton(onClick = { grid = !grid }) {
+                Icon(
+                    if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                    contentDescription = stringResource(if (grid) R.string.library_viewTable else R.string.library_viewCovers),
+                )
+            }
+        },
         fab = {
             AddFabMenu(
                 listOf(
@@ -330,23 +350,59 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
                     text = stringResource(R.string.wish_emptyText),
                     action = stringResource(R.string.wish_add) to vm::add,
                 )
-            else -> Box(modifier) { WishList(vm, open, onBought, delete) }
+            else -> Box(modifier) { WishList(vm, open, onBought, delete, grid) }
         }
     }
     vm.draft?.let { d -> WishDialog(vm, d, onScan, onPhoto) }
 }
 
 @Composable
-private fun WishList(vm: WishlistViewModel, open: List<WishEntity>, onBought: (wishId: String) -> Unit, onDelete: (WishEntity) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
-        item { Text(stringResource(R.string.wish_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.page)) }
-        items(open, key = { it.id }) { w ->
-            // The rows close the gap of a deleted wish (and open it again on "Undo") instead of jumping.
-            Column(animateListItem()) {
-                WishRow(vm, w, onBought, onDelete)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+private fun WishList(
+    vm: WishlistViewModel,
+    open: List<WishEntity>,
+    onBought: (wishId: String) -> Unit,
+    onDelete: (WishEntity) -> Unit,
+    grid: Boolean,
+) {
+    if (grid) {
+        LazyVerticalGrid(
+            GridCells.Adaptive(104.dp),
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = Spacing.page, end = Spacing.page, bottom = Spacing.fab),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(stringResource(R.string.wish_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
+            }
+            gridItems(open, key = { it.id }) { w -> WishCard(vm, w) }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
+            item { Text(stringResource(R.string.wish_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.page)) }
+            items(open, key = { it.id }) { w ->
+                // The rows close the gap of a deleted wish (and open it again on "Undo") instead of jumping.
+                Column(animateListItem()) {
+                    WishRow(vm, w, onBought, onDelete)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun WishCard(vm: WishlistViewModel, w: WishEntity) {
+    Column(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { vm.edit(w) },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        FillCover(vm.covers, w.coverAssetId, w.title, w.authors, false)
+        Text(w.title, style = BookTitle.grid, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (w.authors.isNotEmpty()) {
+            Text(w.authors.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (w.priority != "normal") Tag(stringResource(priorityLabel(w.priority)))
     }
 }
 

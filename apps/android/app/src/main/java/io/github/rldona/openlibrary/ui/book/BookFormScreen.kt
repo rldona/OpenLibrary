@@ -3,6 +3,8 @@ package io.github.rldona.openlibrary.ui.book
 import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
@@ -19,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
@@ -28,6 +33,9 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.runtime.remember
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Checkbox
@@ -48,6 +56,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -114,6 +123,8 @@ class BookFormViewModel(
     var title by mutableStateOf("")
     var subtitle by mutableStateOf("")
     var authors by mutableStateOf("")
+    var subjects by mutableStateOf("")
+    var suggestions by mutableStateOf<List<String>>(emptyList())
     var publisher by mutableStateOf("")
     var year by mutableStateOf("")
     var language by mutableStateOf("")
@@ -169,6 +180,7 @@ class BookFormViewModel(
     val dirty get() = fields() != baseline
 
     init {
+        viewModelScope.launch { suggestions = c.db.catalog().subjects() }
         if (wishId != null) viewModelScope.launch {
             val w = c.db.catalog().wishById(wishId) ?: return@launch
             wish = w
@@ -183,7 +195,12 @@ class BookFormViewModel(
         if (workId != null && editionId != null) viewModelScope.launch {
             work = c.db.catalog().workById(workId)
             edition = c.db.catalog().editionById(editionId)
-            work?.let { title = it.title; subtitle = it.subtitle.orEmpty(); authors = it.authors.joinToString("; ") }
+            work?.let {
+                title = it.title
+                subtitle = it.subtitle.orEmpty()
+                authors = it.authors.joinToString("; ")
+                subjects = it.subjects.joinToString("; ")
+            }
             edition?.let {
                 isbn = it.isbn13.orEmpty(); publisher = it.publisher.orEmpty(); year = it.publishedYear?.toString().orEmpty()
                 language = it.language.orEmpty(); pages = it.pages?.toString().orEmpty(); provisional = it.metadataStatus == "provisional"
@@ -332,6 +349,7 @@ class BookFormViewModel(
         if (title.isBlank() || standIn) title = p.title.orEmpty()
         if (subtitle.isBlank()) subtitle = p.subtitle.orEmpty()
         if (authors.isBlank()) authors = p.authors.joinToString("; ")
+        if (subjects.isBlank()) subjects = p.subjects.joinToString("; ")
         if (publisher.isBlank()) publisher = p.publisher.orEmpty()
         if (year.isBlank()) year = p.publishedYear?.toString().orEmpty()
         if (language.isBlank()) language = p.language.orEmpty()
@@ -364,7 +382,13 @@ class BookFormViewModel(
         val cover = photoId ?: providerCoverId ?: providerCover()
         val book =
             NewBook(
-                work = NewWork(newWorkId, title.trim(), subtitle.trim().ifEmpty { null }, authorList()),
+                work = NewWork(
+                    newWorkId,
+                    title.trim(),
+                    subtitle.trim().ifEmpty { null },
+                    authorList(),
+                    subjects = splitSubjects(subjects),
+                ),
                 edition = NewEdition(
                     id = uuidv7(),
                     publisher = publisher.trim().ifEmpty { null },
@@ -461,6 +485,7 @@ class BookFormViewModel(
         if (title.trim() != w.title) wf["title"] = JsonPrimitive(title.trim())
         if (subtitle.trim().ifEmpty { null } != w.subtitle) wf["subtitle"] = text(subtitle)
         if (authorList() != w.authors) wf["authors"] = JsonArray(authorList().map(::JsonPrimitive))
+        if (splitSubjects(subjects) != w.subjects) wf["subjects"] = JsonArray(splitSubjects(subjects).map(::JsonPrimitive))
         if (wf.isNotEmpty()) c.writes.editWork(w, JsonObject(wf))
 
         val ef = mutableMapOf<String, JsonElement>()
@@ -481,6 +506,9 @@ class BookFormViewModel(
     }
 
     private fun authorList() = authors.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    private fun splitSubjects(value: String) =
+        value.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     private fun text(s: String): JsonElement = s.trim().ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull
 }
@@ -543,6 +571,7 @@ fun BookFormScreen(
             Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
             Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
             Field(stringResource(R.string.book_authors), vm.authors, { vm.authors = it }, hint = stringResource(R.string.form_separateWithSemicolon))
+            SubjectsField(vm.subjects, vm.suggestions) { vm.subjects = it }
 
             SectionTitle(stringResource(R.string.drawer_edition))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -681,6 +710,71 @@ private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (Ow
                         Button(onClick = { onAddCopy(n.edition) }) { Text(stringResource(R.string.form_addAnotherCopy)) }
                         OutlinedButton(onClick = { onOpenWork(n.edition.workId) }) { Text(stringResource(R.string.add_viewDetails)) }
                     }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SubjectsField(value: String, suggestions: List<String>, onChange: (String) -> Unit) {
+    val selected = value.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    var text by remember { mutableStateOf("") }
+
+    fun commit(raw: String) {
+        val name = raw.trim()
+        if (name.isEmpty()) return
+        if (selected.none { it.equals(name, ignoreCase = true) }) {
+            onChange((selected + name).joinToString("; "))
+        }
+        text = ""
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.book_subjects), style = MaterialTheme.typography.labelLarge)
+        if (selected.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                selected.forEach { subject ->
+                    InputChip(
+                        selected = true,
+                        onClick = { onChange(selected.filter { it != subject }.joinToString("; ")) },
+                        label = { Text(subject) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.common_remove),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.form_subjectsPlaceholder)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit(text) }),
+            )
+            IconButton(onClick = { commit(text) }, enabled = text.isNotBlank()) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.book_subjects))
+            }
+        }
+        val remaining = suggestions
+            .filter { suggestion ->
+                selected.none { it.equals(suggestion, ignoreCase = true) } &&
+                    (text.isBlank() || suggestion.contains(text.trim(), ignoreCase = true))
+            }
+            .take(12)
+        if (remaining.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                remaining.forEach { suggestion ->
+                    SuggestionChip(onClick = { commit(suggestion) }, label = { Text(suggestion) })
                 }
             }
         }

@@ -60,6 +60,19 @@ class LibraryFiltersTest {
     }
 
     @Test
+    fun favoritesOnlyKeepsTheHeartedRows() {
+        val rows = listOf(
+            row("a", listOf("Zola"), "2026-01-03T00:00:00Z").copy(favorite = true),
+            row("b", emptyList(), "2026-01-01T00:00:00Z"),
+        )
+        assertEquals(
+            listOf("a"),
+            shapeLibrary(rows, emptyMap(), null, false, LibrarySort.Title, favoritesOnly = true)
+                .map { it.editionId },
+        )
+    }
+
+    @Test
     fun readingStatusesFollowTheWorkRule(): Unit = runBlocking {
         val d = db.sync()
         d.upsertWorks(listOf("w1", "w2", "w3").map { WorkEntity(it, 1, it, null, emptyList(), emptyList(), null, null, null, null, null, T, T, it) })

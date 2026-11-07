@@ -62,6 +62,7 @@ describe('performance', () => {
           originalLanguage: null,
           series: null,
           seriesIndex: null,
+          favorite: false,
         },
         edition: {
           title: null,

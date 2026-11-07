@@ -32,6 +32,8 @@ data class WorkEntity(
     val updatedAt: String,
     /** Derived locally: folded title for sorting. */
     val sortTitle: String,
+    /** Synced work field: shared with the web Favorites. */
+    @ColumnInfo(defaultValue = "0") val favorite: Boolean = false,
 )
 
 @Entity(tableName = "editions", indices = [Index("workId")])
@@ -194,5 +196,5 @@ data class SyncStateEntity(
     @ColumnInfo(defaultValue = "0") val format: Int = SYNC_FORMAT,
 )
 
-/** 1: catalog (F2); 2: + reading sessions and wishes; 3: + quotes (F4). Bump it whenever a synced entity type is added. */
-const val SYNC_FORMAT = 3
+/** 1: catalog (F2); 2: + reading sessions and wishes; 3: + quotes (F4); 4: + favorite on works. Bump it when a synced field/entity is added. */
+const val SYNC_FORMAT = 4
