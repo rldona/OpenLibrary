@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { coverUrl } from '../api';
 import { useI18n } from '../i18n';
 
@@ -22,6 +22,9 @@ const PATHS: Record<string, string> = {
   image:
     'M21 15l-5-5L5 21M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
   chev: 'm9 18 6-6-6-6',
+  chevDown: 'm6 9 6 6 6-6',
+  clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
+  sort: 'M3 6h18M6 12h12M10 18h4',
   chart: 'M3 3v18h18M8 17V11M13 17V7M18 17v-4',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
@@ -93,6 +96,8 @@ export function Cover(props: {
   provisional?: boolean;
   seed?: string;
   className?: string;
+  /** Next to the title in the same control: hidden from assistive technology, which already has the title. */
+  decorative?: boolean;
 }) {
   const { t } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -103,7 +108,7 @@ export function Cover(props: {
       <div className={`cover img ${props.provisional ? 'prov' : ''} ${props.className ?? ''}`}>
         <img
           src={src}
-          alt={t('cover.alt', { title: props.title })}
+          alt={props.decorative ? '' : t('cover.alt', { title: props.title })}
           loading="lazy"
           onError={() => setBroken(true)}
         />
@@ -117,59 +122,14 @@ export function Cover(props: {
     <div
       className={`cover gen s${style} ${props.provisional ? 'prov' : ''} ${props.className ?? ''}`}
       style={{ '--bg': bg, '--ac': ac, '--ink': ink } as React.CSSProperties}
-      role="img"
-      aria-label={t('cover.generated', { title: props.title })}
+      role={props.decorative ? undefined : 'img'}
+      aria-label={props.decorative ? undefined : t('cover.generated', { title: props.title })}
+      aria-hidden={props.decorative || undefined}
     >
       <i className="deco" />
       <span className="ct">{props.title}</span>
       <span className="ca">{author}</span>
       {props.provisional && <span className="tag">{t('book.provisional')}</span>}
-    </div>
-  );
-}
-
-// ---------- Modal ----------
-export function Modal({
-  title,
-  onClose,
-  children,
-  footer,
-  wide,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-  footer?: ReactNode;
-  wide?: boolean;
-}) {
-  const { t } = useI18n();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    ref.current
-      ?.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]),select,textarea')
-      ?.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        className={`modal ${wide ? 'wide' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        ref={ref}
-      >
-        <header>
-          <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
-            <Icon name="x" />
-          </button>
-        </header>
-        <div className="modal-body">{children}</div>
-        {footer && <footer>{footer}</footer>}
-      </div>
     </div>
   );
 }
@@ -181,26 +141,5 @@ export function Banner({ kind, children }: { kind: 'info' | 'warn' | 'ok' | 'err
       <Icon name={icon} />
       <div className="grow">{children}</div>
     </div>
-  );
-}
-
-// ---------- Toasts ----------
-const ToastCtx = createContext<(msg: string) => void>(() => undefined);
-export const useToast = () => useContext(ToastCtx);
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
-  const timer = useRef<number>(undefined);
-  const show = useCallback((m: string) => {
-    setMsg(m);
-    clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setMsg(null), 3500);
-  }, []);
-  return (
-    <ToastCtx.Provider value={show}>
-      {children}
-      <div className={`toast ${msg ? 'on' : ''}`} role="status">
-        {msg}
-      </div>
-    </ToastCtx.Provider>
   );
 }

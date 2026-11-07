@@ -1,7 +1,7 @@
-import type { CountBy, StatsDTO } from '@openlibrary/contracts';
+import type { CountBy, StatsDTO } from '@openlibrary/contracts/client';
 import { useQuery } from '@tanstack/react-query';
-import { api, errorText } from '../api';
-import { Banner } from '../components/ui';
+import { api } from '../api';
+import { ErrorState, LoadingState } from '../components/states';
 import { fmtPrice, langName } from '../lib/format';
 import { keys } from '../lib/queries';
 import { useI18n } from '../i18n';
@@ -15,11 +15,12 @@ export function Stats() {
     <>
       <div className="vh">
         <div>
-          <h1>{t('nav.stats')}</h1>
+          <h1 tabIndex={-1}>{t('nav.stats')}</h1>
           <p className="sub">{t('stats.subtitle')}</p>
         </div>
       </div>
-      {q.isError && <Banner kind="err">{errorText(q.error, t)}</Banner>}
+      {q.isPending && <LoadingState />}
+      {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
       {s && <Figures s={s} />}
     </>
   );

@@ -145,9 +145,6 @@ export const es: Record<keyof typeof en, string> = {
   'form.providerCover': 'Portada de {source}',
   'form.removeCover': 'Sin esta portada',
 
-  'common.undo': 'Deshacer',
-  'wish.deleted': '«{title}» eliminado',
-  'quotes.deleted': 'Cita eliminada',
   'form.lookupFailed': 'La búsqueda falló: {error}',
   'setup.showPassword': 'Mostrar contraseña',
   'setup.hidePassword': 'Ocultar contraseña',
@@ -158,13 +155,6 @@ export const es: Record<keyof typeof en, string> = {
   'fab.close': 'Ocultar las opciones',
   'common.more': 'Más opciones',
   'form.section.work': 'Obra',
-  'form.discardTitle': '¿Descartar los cambios?',
-  'form.discardText': 'Se perderá lo que has cambiado en este formulario.',
-  'form.discard': 'Descartar',
-  'form.keepEditing': 'Seguir editando',
-  'search.recent': 'Búsquedas recientes',
-  'search.clearRecent': 'Borrar historial',
-  'search.removeRecent': 'Quitar «{q}» del historial',
   'detail.missing': 'Este libro ya no está en tu biblioteca.',
 
   'rating.value': '{n} de {max}',

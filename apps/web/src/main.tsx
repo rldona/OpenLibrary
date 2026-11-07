@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
-import { ToastProvider } from './components/ui';
+import { SnackbarProvider } from './components/snackbar';
 import { I18nProvider } from './i18n';
 import { ApiError } from './api';
 import './styles.css';
@@ -22,9 +22,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <ToastProvider>
+        <SnackbarProvider>
           <App />
-        </ToastProvider>
+        </SnackbarProvider>
       </I18nProvider>
     </QueryClientProvider>
   </StrictMode>,

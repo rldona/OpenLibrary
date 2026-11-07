@@ -1,34 +1,53 @@
-import { useState, type FormEvent } from 'react';
-import type { QuoteDTO, WorkDetail } from '@openlibrary/contracts';
+import { useRef, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { QuoteDTO, WorkDetail } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { useToast } from '../components/ui';
-import { useInvalidate } from '../lib/queries';
+import { usePendingDeletes, useSnackbar } from '../components/snackbar';
+import { BusyLabel } from '../components/states';
+import { invalidateCatalog, useInvalidate } from '../lib/queries';
 import { useI18n } from '../i18n';
 
-/** Quotes kept from the work: add, edit and delete (it is your own note, so deleting is fine). */
+/**
+ * Quotes kept from the work: add, edit and delete. Deleting is deferred behind "Undo": the quote leaves
+ * the list at once and is deleted on the server when the snackbar goes.
+ */
 export function QuotesSection({ data }: { data: WorkDetail }) {
   const { t } = useI18n();
-  const toast = useToast();
+  const snackbar = useSnackbar();
+  const pending = usePendingDeletes();
+  const qc = useQueryClient();
   const invalidate = useInvalidate();
   const [editing, setEditing] = useState<QuoteDTO | 'new' | null>(null);
   const copies = data.editions.flatMap((e) => e.copies);
+  const quotes = data.quotes.filter((q) => !pending.has(`quote:${q.id}`));
+  const addButton = useRef<HTMLButtonElement>(null);
 
   async function run(call: () => Promise<WorkDetail>) {
     try {
       invalidate(await call());
       setEditing(null);
     } catch (e) {
-      toast(errorText(e, t));
+      snackbar.show(errorText(e, t), { kind: 'error' });
       invalidate();
     }
+  }
+
+  function remove(q: QuoteDTO) {
+    snackbar.deferDelete({
+      key: `quote:${q.id}`,
+      message: t('quotes.deleted'),
+      commit: async ({ keepalive }) => invalidateCatalog(qc, await api.deleteQuote(q.id, { keepalive })),
+    });
+    // Its delete button goes with it: the focus stays in the section instead of falling to the page.
+    addButton.current?.focus();
   }
 
   return (
     <section className="sec">
       <h3>
-        {t('quotes.title')} {data.quotes.length > 0 && <span className="badge">{data.quotes.length}</span>}
+        {t('quotes.title')} {quotes.length > 0 && <span className="badge">{quotes.length}</span>}
       </h3>
-      {data.quotes.map((q) =>
+      {quotes.map((q) =>
         editing !== 'new' && editing?.id === q.id ? (
           <QuoteEditor
             key={q.id}
@@ -52,10 +71,7 @@ export function QuotesSection({ data }: { data: WorkDetail }) {
                 <button className="btn sm ghost" onClick={() => setEditing(q)}>
                   {t('common.edit')}
                 </button>
-                <button
-                  className="btn sm ghost danger"
-                  onClick={() => confirm(t('quotes.deleteConfirm')) && void run(() => api.deleteQuote(q.id))}
-                >
+                <button className="btn sm ghost danger" onClick={() => remove(q)}>
                   {t('common.delete')}
                 </button>
               </span>
@@ -70,7 +86,7 @@ export function QuotesSection({ data }: { data: WorkDetail }) {
           onSave={(f) => run(() => api.createQuote({ workId: data.work.id, text: '', ...f }))}
         />
       ) : (
-        <button className="btn sm" onClick={() => setEditing('new')}>
+        <button className="btn sm" ref={addButton} onClick={() => setEditing('new')}>
           {t('quotes.add')}
         </button>
       )}
@@ -96,8 +112,9 @@ function QuoteEditor({
   const [page, setPage] = useState(quote?.page ? String(quote.page) : '');
   const [note, setNote] = useState(quote?.note ?? '');
   const [copyId, setCopyId] = useState(quote?.copyId ?? '');
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const draft: QuoteDraft = {
       text: text.trim(),
@@ -109,11 +126,13 @@ function QuoteEditor({
     const fields = quote
       ? Object.fromEntries(Object.entries(draft).filter(([k, v]) => v !== quote[k as keyof QuoteDraft]))
       : draft;
-    void onSave(fields);
+    setBusy(true);
+    await onSave(fields);
+    setBusy(false);
   }
 
   return (
-    <form className="copy" onSubmit={submit}>
+    <form className="copy" onSubmit={(e) => void submit(e)}>
       <label>
         {t('quotes.text')}
         <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
@@ -146,8 +165,10 @@ function QuoteEditor({
         </label>
       </div>
       <div className="actions">
-        <button className="btn sm primary" disabled={!text.trim()}>
-          {t('common.save')}
+        <button className="btn sm primary" disabled={!text.trim() || busy}>
+          <BusyLabel busy={busy} busyText={t('common.saving')}>
+            {t('common.save')}
+          </BusyLabel>
         </button>
         <button type="button" className="btn sm ghost" onClick={onCancel}>
           {t('common.cancel')}

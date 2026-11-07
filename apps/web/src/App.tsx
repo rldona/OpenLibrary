@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts';
+import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts/client';
 import { api, ApiError, errorText } from './api';
 import { Icon, Logo } from './components/ui';
+import { MainNav, type View } from './components/nav';
+import { SearchBox } from './components/search';
+import { useNavMode } from './lib/media';
+import { SIGN_OUT_FLUSH_MS, useSnackbar } from './components/snackbar';
+import { useDocumentTitle } from './lib/title';
 import { navigate, setParams, useLocation } from './lib/router';
 import { useLocations, useWishlist } from './lib/queries';
 import { LanguageSwitch, useI18n } from './i18n';
@@ -68,7 +73,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const locs = useLocations();
   const wishes = useWishlist();
-  const view = path.startsWith('/locations')
+  const mode = useNavMode();
+  const view: View = path.startsWith('/locations')
     ? 'locations'
     : path.startsWith('/wishlist')
       ? 'wishlist'
@@ -79,16 +85,34 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           : path.startsWith('/settings')
             ? 'settings'
             : 'library';
+  const viewTitle = {
+    library: t('nav.library'),
+    locations: t('nav.locations'),
+    wishlist: t('nav.wishlist'),
+    stats: t('nav.stats'),
+    data: t('nav.data'),
+    settings: t('nav.settings'),
+  }[view];
+  useDocumentTitle(viewTitle);
+  // Moving to another view puts the focus on its heading, as a page load would; filters do not move it.
+  const shownView = useRef(view);
+  useEffect(() => {
+    if (shownView.current === view) return;
+    shownView.current = view;
+    document.querySelector<HTMLElement>('#content h1')?.focus();
+  }, [view]);
+  const { flush } = useSnackbar();
 
-  // If the session expires, any 401 goes back to the login screen.
+  // If the session expires, any 401 goes back to the login screen, after trying the pending deletions.
   const qc = useQueryClient();
   useEffect(
     () =>
       qc.getQueryCache().subscribe((ev) => {
         const err = ev.query.state.error;
-        if (err instanceof ApiError && err.status === 401) onLogout();
+        if (err instanceof ApiError && err.status === 401)
+          void flush({ timeoutMs: SIGN_OUT_FLUSH_MS }).finally(onLogout);
       }),
-    [qc, onLogout],
+    [qc, onLogout, flush],
   );
 
   const addBook = () => setDialog({ kind: 'book', mode: { kind: 'add' } });
@@ -122,74 +146,48 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     retireCopy: (copy: CopyDTO) => setDialog({ kind: 'copy', mode: { kind: 'retire', copy } }),
   };
 
+  const nav = (
+    <MainNav
+      mode={mode}
+      view={view}
+      counts={{
+        locations: locs.data?.items.length,
+        wishlist: wishes.data?.items.filter((w) => w.status === 'open').length,
+      }}
+      onSignOut={() => void logout()}
+    />
+  );
+
   async function logout() {
+    // Deletions still waiting for "Undo" reach the server while the session is valid.
+    await flush({ timeoutMs: SIGN_OUT_FLUSH_MS });
     await api.logout().catch(() => undefined);
     onLogout();
   }
 
-  const nav = (to: string, v: string, icon: string, label: string, n?: number) => (
-    <a
-      href={to}
-      className={`nav ${view === v ? 'on' : ''}`}
-      aria-current={view === v ? 'page' : undefined}
-      onClick={(e) => {
-        e.preventDefault();
-        navigate(to);
-      }}
-    >
-      <Icon name={icon} />
-      <span>{label}</span>
-      {n !== undefined && <span className="n">{n}</span>}
-    </a>
-  );
-
   return (
-    <div className="app">
+    <div className={`app nav-${mode}`}>
       <a className="skip" href="#content">
         {t('a11y.skipToContent')}
       </a>
-      <aside className="side">
-        <div className="brand">
-          <Logo className="logo" />
-          OpenLibrary
-        </div>
-        <nav aria-label={t('a11y.mainNav')}>
-          {nav('/', 'library', 'book', t('nav.library'))}
-          {nav('/locations', 'locations', 'tree', t('nav.locations'), locs.data?.items.length)}
-          {nav(
-            '/wishlist',
-            'wishlist',
-            'list',
-            t('nav.wishlist'),
-            wishes.data?.items.filter((w) => w.status === 'open').length,
-          )}
-          {nav('/stats', 'stats', 'chart', t('nav.stats'))}
-          <div className="sep" />
-          {nav('/data', 'data', 'download', t('nav.data'))}
-          {nav('/settings', 'settings', 'gear', t('nav.settings'))}
-        </nav>
-        <button className="nav" onClick={() => void logout()}>
-          <Icon name="logout" />
-          <span>{t('nav.logout')}</span>
-        </button>
-        <div className="foot">
-          <LanguageSwitch />
-        </div>
-      </aside>
+      {mode !== 'bar' && nav}
       <main>
         <header className="top">
           <SearchBox
             value={params.get('q') ?? ''}
+            live={view === 'library'}
             onSearch={(q) =>
               view === 'library'
                 ? setParams({ q }, { replace: true })
                 : navigate(q ? `/?q=${encodeURIComponent(q)}` : '/')
             }
           />
-          <button className="btn primary" onClick={addBook}>
-            <Icon name="plus" size={16} />
-            <span className="hide-sm">{t('book.add')}</span>
-          </button>
+          {mode !== 'bar' && (
+            <button className="btn primary" onClick={addBook}>
+              <Icon name="plus" size={16} />
+              {t('book.add')}
+            </button>
+          )}
         </header>
         <section className="view" id="content" tabIndex={-1}>
           {view === 'library' && <Library onAdd={addBook} />}
@@ -197,9 +195,20 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
           {view === 'stats' && <Stats />}
           {view === 'data' && <Data />}
-          {view === 'settings' && <Settings onLogout={onLogout} />}
+          {view === 'settings' && (
+            <Settings onLogout={onLogout} onSignOut={() => void logout()} compact={mode === 'bar'} />
+          )}
         </section>
       </main>
+      {mode === 'bar' && (
+        <>
+          {/* Material's FAB for the main action, above the navigation bar. */}
+          <button className="fab" onClick={addBook} aria-label={t('book.add')}>
+            <Icon name="plus" size={24} />
+          </button>
+          {nav}
+        </>
+      )}
       <BookDrawer {...actions} />
       {dialog?.kind === 'book' && (
         <BookForm
@@ -211,47 +220,6 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         />
       )}
       {dialog?.kind === 'copy' && <CopyForm mode={dialog.mode} onClose={() => setDialog(null)} />}
-    </div>
-  );
-}
-
-/** Search with a 250 ms debounce so typing does not fire one request per key. Shortcut: "/". */
-function SearchBox({ value, onSearch }: { value: string; onSearch: (q: string) => void }) {
-  const { t } = useI18n();
-  const [text, setText] = useState(value);
-  const ref = useRef<HTMLInputElement>(null);
-  const timer = useRef<number>(undefined);
-  // The URL wins (back/forward, "Clear filters"), except while you are typing in the box.
-  useEffect(() => {
-    if (document.activeElement !== ref.current) setText(value);
-  }, [value]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test((e.target as HTMLElement).tagName)) {
-        e.preventDefault();
-        ref.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-  return (
-    <div className="search">
-      <Icon name="search" size={17} />
-      <input
-        ref={ref}
-        type="search"
-        value={text}
-        placeholder={t('search.placeholder')}
-        aria-label={t('search.label')}
-        onChange={(e) => {
-          setText(e.target.value);
-          clearTimeout(timer.current);
-          const q = e.target.value.trim();
-          timer.current = window.setTimeout(() => onSearch(q), 250);
-        }}
-      />
-      <kbd>/</kbd>
     </div>
   );
 }

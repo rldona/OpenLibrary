@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
+import { Banner, Cover, Icon } from '../components/ui';
+import { DialogCancel, Modal, SidePanel } from '../components/dialog';
+import { usePendingDeletes, useSnackbar } from '../components/snackbar';
+import { BusyLabel, EmptyState, ErrorState, LoadingState } from '../components/states';
+import { useFieldError } from '../components/fields';
 import { useQueryClient } from '@tanstack/react-query';
 import { fmtDate, langName, splitList } from '../lib/format';
-import { lookupQuery, useInvalidate, useLookup, useWishlist } from '../lib/queries';
+import { keys, lookupQuery, useInvalidate, useLookup, useWishlist } from '../lib/queries';
 import { closeWish, openBook, openWish, setParams, useLocation } from '../lib/router';
+import { useDocumentTitle } from '../lib/title';
 import { useI18n } from '../i18n';
 
 type Bought = (w: WishDTO) => void;
@@ -17,34 +22,44 @@ type Bought = (w: WishDTO) => void;
  */
 export function Wishlist({ onBought }: { onBought: Bought }) {
   const { t } = useI18n();
-  const toast = useToast();
-  const invalidate = useInvalidate();
+  const snackbar = useSnackbar();
+  const pending = usePendingDeletes();
+  const qc = useQueryClient();
   const list = useWishlist();
   const { params } = useLocation();
   const [editing, setEditing] = useState<WishDTO | 'new' | null>(null);
-  const open = useMemo(() => (list.data?.items ?? []).filter((w) => w.status === 'open'), [list.data]);
-  useProviderCovers(open);
-  // After a deletion the focus goes to the page heading once the wish has left the list.
+  const all = useMemo(() => (list.data?.items ?? []).filter((w) => w.status === 'open'), [list.data]);
+  useProviderCovers(all);
+  // Wishes deleted but still waiting for "Undo" are already out of the list.
+  const open = all.filter((w) => !pending.has(`wish:${w.id}`));
+  // After a deletion the focus was on a row (or in the panel) that is gone: the page heading takes it,
+  // once the panel has closed and given the focus back.
   const heading = useRef<HTMLHeadingElement>(null);
-  const deleted = useRef<string | null>(null);
+  const focusHeading = useRef(false);
   useEffect(() => {
-    if (deleted.current && !open.some((w) => w.id === deleted.current)) {
-      deleted.current = null;
+    if (focusHeading.current) {
+      focusHeading.current = false;
       heading.current?.focus();
     }
-  }, [open]);
+  });
 
-  async function remove(w: WishDTO) {
-    if (!confirm(t('wish.deleteConfirm', { title: w.title }))) return;
-    try {
-      await api.deleteWish(w.id);
-      deleted.current = w.id;
-      // Replaced, not pushed: going back must not reopen the panel of a wish that is gone.
-      if (params.get('wish') === w.id) setParams({ wish: undefined }, { replace: true });
-    } catch (e) {
-      toast(errorText(e, t));
-    }
-    invalidate();
+  /** Deferred behind "Undo": the wish leaves the list now and the server deletes it when the snackbar goes. */
+  function remove(w: WishDTO) {
+    // Replaced, not pushed: going back must not reopen the panel of a wish that is gone.
+    if (params.get('wish') === w.id) setParams({ wish: undefined }, { replace: true });
+    snackbar.deferDelete({
+      key: `wish:${w.id}`,
+      message: t('wish.deleted', { title: w.title }),
+      commit: async ({ keepalive }) => {
+        await api.deleteWish(w.id, { keepalive });
+        // Waits for the fresh list, so the wish does not flash back when it stops being hidden.
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: keys.wishlist }),
+          qc.invalidateQueries({ queryKey: keys.stats }),
+        ]);
+      },
+    });
+    focusHeading.current = true;
   }
 
   return (
@@ -61,34 +76,38 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
         </button>
       </div>
 
+      {list.isPending && <LoadingState />}
+      {list.isError && <ErrorState error={list.error} onRetry={() => void list.refetch()} />}
       {list.isSuccess && !open.length && (
-        <div className="empty">
-          <h3>{t('wish.emptyTitle')}</h3>
-          <p>{t('wish.emptyText')}</p>
-        </div>
+        <EmptyState icon="list" title={t('wish.emptyTitle')} text={t('wish.emptyText')} />
       )}
       <ul className="list">
         {open.map((w) => (
           <li key={w.id}>
-            <button className="wish-open" onClick={() => openWish(w.id)} aria-label={w.title}>
-              <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} className="wish-cover" />
-            </button>
-            <div className="grow">
-              <button className="linklike" onClick={() => openWish(w.id)}>
-                <b>{w.title}</b>
-              </button>{' '}
-              {w.priority !== 'normal' && (
-                <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
-                  {t(`wish.priority.${w.priority}`)}
+            {/* One control per wish: the cover and the text open its panel together. */}
+            <button className="wish-open" onClick={() => openWish(w.id)}>
+              <Cover
+                assetId={w.coverAssetId}
+                title={w.title}
+                authors={w.authors}
+                className="wish-cover"
+                decorative
+              />
+              <span className="grow">
+                <b>{w.title}</b>{' '}
+                {w.priority !== 'normal' && (
+                  <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
+                    {t(`wish.priority.${w.priority}`)}
+                  </span>
+                )}
+                <span className="muted small line">
+                  {[w.authors.join(', '), w.isbn13 && `ISBN ${formatIsbn(w.isbn13)}`]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
-              )}
-              <div className="muted small">
-                {[w.authors.join(', '), w.isbn13 && `ISBN ${formatIsbn(w.isbn13)}`]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </div>
-              {w.notes && <div className="note">{w.notes}</div>}
-            </div>
+                {w.notes && <span className="note line">{w.notes}</span>}
+              </span>
+            </button>
             <div className="actions tight">
               <button className="btn sm primary" onClick={() => onBought(w)}>
                 {t('wish.bought')}
@@ -107,9 +126,11 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
       <WishDrawer
         items={open}
         loaded={list.isSuccess}
+        error={list.isError ? list.error : null}
+        onRetry={() => void list.refetch()}
         onBought={onBought}
         onEdit={setEditing}
-        onDelete={(w) => void remove(w)}
+        onDelete={remove}
       />
       {editing && <WishForm wish={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
@@ -162,6 +183,8 @@ function useProviderCovers(items: WishDTO[]) {
 function WishDrawer({
   items,
   loaded,
+  error,
+  onRetry,
   onBought,
   onEdit,
   onDelete,
@@ -169,6 +192,8 @@ function WishDrawer({
   items: WishDTO[];
   /** The wishlist has loaded: an id that is not in it (bought, deleted, mistyped) is dropped. */
   loaded: boolean;
+  error: unknown;
+  onRetry: () => void;
   onBought: Bought;
   onEdit: (w: WishDTO) => void;
   onDelete: (w: WishDTO) => void;
@@ -177,161 +202,146 @@ function WishDrawer({
   const { params } = useLocation();
   const id = params.get('wish');
   const w = items.find((x) => x.id === id);
-  const open = !!w;
+  // Open while the list loads too (a shared link), so the panel can show that it is loading.
+  const open = !!w || (!!id && !loaded);
+  const titleId = useId();
+  useDocumentTitle(w?.title, 1);
   useEffect(() => {
     if (id && loaded && !w) setParams({ wish: undefined }, { replace: true });
   }, [id, loaded, w]);
   // What the providers know about the book: shown here, as in the form "I bought it" opens.
-  const found = useLookup(open ? w?.isbn13 : null);
+  const found = useLookup(w?.isbn13);
   const p = found.data?.found ? found.data.proposal : null;
 
-  // Same keyboard behaviour as the book panel: Escape closes, focus moves in and back.
-  const panel = useRef<HTMLElement>(null);
-  const opener = useRef<Element | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) =>
-      e.key === 'Escape' && !document.querySelector('.modal-bg') && closeWish();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-  useEffect(() => {
-    if (open) {
-      opener.current = document.activeElement;
-      panel.current?.focus();
-    } else if (opener.current instanceof HTMLElement) {
-      opener.current.focus();
-      opener.current = null;
-    }
-  }, [open]);
-
   return (
-    <>
-      <div className={`scrim ${open ? 'on' : ''}`} onClick={closeWish} />
-      <aside
-        className={`drawer ${open ? 'on' : ''}`}
-        aria-label={t('wish.drawerLabel')}
-        aria-hidden={!open}
-        inert={!open}
-        ref={panel}
-        tabIndex={-1}
-      >
-        {w && (
-          <>
-            <div className="dh">
-              <Cover
-                assetId={w.coverAssetId}
-                src={w.coverAssetId ? null : p?.coverUrl}
-                title={w.title}
-                authors={w.authors}
-              />
-              <div className="grow">
-                <div className="kicker">
-                  {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
-                </div>
-                <h2>{w.title}</h2>
-                <div>{w.authors.join(', ') || t('book.unknownAuthor')}</div>
-                {w.isbn13 && <div className="muted mono small">ISBN {formatIsbn(w.isbn13)}</div>}
-                <div className="actions">
-                  <button
-                    className="btn sm primary"
-                    onClick={() => {
-                      closeWish();
-                      onBought(w);
-                    }}
-                  >
-                    {t('wish.bought')}
-                  </button>
-                  <button className="btn sm" onClick={() => onEdit(w)}>
-                    {t('common.edit')}
-                  </button>
-                  <button className="btn sm ghost danger" onClick={() => onDelete(w)}>
-                    {t('wish.delete')}
-                  </button>
-                </div>
+    <SidePanel
+      open={open}
+      onClose={closeWish}
+      label={t('wish.drawerLabel')}
+      labelledBy={w ? titleId : undefined}
+    >
+      {!w && !error && open && <LoadingState />}
+      {!w && !!error && (
+        <div className="pad">
+          <ErrorState error={error} onRetry={onRetry} />
+        </div>
+      )}
+      {w && (
+        <>
+          <div className="dh">
+            <Cover
+              assetId={w.coverAssetId}
+              src={w.coverAssetId ? null : p?.coverUrl}
+              title={w.title}
+              authors={w.authors}
+            />
+            <div className="grow">
+              <div className="kicker">
+                {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
               </div>
-              <button className="icon-btn x" onClick={closeWish} aria-label={t('common.close')}>
-                <Icon name="x" />
-              </button>
+              <h2 id={titleId}>{w.title}</h2>
+              <div>{w.authors.join(', ') || t('book.unknownAuthor')}</div>
+              {w.isbn13 && <div className="muted mono small">ISBN {formatIsbn(w.isbn13)}</div>}
+              <div className="actions">
+                <button
+                  className="btn sm primary"
+                  onClick={() => {
+                    closeWish();
+                    onBought(w);
+                  }}
+                >
+                  {t('wish.bought')}
+                </button>
+                <button className="btn sm" onClick={() => onEdit(w)}>
+                  {t('common.edit')}
+                </button>
+                <button className="btn sm ghost danger" onClick={() => onDelete(w)}>
+                  {t('wish.delete')}
+                </button>
+              </div>
             </div>
-            {p && (
-              <section className="sec">
-                <h3>{t('wish.aboutBook')}</h3>
-                <dl className="kv">
-                  {p.publisher && (
-                    <div>
-                      <dt>{t('book.publisher')}</dt>
-                      <dd>{p.publisher}</dd>
-                    </div>
-                  )}
-                  {p.publishedYear && (
-                    <div>
-                      <dt>{t('book.year')}</dt>
-                      <dd>{p.publishedYear}</dd>
-                    </div>
-                  )}
-                  {p.pages && (
-                    <div>
-                      <dt>{t('book.pages')}</dt>
-                      <dd>{p.pages}</dd>
-                    </div>
-                  )}
-                  {p.language && (
-                    <div>
-                      <dt>{t('book.language')}</dt>
-                      <dd>{langName(p.language)}</dd>
-                    </div>
-                  )}
-                </dl>
-                {p.subjects.length > 0 && (
-                  <div className="chips">
-                    {p.subjects.map((x) => (
-                      <span key={x} className="chip">
-                        {x}
-                      </span>
-                    ))}
+            <button className="icon-btn x" onClick={closeWish} aria-label={t('common.close')}>
+              <Icon name="x" />
+            </button>
+          </div>
+          {p && (
+            <section className="sec">
+              <h3>{t('wish.aboutBook')}</h3>
+              <dl className="kv">
+                {p.publisher && (
+                  <div>
+                    <dt>{t('book.publisher')}</dt>
+                    <dd>{p.publisher}</dd>
                   </div>
                 )}
-                {p.description && <p className="note">{p.description}</p>}
-                <p className="muted small">
-                  {t('form.foundTitle', { sources: found.data!.sources.join(', ') })}
-                </p>
-              </section>
-            )}
-            {w.notes && (
-              <section className="sec">
-                <h3>{t('wish.notes')}</h3>
-                <p className="note">{w.notes}</p>
-              </section>
-            )}
-            <section className="sec">
-              <dl className="kv">
-                <div>
-                  <dt>{t('wish.addedOn')}</dt>
-                  <dd>{fmtDate(w.createdAt)}</dd>
-                </div>
-                <div>
-                  <dt>{t('wish.updatedOn')}</dt>
-                  <dd>{fmtDate(w.updatedAt)}</dd>
-                </div>
+                {p.publishedYear && (
+                  <div>
+                    <dt>{t('book.year')}</dt>
+                    <dd>{p.publishedYear}</dd>
+                  </div>
+                )}
+                {p.pages && (
+                  <div>
+                    <dt>{t('book.pages')}</dt>
+                    <dd>{p.pages}</dd>
+                  </div>
+                )}
+                {p.language && (
+                  <div>
+                    <dt>{t('book.language')}</dt>
+                    <dd>{langName(p.language)}</dd>
+                  </div>
+                )}
               </dl>
-              {w.workId && (
-                <p>
-                  <button
-                    className="btn sm"
-                    onClick={() => {
-                      closeWish();
-                      openBook(w.workId!);
-                    }}
-                  >
-                    {t('wish.openBook')}
-                  </button>
-                </p>
+              {p.subjects.length > 0 && (
+                <div className="chips">
+                  {p.subjects.map((x) => (
+                    <span key={x} className="chip">
+                      {x}
+                    </span>
+                  ))}
+                </div>
               )}
+              {p.description && <p className="note">{p.description}</p>}
+              <p className="muted small">
+                {t('form.foundTitle', { sources: found.data!.sources.join(', ') })}
+              </p>
             </section>
-          </>
-        )}
-      </aside>
-    </>
+          )}
+          {w.notes && (
+            <section className="sec">
+              <h3>{t('wish.notes')}</h3>
+              <p className="note">{w.notes}</p>
+            </section>
+          )}
+          <section className="sec">
+            <dl className="kv">
+              <div>
+                <dt>{t('wish.addedOn')}</dt>
+                <dd>{fmtDate(w.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>{t('wish.updatedOn')}</dt>
+                <dd>{fmtDate(w.updatedAt)}</dd>
+              </div>
+            </dl>
+            {w.workId && (
+              <p>
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    closeWish();
+                    openBook(w.workId!);
+                  }}
+                >
+                  {t('wish.openBook')}
+                </button>
+              </p>
+            )}
+          </section>
+        </>
+      )}
+    </SidePanel>
   );
 }
 
@@ -346,13 +356,33 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
   const [notes, setNotes] = useState(wish?.notes ?? '');
   const [coverAssetId, setCoverAssetId] = useState<string | null>(wish?.coverAssetId ?? null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; isbn?: string }>({});
+  const formId = useId();
   const [busy, setBusy] = useState(false);
+  const [looking, setLooking] = useState(false);
+  const titleError = useFieldError(fieldErrors.title);
+  const isbnError = useFieldError(fieldErrors.isbn);
+  const dirty =
+    title !== (wish?.title ?? '') ||
+    authors !== (wish?.authors.join('; ') ?? '') ||
+    isbn !== (wish?.isbn13 ?? '') ||
+    priority !== (wish?.priority ?? 'normal') ||
+    notes !== (wish?.notes ?? '') ||
+    coverAssetId !== (wish?.coverAssetId ?? null);
+  /** The summary banner plus the message on the field itself, which takes the focus. */
+  function invalid(field: 'title' | 'isbn', message: string) {
+    setError(message);
+    setFieldErrors({ [field]: message });
+    document.getElementById(`${formId}-${field}`)?.focus();
+  }
 
   async function lookup() {
     setError(null);
+    setFieldErrors({});
     const n = normalizeIsbn(isbn);
-    if (!n.ok) return setError(t('form.isbnInvalid', { reason: t(`isbn.${n.reason}`) }));
+    if (!n.ok) return invalid('isbn', t('form.isbnInvalid', { reason: t(`isbn.${n.reason}`) }));
     setIsbn(n.isbn13);
+    setLooking(true);
     try {
       const p = (await api.lookup(n.isbn13)).proposal;
       if (p?.title && !title.trim()) setTitle(p.title);
@@ -364,12 +394,15 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
       }
     } catch (e) {
       setError(errorText(e, t));
+    } finally {
+      setLooking(false);
     }
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return setError(t('validation.titleRequired'));
+    setFieldErrors({});
+    if (!title.trim()) return invalid('title', t('validation.titleRequired'));
     const fields = {
       title: title.trim(),
       authors: splitList(authors),
@@ -411,13 +444,14 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
     <Modal
       title={t(wish ? 'wish.editTitle' : 'wish.add')}
       onClose={onClose}
+      dirty={dirty}
       footer={
         <>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
+          <DialogCancel>{t('common.cancel')}</DialogCancel>
           <button className="btn primary" form="wish-form" disabled={busy}>
-            {t(busy ? 'common.saving' : 'common.save')}
+            <BusyLabel busy={busy} busyText={t('common.saving')}>
+              {t('common.save')}
+            </BusyLabel>
           </button>
         </>
       }
@@ -427,15 +461,25 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
           <label>
             {t('form.isbnOptional')}
             <input
+              id={`${formId}-isbn`}
               className="mono"
               value={isbn}
               onChange={(e) => setIsbn(e.target.value)}
               placeholder={t('form.isbnPlaceholder')}
               inputMode="numeric"
+              {...isbnError.props}
             />
+            {isbnError.message}
           </label>
-          <button type="button" className="btn" disabled={!isbn.trim()} onClick={() => void lookup()}>
-            {t('form.lookup')}
+          <button
+            type="button"
+            className="btn"
+            disabled={!isbn.trim() || looking}
+            onClick={() => void lookup()}
+          >
+            <BusyLabel busy={looking} busyText={t('form.searching')}>
+              {t('form.lookup')}
+            </BusyLabel>
           </button>
         </div>
         <div className="form-cover">
@@ -471,7 +515,14 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
         <div className="fgrid">
           <label className="span2">
             {t('book.title')} *
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <input
+              id={`${formId}-title`}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              {...titleError.props}
+            />
+            {titleError.message}
           </label>
           <label className="span2">
             {t('book.authors')}

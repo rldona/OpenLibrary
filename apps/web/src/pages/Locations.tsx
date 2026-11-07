@@ -1,8 +1,12 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LOCATION_KINDS, type LocationDTO, type LocationKind } from '@openlibrary/contracts';
+import { LOCATION_KINDS, type LocationDTO, type LocationKind } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
+import { Banner, Cover, Icon } from '../components/ui';
+import { ConfirmDialog, DialogCancel, Modal } from '../components/dialog';
+import { useToast } from '../components/snackbar';
+import { BusyLabel, EmptyState, ErrorState, LoadingState } from '../components/states';
+import { useFieldError } from '../components/fields';
 import { flattenLocations, keys, useInvalidate, useLocations } from '../lib/queries';
 import { navigate, openBook, setParams, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
@@ -45,6 +49,7 @@ export function Locations() {
   const loc = (sel && byId.get(sel)) || null;
   const [editing, setEditing] = useState<Editing | null>(null);
   const [deep, setDeep] = useState(true);
+  const [deleting, setDeleting] = useState<LocationDTO | null>(null);
   const invalidate = useInvalidate();
   const toast = useToast();
 
@@ -68,15 +73,20 @@ export function Locations() {
       .map((c) => ({ it, c })),
   );
 
+  /**
+   * Asked for with a destructive dialog rather than undone from the snackbar: the location shows in every
+   * location picker and filter, and the server refuses it while it holds anything, so hiding it for a
+   * while and deleting it later could fail out of sight.
+   */
   async function remove(l: LocationDTO) {
-    if (!confirm(t('locations.deleteConfirm', { name: l.name }))) return;
+    setDeleting(null);
     try {
       await api.deleteLocation(l.id);
       invalidate();
       setParams({ id: l.parentId ?? undefined });
       toast(t('locations.deleted'));
     } catch (e) {
-      toast(errorText(e, t));
+      toast(errorText(e, t), { kind: 'error' });
     }
   }
 
@@ -84,7 +94,7 @@ export function Locations() {
     <>
       <div className="vh">
         <div>
-          <h1>{t('nav.locations')}</h1>
+          <h1 tabIndex={-1}>{t('nav.locations')}</h1>
           <p className="sub">{t('locations.subtitle')}</p>
         </div>
         <button className="btn" onClick={() => setEditing({ kind: 'create', parent: null })}>
@@ -92,14 +102,21 @@ export function Locations() {
         </button>
       </div>
 
-      {tree.isSuccess && !flat.length ? (
-        <div className="empty">
-          <h3>{t('locations.emptyTitle')}</h3>
-          <p>{t('locations.emptyText')}</p>
-          <button className="btn primary" onClick={() => setEditing({ kind: 'create', parent: null })}>
-            {t('locations.createFirst')}
-          </button>
-        </div>
+      {tree.isPending ? (
+        <LoadingState />
+      ) : tree.isError ? (
+        <ErrorState error={tree.error} onRetry={() => void tree.refetch()} />
+      ) : !flat.length ? (
+        <EmptyState
+          icon="tree"
+          title={t('locations.emptyTitle')}
+          text={t('locations.emptyText')}
+          action={
+            <button className="btn primary" onClick={() => setEditing({ kind: 'create', parent: null })}>
+              {t('locations.createFirst')}
+            </button>
+          }
+        />
       ) : (
         <div>
           <div className="loc-bar">
@@ -144,7 +161,7 @@ export function Locations() {
                   <button className="btn sm" onClick={() => setEditing({ kind: 'edit', loc })}>
                     {t('locations.editMove')}
                   </button>
-                  <button className="btn sm ghost danger" onClick={() => void remove(loc)}>
+                  <button className="btn sm ghost danger" onClick={() => setDeleting(loc)}>
                     {t('common.delete')}
                   </button>
                 </div>
@@ -174,8 +191,12 @@ export function Locations() {
                 </label>
               )}
 
+              {books.isPending && <LoadingState compact />}
+              {books.isError && (
+                <ErrorState compact error={books.error} onRetry={() => void books.refetch()} />
+              )}
               {books.isSuccess && !rows.length && (
-                <div className="empty small">{t('locations.noCopiesHere')}</div>
+                <EmptyState compact icon="shelf" title={t('locations.noCopiesHere')} />
               )}
               {rows.map(({ it, c }) => (
                 <button key={c.id} className="row" onClick={() => openBook(it.workId, it.editionId)}>
@@ -199,6 +220,15 @@ export function Locations() {
         </div>
       )}
 
+      {deleting && (
+        <ConfirmDialog
+          title={t('locations.deleteConfirm', { name: deleting.name })}
+          text={t('locations.deleteText')}
+          confirmLabel={t('common.delete')}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void remove(deleting)}
+        />
+      )}
       {editing && (
         <LocationEditor
           editing={editing}
@@ -237,14 +267,28 @@ function LocationEditor({
     isEdit ? (base!.parentId ?? '') : editing.kind === 'create' ? (editing.parent?.id ?? '') : '',
   );
   const [error, setError] = useState<string | null>(null);
+  const [nameInvalid, setNameInvalid] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const nameError = useFieldError(nameInvalid ? error : null);
+  const nameId = useId();
   const invalidate = useInvalidate();
   const toast = useToast();
+  const initialKind = useState(kind)[0];
+  const initialParent = useState(parentId)[0];
+  const dirty = name !== (base?.name ?? '') || kind !== initialKind || parentId !== initialParent;
   // When moving, the location itself and its descendants cannot be chosen as the parent.
   const forbidden = base ? subtreeOf(all, base.id) : new Set<string>();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError(t('validation.nameRequired'));
+    setNameInvalid(false);
+    if (!name.trim()) {
+      setError(t('validation.nameRequired'));
+      setNameInvalid(true);
+      document.getElementById(nameId)?.focus();
+      return;
+    }
+    setBusy(true);
     try {
       if (isEdit) {
         const fields: Record<string, unknown> = {};
@@ -265,6 +309,8 @@ function LocationEditor({
       }
     } catch (err) {
       setError(errorText(err, t));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -272,25 +318,29 @@ function LocationEditor({
     <Modal
       title={isEdit ? t('locations.editTitle', { name: base!.name }) : t('locations.newTitle')}
       onClose={onClose}
+      dirty={dirty}
       footer={
         <>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
-          <button className="btn primary" form="loc-form">
-            {t('common.save')}
+          <DialogCancel>{t('common.cancel')}</DialogCancel>
+          <button className="btn primary" form="loc-form" disabled={busy}>
+            <BusyLabel busy={busy} busyText={t('common.saving')}>
+              {t('common.save')}
+            </BusyLabel>
           </button>
         </>
       }
     >
-      <form id="loc-form" className="fgrid" onSubmit={submit}>
+      <form id="loc-form" className="fgrid" onSubmit={submit} noValidate>
         <label className="span2">
           {t('locations.name')}
           <input
+            id={nameId}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('locations.namePlaceholder')}
+            {...nameError.props}
           />
+          {nameError.message}
         </label>
         <label>
           {t('locations.kind')}

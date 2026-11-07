@@ -146,9 +146,6 @@ export const en = {
   'form.providerCover': 'Cover from {source}',
   'form.removeCover': 'Without this cover',
 
-  'common.undo': 'Undo',
-  'wish.deleted': '“{title}” deleted',
-  'quotes.deleted': 'Quote deleted',
   'form.lookupFailed': 'The lookup failed: {error}',
   'setup.showPassword': 'Show password',
   'setup.hidePassword': 'Hide password',
@@ -159,13 +156,6 @@ export const en = {
   'fab.close': 'Hide the options',
   'common.more': 'More options',
   'form.section.work': 'Work',
-  'form.discardTitle': 'Discard changes?',
-  'form.discardText': 'What you changed in this form will be lost.',
-  'form.discard': 'Discard',
-  'form.keepEditing': 'Keep editing',
-  'search.recent': 'Recent searches',
-  'search.clearRecent': 'Clear history',
-  'search.removeRecent': 'Remove “{q}” from history',
   'detail.missing': 'This book is no longer in your library.',
 
   'rating.value': '{n} of {max}',

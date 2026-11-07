@@ -5,7 +5,7 @@ import {
   type LocationTree,
   type WishDTO,
   type WorkDetail,
-} from '@openlibrary/contracts';
+} from '@openlibrary/contracts/client';
 import { api } from '../api';
 
 export const keys = {

@@ -30,8 +30,8 @@ import type {
   WishPatch,
   WorkDetail,
   WorkPatch,
-} from '@openlibrary/contracts';
-import { API_PREFIX, type Lang, type Params } from '@openlibrary/contracts';
+} from '@openlibrary/contracts/client';
+import { API_PREFIX, type Lang, type Params } from '@openlibrary/contracts/client';
 
 export class ApiError extends Error {
   constructor(
@@ -48,11 +48,21 @@ export const setApiLang = (l: Lang) => {
   apiLang = l;
 };
 
-async function request<T>(method: string, path: string, body?: unknown, contentType?: string): Promise<T> {
+/** `keepalive`: the browser finishes the request even if the page is being left (deferred deletes). */
+type RequestOptions = { contentType?: string; keepalive?: boolean };
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts: RequestOptions = {},
+): Promise<T> {
+  const { contentType, keepalive } = opts;
   const isRaw = body instanceof Blob;
   const res = await fetch(API_PREFIX + path, {
     method,
     credentials: 'same-origin',
+    keepalive,
     headers: {
       'accept-language': apiLang,
       ...(body === undefined
@@ -100,12 +110,14 @@ export const api = {
   patchReading: (id: string, p: ReadingPatch) => request<WorkDetail>('PATCH', `/reading-sessions/${id}`, p),
   createQuote: (b: QuoteCreate) => request<WorkDetail>('POST', '/quotes', b),
   patchQuote: (id: string, p: QuotePatch) => request<WorkDetail>('PATCH', `/quotes/${id}`, p),
-  deleteQuote: (id: string) => request<WorkDetail>('DELETE', `/quotes/${id}`),
+  deleteQuote: (id: string, opts?: RequestOptions) =>
+    request<WorkDetail>('DELETE', `/quotes/${id}`, undefined, opts),
   wishlist: () => request<WishList>('GET', '/wishlist'),
   stats: () => request<StatsDTO>('GET', '/stats'),
   createWish: (b: WishCreate) => request<WishDTO>('POST', '/wishlist', b),
   patchWish: (id: string, p: WishPatch) => request<WishDTO>('PATCH', `/wishlist/${id}`, p),
-  deleteWish: (id: string) => request<void>('DELETE', `/wishlist/${id}`),
+  deleteWish: (id: string, opts?: RequestOptions) =>
+    request<void>('DELETE', `/wishlist/${id}`, undefined, opts),
 
   // locations
   locations: () => request<LocationTree>('GET', '/locations'),
@@ -115,12 +127,12 @@ export const api = {
 
   // metadata and covers
   lookup: (isbn: string) => request<LookupResult>('GET', `/lookup/isbn/${encodeURIComponent(isbn)}`),
-  uploadCover: (file: Blob) => request<AssetDTO>('POST', '/assets', file, file.type),
+  uploadCover: (file: Blob) => request<AssetDTO>('POST', '/assets', file, { contentType: file.type }),
   fetchCover: (url: string) => request<AssetDTO>('POST', '/assets/fetch', { url }),
 
   // import, export and backups (downloads are plain links to /export/*)
   importFile: (file: Blob, dryRun: boolean) =>
-    request<ImportReport>('POST', `/import?dryRun=${dryRun}`, file, file.type),
+    request<ImportReport>('POST', `/import?dryRun=${dryRun}`, file, { contentType: file.type }),
   backupStatus: () => request<BackupStatus>('GET', '/backups/status'),
 };
 

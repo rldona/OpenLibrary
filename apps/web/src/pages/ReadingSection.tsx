@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import type { CopyDTO, ReadingDTO, ReadingFields, WorkDetail } from '@openlibrary/contracts';
+import { useEffect, useId, useState } from 'react';
+import type { CopyDTO, ReadingDTO, ReadingFields, WorkDetail } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { useToast } from '../components/ui';
+import { useToast } from '../components/snackbar';
 import { fmtDate } from '../lib/format';
 import { useInvalidate } from '../lib/queries';
 import { useI18n } from '../i18n';
@@ -29,7 +29,7 @@ export function ReadingSection({ data, preferredCopy }: { data: WorkDetail; pref
     try {
       invalidate(await call());
     } catch (e) {
-      toast(errorText(e, t));
+      toast(errorText(e, t), { kind: 'error' });
       invalidate();
     }
   }
@@ -120,6 +120,7 @@ function SessionEditor({
 }) {
   const { t } = useI18n();
   const [notes, setNotes] = useState(r.notes);
+  const id = useId();
   useEffect(() => setNotes(r.notes), [r.notes]);
   // Only what changed is sent, so another device's edits to other fields are merged.
   const set = (fields: Partial<ReadingFields>) => void onPatch(r, fields);
@@ -132,9 +133,10 @@ function SessionEditor({
       </div>
       <dl className="kv">
         <div>
-          <dt>{t('reading.started')}</dt>
+          <dt id={`${id}-started`}>{t('reading.started')}</dt>
           <dd>
             <input
+              aria-labelledby={`${id}-started`}
               type="date"
               value={r.startedOn ?? ''}
               onChange={(e) => set({ startedOn: e.target.value || null })}
@@ -142,9 +144,10 @@ function SessionEditor({
           </dd>
         </div>
         <div>
-          <dt>{t('reading.finished')}</dt>
+          <dt id={`${id}-finished`}>{t('reading.finished')}</dt>
           <dd>
             <input
+              aria-labelledby={`${id}-finished`}
               type="date"
               value={r.finishedOn ?? ''}
               onChange={(e) => set({ finishedOn: e.target.value || null })}
@@ -152,9 +155,10 @@ function SessionEditor({
           </dd>
         </div>
         <div>
-          <dt>{t('reading.rating')}</dt>
+          <dt id={`${id}-rating`}>{t('reading.rating')}</dt>
           <dd>
             <select
+              aria-labelledby={`${id}-rating`}
               value={r.rating ?? ''}
               onChange={(e) => set({ rating: e.target.value ? Number(e.target.value) : null })}
             >

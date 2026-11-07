@@ -7,9 +7,11 @@ import {
   IMPORT_MAX_BYTES,
   type ImportIssue,
   type ImportReport,
-} from '@openlibrary/contracts';
+} from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { Banner, Icon, useToast } from '../components/ui';
+import { Banner, Icon } from '../components/ui';
+import { useToast } from '../components/snackbar';
+import { ErrorState, LoadingState } from '../components/states';
 import { fmtDateTime } from '../lib/format';
 import { useI18n } from '../i18n';
 
@@ -20,7 +22,7 @@ export function Data() {
     <>
       <div className="vh">
         <div>
-          <h1>{t('nav.data')}</h1>
+          <h1 tabIndex={-1}>{t('nav.data')}</h1>
           <p className="sub">{t('data.subtitle')}</p>
         </div>
       </div>
@@ -48,7 +50,17 @@ export function Data() {
 function Backups() {
   const { t } = useI18n();
   const q = useQuery({ queryKey: ['backups'], queryFn: api.backupStatus });
-  if (!q.data) return null;
+  if (!q.data)
+    return (
+      <section className="panel">
+        <h3>{t('data.backups')}</h3>
+        {q.isError ? (
+          <ErrorState compact error={q.error} onRetry={() => void q.refetch()} />
+        ) : (
+          <LoadingState compact />
+        )}
+      </section>
+    );
   const { lastSuccessAt, stale } = q.data;
   return (
     <section className="panel">
@@ -116,9 +128,11 @@ function Import() {
         </label>
       </div>
       {step.kind === 'busy' && (
-        <p className="muted">
-          {t(step.dryRun ? 'data.checking' : 'data.importing', { name: step.file.name })}
-        </p>
+        <LoadingState
+          compact
+          delay={0}
+          label={t(step.dryRun ? 'data.checking' : 'data.importing', { name: step.file.name })}
+        />
       )}
       {step.kind === 'error' && <Banner kind="err">{step.message}</Banner>}
       {step.kind === 'checked' && (

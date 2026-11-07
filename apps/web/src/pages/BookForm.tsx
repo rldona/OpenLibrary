@@ -4,17 +4,27 @@
  *  - edition: new edition of an existing work.
  *  - edit:    fixes work and edition data (only sends what you changed).
  */
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import {
   normalizeIsbn,
   formatIsbn,
   type EditionDTO,
   type LookupResult,
   type WorkDTO,
-} from '@openlibrary/contracts';
+} from '@openlibrary/contracts/client';
 import { api, ApiError, errorText } from '../api';
-import { Banner, Cover, Icon, Modal, useToast } from '../components/ui';
-import { CopyFieldset, LanguageSelect, copyPayload, emptyCopy, type CopyDraft } from '../components/fields';
+import { Banner, Cover, Icon } from '../components/ui';
+import { DialogCancel, Modal } from '../components/dialog';
+import { BusyLabel } from '../components/states';
+import { useToast } from '../components/snackbar';
+import {
+  CopyFieldset,
+  LanguageSelect,
+  copyPayload,
+  emptyCopy,
+  useFieldError,
+  type CopyDraft,
+} from '../components/fields';
 import { splitList } from '../lib/format';
 import { acquireWish, matchingWish, useInvalidate, useWishlist } from '../lib/queries';
 import { openBook } from '../lib/router';
@@ -116,14 +126,21 @@ export function BookForm({
     [mode],
   );
   const [d, setD] = useState<Draft>(initial);
-  const [copy, setCopy] = useState<CopyDraft>(emptyCopy);
-  const [cover, setCover] = useState<CoverChoice>(
+  const [initialCopy] = useState<CopyDraft>(emptyCopy);
+  const [copy, setCopy] = useState<CopyDraft>(initialCopy);
+  const [initialCover] = useState<CoverChoice>(
     mode.kind === 'edit' && mode.edition.coverAssetId
       ? { kind: 'asset', id: mode.edition.coverAssetId }
       : mode.kind === 'add' && mode.prefill?.coverAssetId
         ? { kind: 'asset', id: mode.prefill.coverAssetId } // the wish's cover
         : { kind: 'none' },
   );
+  const [cover, setCover] = useState<CoverChoice>(initialCover);
+  // Anything typed, looked up or chosen since the form opened: closing it asks first.
+  const dirty =
+    JSON.stringify(d) !== JSON.stringify(initial) ||
+    JSON.stringify(copy) !== JSON.stringify(initialCopy) ||
+    cover !== initialCover;
   const [lookup, setLookup] = useState<
     { state: 'idle' | 'busy' } | { state: 'done'; r: LookupResult } | { state: 'error'; msg: string }
   >({ state: 'idle' });
@@ -131,6 +148,16 @@ export function BookForm({
     mode.kind === 'edit' ? mode.edition.metadataSource : null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; isbn?: string }>({});
+  const titleError = useFieldError(fieldErrors.title);
+  const isbnError = useFieldError(fieldErrors.isbn);
+  const formId = useId();
+  /** The summary banner plus the message on the field itself, which takes the focus. */
+  function invalid(field: 'title' | 'isbn', message: string) {
+    setError(message);
+    setFieldErrors({ [field]: message });
+    document.getElementById(`${formId}-${field}`)?.focus();
+  }
   const [duplicate, setDuplicate] = useState<{ editionId: string; title: string; copies: number } | null>(
     null,
   );
@@ -147,6 +174,7 @@ export function BookForm({
 
   async function doLookup() {
     setError(null);
+    setFieldErrors({});
     setDuplicate(null);
     const n = normalizeIsbn(d.isbn);
     if (!n.ok) return setLookup({ state: 'error', msg: t(`isbn.${n.reason}`) });
@@ -204,10 +232,11 @@ export function BookForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!lockWork && !d.title.trim()) return setError(t('validation.titleRequired'));
+    setFieldErrors({});
+    if (!lockWork && !d.title.trim()) return invalid('title', t('validation.titleRequired'));
     if (d.isbn.trim()) {
       const n = normalizeIsbn(d.isbn);
-      if (!n.ok) return setError(t('form.isbnInvalid', { reason: t(`isbn.${n.reason}`) }));
+      if (!n.ok) return invalid('isbn', t('form.isbnInvalid', { reason: t(`isbn.${n.reason}`) }));
     }
     setBusy(true);
     try {
@@ -276,19 +305,16 @@ export function BookForm({
     <Modal
       title={title}
       onClose={onClose}
+      dirty={dirty}
       wide
       footer={
         <>
           <span className="hint">{t('form.hint')}</span>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
+          <DialogCancel>{t('common.cancel')}</DialogCancel>
           <button className="btn primary" form="book-form" disabled={busy}>
-            {busy
-              ? t('common.saving')
-              : mode.kind === 'edit'
-                ? t('common.saveChanges')
-                : t('form.addToLibrary')}
+            <BusyLabel busy={busy} busyText={t('common.saving')}>
+              {mode.kind === 'edit' ? t('common.saveChanges') : t('form.addToLibrary')}
+            </BusyLabel>
           </button>
         </>
       }
@@ -298,6 +324,7 @@ export function BookForm({
           <label>
             {t('form.isbnOptional')}
             <input
+              id={`${formId}-isbn`}
               className="mono"
               value={d.isbn}
               onChange={(e) => set('isbn', e.target.value)}
@@ -309,8 +336,9 @@ export function BookForm({
               }}
               placeholder={t('form.isbnPlaceholder')}
               inputMode="numeric"
-              autoFocus={mode.kind === 'add'}
+              {...isbnError.props}
             />
+            {isbnError.message}
           </label>
           <button
             type="button"
@@ -318,8 +346,10 @@ export function BookForm({
             onClick={() => void doLookup()}
             disabled={!d.isbn.trim() || lookup.state === 'busy'}
           >
-            <Icon name="search" size={16} />
-            {lookup.state === 'busy' ? t('form.searching') : t('form.lookup')}
+            <BusyLabel busy={lookup.state === 'busy'} busyText={t('form.searching')}>
+              <Icon name="search" size={16} />
+              {t('form.lookup')}
+            </BusyLabel>
           </button>
         </div>
 
@@ -400,11 +430,14 @@ export function BookForm({
           <label className="span2">
             {t('book.title')} *
             <input
+              id={`${formId}-title`}
               value={d.title}
               onChange={(e) => set('title', e.target.value)}
               disabled={lockWork}
               required
+              {...titleError.props}
             />
+            {titleError.message}
           </label>
           <label className="span2">
             {t('book.subtitle')}

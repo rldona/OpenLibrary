@@ -1,28 +1,48 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LANGS, PASSWORD_MIN_LENGTH, type Device } from '@openlibrary/contracts';
+import { LANGS, PASSWORD_MIN_LENGTH, type Device } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
-import { useToast } from '../components/ui';
+import { SIGN_OUT_FLUSH_MS, useSnackbar } from '../components/snackbar';
+import { ConfirmDialog } from '../components/dialog';
+import { Icon } from '../components/ui';
+import { navigate } from '../lib/router';
+import { BusyLabel, ErrorState, LoadingState } from '../components/states';
 import { fmtDateTime } from '../lib/format';
 import { LANG_NAMES, useI18n } from '../i18n';
 
-export function Settings({ onLogout }: { onLogout: () => void }) {
-  const { t, lang, setLang } = useI18n();
+export function Settings({
+  onLogout,
+  onSignOut,
+  compact = false,
+}: {
+  /** The session is gone (revoked here): back to the sign-in screen. */
+  onLogout: () => void;
+  /** Signs out of this browser. */
+  onSignOut: () => void;
+  /** Narrow screens: the bottom bar has no room for "Import and export" and "Sign out", so they are here. */
+  compact?: boolean;
+}) {
+  const { t } = useI18n();
   const qc = useQueryClient();
-  const toast = useToast();
+  const { show: toast, flush } = useSnackbar();
   const health = useQuery({ queryKey: ['health'], queryFn: api.health });
   const devices = useQuery({ queryKey: ['devices'], queryFn: api.devices });
+  const [revoking, setRevoking] = useState<Device | null>(null);
+  const nameOf = (d: Device) => (d.kind === 'web' ? t('settings.browser') : d.name);
 
+  /** Irreversible (that device has to sign in again): asked for with a destructive dialog. */
   async function revoke(d: Device) {
-    const name = d.kind === 'web' ? t('settings.browser') : d.name;
-    if (!confirm(t('settings.revokeConfirm', { name }))) return;
+    setRevoking(null);
+    const name = nameOf(d);
     try {
+      // Revoking this very session signs it out: pending deletions go first, while it is still valid.
+      if (d.current) await flush({ timeoutMs: SIGN_OUT_FLUSH_MS });
       await api.revoke(d.id);
       if (d.current) return onLogout();
       void qc.invalidateQueries({ queryKey: ['devices'] });
       toast(t('settings.revoked', { name }));
     } catch (e) {
-      toast(errorText(e, t));
+      toast(errorText(e, t), { kind: 'error' });
     }
   }
 
@@ -30,7 +50,7 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
     <>
       <div className="vh">
         <div>
-          <h1>{t('nav.settings')}</h1>
+          <h1 tabIndex={-1}>{t('nav.settings')}</h1>
           <p className="sub">{t('settings.subtitle')}</p>
         </div>
       </div>
@@ -38,23 +58,15 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
         <section className="panel">
           <h3>{t('settings.language')}</h3>
           <p className="muted">{t('settings.languageHint')}</p>
-          <div className="seg" role="radiogroup" aria-label={t('settings.language')}>
-            {LANGS.map((l) => (
-              <button
-                key={l}
-                role="radio"
-                aria-checked={l === lang}
-                className={l === lang ? 'on' : ''}
-                onClick={() => setLang(l)}
-              >
-                {LANG_NAMES[l]}
-              </button>
-            ))}
-          </div>
+          <LanguageRadios />
         </section>
 
         <section className="panel">
           <h3>{t('settings.server')}</h3>
+          {health.isPending && <LoadingState compact />}
+          {health.isError && (
+            <ErrorState compact error={health.error} onRetry={() => void health.refetch()} />
+          )}
           {health.data && (
             <dl className="kv">
               <div>
@@ -82,11 +94,15 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
         <section className="panel">
           <h3>{t('settings.sessions')}</h3>
           <p className="muted">{t('settings.sessionsHint')}</p>
+          {devices.isPending && <LoadingState compact />}
+          {devices.isError && (
+            <ErrorState compact error={devices.error} onRetry={() => void devices.refetch()} />
+          )}
           <ul className="list">
             {devices.data?.items.map((d) => (
               <li key={d.id}>
                 <div>
-                  <b>{d.kind === 'web' ? t('settings.browser') : d.name}</b>{' '}
+                  <b>{nameOf(d)}</b>{' '}
                   {d.current && <span className="badge accent">{t('settings.thisSession')}</span>}
                   <div className="muted small">
                     {d.kind === 'device'
@@ -96,7 +112,7 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
                     {t('settings.lastUsed', { date: fmtDateTime(d.lastSeenAt) })}
                   </div>
                 </div>
-                <button className="btn sm ghost danger" onClick={() => void revoke(d)}>
+                <button className="btn sm ghost danger" onClick={() => setRevoking(d)}>
                   {t('settings.revoke')}
                 </button>
               </li>
@@ -105,8 +121,81 @@ export function Settings({ onLogout }: { onLogout: () => void }) {
         </section>
 
         <ChangePassword />
+
+        {compact && (
+          <section className="panel">
+            <h3>{t('settings.more')}</h3>
+            <p className="muted">{t('settings.moreHint')}</p>
+            <div className="actions tight">
+              <a
+                className="btn"
+                href="/data"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/data');
+                }}
+              >
+                <Icon name="download" size={16} /> {t('nav.data')}
+              </a>
+              <button className="btn" onClick={onSignOut}>
+                <Icon name="logout" size={16} /> {t('nav.logout')}
+              </button>
+            </div>
+          </section>
+        )}
       </div>
+      {revoking && (
+        <ConfirmDialog
+          title={t('settings.revokeTitle', { name: nameOf(revoking) })}
+          text={t('settings.revokeText')}
+          confirmLabel={t('settings.revoke')}
+          onCancel={() => setRevoking(null)}
+          onConfirm={() => void revoke(revoking)}
+        />
+      )}
     </>
+  );
+}
+
+/** The interface language as a radio group: one tab stop, the arrow keys move and select. */
+function LanguageRadios() {
+  const { t, lang, setLang } = useI18n();
+  const group = useRef<HTMLDivElement>(null);
+  function onKeyDown(e: KeyboardEvent) {
+    const step =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? 1
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? -1
+          : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = LANGS[(LANGS.indexOf(lang) + step + LANGS.length) % LANGS.length]!;
+    setLang(next);
+    group.current?.querySelector<HTMLElement>(`[data-lang="${next}"]`)?.focus();
+  }
+  return (
+    <div
+      className="seg"
+      role="radiogroup"
+      aria-label={t('settings.language')}
+      ref={group}
+      onKeyDown={onKeyDown}
+    >
+      {LANGS.map((l) => (
+        <button
+          key={l}
+          data-lang={l}
+          role="radio"
+          aria-checked={l === lang}
+          tabIndex={l === lang ? 0 : -1}
+          className={l === lang ? 'on' : ''}
+          onClick={() => setLang(l)}
+        >
+          {LANG_NAMES[l]}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -116,10 +205,12 @@ function ChangePassword() {
   const [next, setNext] = useState('');
   const [repeat, setRepeat] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (next !== repeat) return setMsg({ ok: false, text: t('settings.passwordsDiffer') });
+    setBusy(true);
     try {
       await api.changePassword({ current, next });
       setMsg({ ok: true, text: t('settings.passwordChanged') });
@@ -128,6 +219,8 @@ function ChangePassword() {
       setRepeat('');
     } catch (err) {
       setMsg({ ok: false, text: errorText(err, t) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -167,8 +260,13 @@ function ChangePassword() {
           />
         </label>
       </div>
-      {msg && <p className={msg.ok ? 'ok' : 'err'}>{msg.text}</p>}
-      <button className="btn">{t('settings.changePassword')}</button>
+      {/* Always in the page, so the result is announced when it appears. */}
+      <div role="status">{msg && <p className={msg.ok ? 'ok' : 'err'}>{msg.text}</p>}</div>
+      <button className="btn" disabled={busy}>
+        <BusyLabel busy={busy} busyText={t('common.saving')}>
+          {t('settings.changePassword')}
+        </BusyLabel>
+      </button>
     </form>
   );
 }

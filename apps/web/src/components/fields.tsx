@@ -1,7 +1,25 @@
-import { CONDITIONS, type Condition } from '@openlibrary/contracts';
+import { useId } from 'react';
+import { CONDITIONS, type Condition } from '@openlibrary/contracts/client';
 import { flattenLocations, useLocations } from '../lib/queries';
 import { BOOK_LANGUAGES, langName, today } from '../lib/format';
 import { useI18n } from '../i18n';
+
+/**
+ * A field's own error message: the field points at it (aria-describedby) and is marked invalid. The text
+ * sits inside the field's <label>, so it is hidden from the label's name and read once, as a description.
+ * Forms keep their summary banner as well.
+ */
+export function useFieldError(error: string | null | undefined) {
+  const id = useId();
+  return {
+    props: { 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? id : undefined },
+    message: error ? (
+      <small id={id} className="field-err" aria-hidden>
+        {error}
+      </small>
+    ) : null,
+  };
+}
 
 export function LocationSelect({
   value,
@@ -79,6 +97,7 @@ export function CopyFieldset({ value, onChange }: { value: CopyDraft; onChange: 
   const { t } = useI18n();
   const set = <K extends keyof CopyDraft>(k: K, v: CopyDraft[K]) => onChange({ ...value, [k]: v });
   const badPrice = value.price.trim() !== '' && !Number.isFinite(parsePrice(value.price));
+  const priceError = useFieldError(badPrice ? t('copy.priceInvalid') : null);
   return (
     <fieldset>
       <legend>{t('copy.yourCopy')}</legend>
@@ -105,9 +124,9 @@ export function CopyFieldset({ value, onChange }: { value: CopyDraft; onChange: 
             placeholder={t('common.optional')}
             value={value.price}
             onChange={(e) => set('price', e.target.value)}
-            aria-invalid={badPrice}
+            {...priceError.props}
           />
-          {badPrice && <small className="err">{t('copy.priceInvalid')}</small>}
+          {priceError.message}
         </label>
         <label className="span2">
           {t('copy.notes')}

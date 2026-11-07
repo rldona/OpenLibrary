@@ -4,7 +4,7 @@
  * - The API receives the same language via Accept-Language, so server errors match the UI.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { LANGS, pickLang, SHARED, translator, type Lang, type Params } from '@openlibrary/contracts';
+import { LANGS, pickLang, SHARED, translator, type Lang, type Params } from '@openlibrary/contracts/client';
 import { setApiLang } from '../api';
 import { setFormatLocale } from '../lib/format';
 import { en } from './en';
