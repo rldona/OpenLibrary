@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { formatIsbn, type EditionDTO, type WorkDTO, type CopyDTO } from '@openlibrary/contracts/client';
-import { api, errorText } from '../api';
+import { api, coverUrl, errorText } from '../api';
+import { CoverButton } from '../components/coverViewer';
 import { Banner, Cover, Icon } from '../components/ui';
 import { ConfirmDialog, SidePanel } from '../components/dialog';
 import { useToast } from '../components/snackbar';
@@ -88,13 +89,19 @@ export function BookDrawer(actions: DrawerActions) {
       {data && ed && (
         <>
           <div className="dh">
-            <Cover
-              assetId={ed.coverAssetId}
+            <CoverButton
+              src={ed.coverAssetId ? coverUrl(ed.coverAssetId, 'full') : null}
               title={data.work.title}
-              authors={data.work.authors}
-              provisional={ed.metadataStatus === 'provisional'}
-              seed={ed.id}
-            />
+            >
+              <Cover
+                assetId={ed.coverAssetId}
+                title={data.work.title}
+                authors={data.work.authors}
+                provisional={ed.metadataStatus === 'provisional'}
+                seed={ed.id}
+                sizes="(max-width: 900px) 120px, 150px"
+              />
+            </CoverButton>
             <div className="grow">
               <div className="kicker">
                 {t('drawer.kicker', {

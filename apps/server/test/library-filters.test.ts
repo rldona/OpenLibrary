@@ -103,4 +103,25 @@ describe('library filters', () => {
     expect((await c.get('/library?provisional=false')).body.total).toBe(2);
     expect((await c.get('/library?provisional=maybe')).status).toBe(400);
   });
+
+  it('leaves out the sub-locations of a location with deep=false', async () => {
+    const { c, add } = await setup();
+    const room = (await c.post('/locations', { name: 'Room', kind: 'room', parentId: null })).body.items[0]
+      .id;
+    const shelf = (
+      await c.post('/locations', { name: 'Shelf', kind: 'shelf', parentId: room })
+    ).body.items.find((l: { name: string }) => l.name === 'Shelf').id;
+    const inRoom = await add('In the room');
+    const onShelf = await add('On the shelf');
+    for (const [b, loc] of [
+      [inRoom, room],
+      [onShelf, shelf],
+    ] as const)
+      expect(
+        (await c.patch(`/copies/${b.copyId}`, { baseVersion: 1, fields: { locationId: loc } })).status,
+      ).toBe(200);
+    expect(await titles(c, `location=${room}`)).toEqual(['In the room', 'On the shelf']);
+    expect(await titles(c, `location=${room}&deep=true`)).toEqual(['In the room', 'On the shelf']);
+    expect(await titles(c, `location=${room}&deep=false`)).toEqual(['In the room']);
+  });
 });

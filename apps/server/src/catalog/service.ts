@@ -291,7 +291,7 @@ export class CatalogService {
     if (q.location === 'none') copyCond += ' AND c.location_id IS NULL';
     else if (q.location) {
       if (!map.has(q.location)) throw badRequest('errors.locationNotFound');
-      const ids = this.subtree(map, q.location);
+      const ids = q.deep === false ? [q.location] : this.subtree(map, q.location);
       copyCond += ` AND c.location_id IN (${ids.map(() => '?').join(',')})`;
       params.push(...ids);
     }

@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { LOCATION_KINDS, type LocationDTO, type LocationKind } from '@openlibrary/contracts/client';
 import { api, errorText } from '../api';
 import { Banner, Cover, Icon } from '../components/ui';
@@ -10,6 +10,8 @@ import { useFieldError } from '../components/fields';
 import { flattenLocations, keys, useInvalidate, useLocations } from '../lib/queries';
 import { navigate, openBook, setParams, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
+
+const PAGE = 60;
 
 /** Ids of a location and all of its sub-locations. */
 function subtreeOf(flat: { id: string; parentId: string | null }[], id: string): Set<string> {
@@ -60,14 +62,27 @@ export function Locations() {
       out.unshift(cur);
     return out;
   };
-  const books = useQuery({
-    queryKey: [...keys.library, 'loc', sel],
-    queryFn: () => api.library({ location: sel ?? 'none', limit: 500, sort: 'location' }),
+  // Page by page, like the library: a large room does not arrive in one request.
+  const books = useInfiniteQuery({
+    queryKey: [...keys.library, 'loc', sel, deep],
+    // Without "include sub-locations" the server leaves them out, so the pages hold only what is here.
+    queryFn: ({ pageParam }) =>
+      api.library({ location: sel ?? 'none', deep, limit: PAGE, offset: pageParam, sort: 'location' }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
     enabled: sel !== null,
   });
+  // A page boundary may move while paging (a copy added meanwhile): each edition once.
+  const editions = [
+    ...new Map((books.data?.pages.flatMap((p) => p.items) ?? []).map((it) => [it.editionId, it])).values(),
+  ];
+  const total = books.data?.pages[0]?.total ?? 0;
   const subtree = useMemo(() => (sel ? subtreeOf(flat, sel) : new Set<string>()), [flat, sel]);
   // The listing returns editions with some copy here; only the copies that are actually here are shown.
-  const rows = (books.data?.items ?? []).flatMap((it) =>
+  const rows = editions.flatMap((it) =>
     it.copies
       .filter((c) => (deep ? !!c.locationId && subtree.has(c.locationId) : c.locationId === sel))
       .map((c) => ({ it, c })),
@@ -192,10 +207,10 @@ export function Locations() {
               )}
 
               {books.isPending && <LoadingState compact />}
-              {books.isError && (
+              {books.isError && !editions.length && (
                 <ErrorState compact error={books.error} onRetry={() => void books.refetch()} />
               )}
-              {books.isSuccess && !rows.length && (
+              {books.isSuccess && !rows.length && !books.hasNextPage && (
                 <EmptyState compact icon="shelf" title={t('locations.noCopiesHere')} />
               )}
               {rows.map(({ it, c }) => (
@@ -205,6 +220,7 @@ export function Locations() {
                     title={it.title}
                     authors={it.authors}
                     seed={it.editionId}
+                    decorative
                   />
                   <div className="grow">
                     <b>{it.title}</b> <span className="mono muted">{c.code}</span>
@@ -215,6 +231,22 @@ export function Locations() {
                   </div>
                 </button>
               ))}
+              {books.isError && editions.length > 0 && (
+                <ErrorState compact error={books.error} onRetry={() => void books.fetchNextPage()} />
+              )}
+              {books.hasNextPage && (
+                <div className="more">
+                  <button
+                    className="btn"
+                    disabled={books.isFetchingNextPage}
+                    onClick={() => void books.fetchNextPage()}
+                  >
+                    <BusyLabel busy={books.isFetchingNextPage} busyText={t('common.loading')}>
+                      {t('library.loadMore', { n: total - editions.length })}
+                    </BusyLabel>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

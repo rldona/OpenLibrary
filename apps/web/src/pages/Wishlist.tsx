@@ -1,10 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { formatIsbn, normalizeIsbn, WISH_PRIORITIES, type WishDTO } from '@openlibrary/contracts/client';
-import { api, errorText } from '../api';
+import { api, coverUrl, errorText } from '../api';
+import { CoverButton } from '../components/coverViewer';
+import { CoverEditor } from '../components/coverEditor';
 import { Banner, Cover, Icon } from '../components/ui';
 import { DialogCancel, Modal, SidePanel } from '../components/dialog';
 import { usePendingDeletes, useSnackbar } from '../components/snackbar';
 import { BusyLabel, EmptyState, ErrorState, LoadingState } from '../components/states';
+import { SelectMenu } from '../components/menu';
+import { Segmented } from '../components/segmented';
+import { arrangeWishes, WISH_SORTS, wishViewOf, type WishPriority } from '../lib/wishes';
 import { useFieldError } from '../components/fields';
 import { useQueryClient } from '@tanstack/react-query';
 import { fmtDate, langName, splitList } from '../lib/format';
@@ -32,6 +37,8 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
   useProviderCovers(all);
   // Wishes deleted but still waiting for "Undo" are already out of the list.
   const open = all.filter((w) => !pending.has(`wish:${w.id}`));
+  const view = wishViewOf(params);
+  const shown = arrangeWishes(open, view);
   // After a deletion the focus was on a row (or in the panel) that is gone: the page heading takes it,
   // once the panel has closed and given the focus back.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -78,11 +85,23 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
 
       {list.isPending && <LoadingState />}
       {list.isError && <ErrorState error={list.error} onRetry={() => void list.refetch()} />}
+      {open.length > 0 && <WishFilters view={view} />}
       {list.isSuccess && !open.length && (
         <EmptyState icon="list" title={t('wish.emptyTitle')} text={t('wish.emptyText')} />
       )}
+      {open.length > 0 && !shown.length && (
+        <EmptyState
+          icon="search"
+          title={t('library.noMatchesTitle')}
+          action={
+            <button className="btn" onClick={() => setParams({ priority: undefined }, { replace: true })}>
+              {t('library.clearFilters')}
+            </button>
+          }
+        />
+      )}
       <ul className="list">
-        {open.map((w) => (
+        {shown.map((w) => (
           <li key={w.id}>
             {/* One control per wish: the cover and the text open its panel together. */}
             <button className="wish-open" onClick={() => openWish(w.id)}>
@@ -229,12 +248,18 @@ function WishDrawer({
       {w && (
         <>
           <div className="dh">
-            <Cover
-              assetId={w.coverAssetId}
-              src={w.coverAssetId ? null : p?.coverUrl}
+            <CoverButton
+              src={w.coverAssetId ? coverUrl(w.coverAssetId, 'full') : (p?.coverUrl ?? null)}
               title={w.title}
-              authors={w.authors}
-            />
+            >
+              <Cover
+                assetId={w.coverAssetId}
+                src={w.coverAssetId ? null : p?.coverUrl}
+                title={w.title}
+                authors={w.authors}
+                sizes="(max-width: 900px) 120px, 150px"
+              />
+            </CoverButton>
             <div className="grow">
               <div className="kicker">
                 {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
@@ -360,6 +385,10 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
   const formId = useId();
   const [busy, setBusy] = useState(false);
   const [looking, setLooking] = useState(false);
+  const [cropping, setCropping] = useState<File | null>(null);
+  // Saving waits for the cover being uploaded.
+  const [uploading, setUploading] = useState(false);
+  const uploads = useRef(0);
   const titleError = useFieldError(fieldErrors.title);
   const isbnError = useFieldError(fieldErrors.isbn);
   const dirty =
@@ -448,8 +477,8 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
       footer={
         <>
           <DialogCancel>{t('common.cancel')}</DialogCancel>
-          <button className="btn primary" form="wish-form" disabled={busy}>
-            <BusyLabel busy={busy} busyText={t('common.saving')}>
+          <button className="btn primary" form="wish-form" disabled={busy || uploading}>
+            <BusyLabel busy={busy || uploading} busyText={t('common.saving')}>
               {t('common.save')}
             </BusyLabel>
           </button>
@@ -496,11 +525,8 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     e.target.value = '';
-                    if (f)
-                      void api
-                        .uploadCover(f)
-                        .then((a) => setCoverAssetId(a.id))
-                        .catch((err) => setError(errorText(err, t)));
+                    // Cropped first; the crop is what is uploaded.
+                    if (f) setCropping(f);
                   }}
                 />
               </label>
@@ -532,16 +558,17 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
               placeholder={t('form.separateWithSemicolon')}
             />
           </label>
-          <label>
-            {t('wish.priority')}
-            <select value={priority} onChange={(e) => setPriority(e.target.value as WishDTO['priority'])}>
-              {WISH_PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {t(`wish.priority.${p}`)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="span2 field">
+            <span className="field-label" id={`${formId}-priority`}>
+              {t('wish.priority')}
+            </span>
+            <Segmented<WishPriority>
+              label={t('wish.priority')}
+              value={priority}
+              onChange={setPriority}
+              options={WISH_PRIORITIES.map((p) => ({ value: p, label: t(`wish.priority.${p}`) }))}
+            />
+          </div>
           <label className="span2">
             {t('wish.notes')}
             <textarea
@@ -554,6 +581,59 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
         </div>
         {error && <Banner kind="err">{error}</Banner>}
       </form>
+      {cropping && (
+        <CoverEditor
+          file={cropping}
+          onCancel={() => setCropping(null)}
+          onDone={(f) => {
+            setCropping(null);
+            setUploading(true);
+            // Only the latest upload counts: an earlier one that answers late is ignored.
+            const n = ++uploads.current;
+            void api
+              .uploadCover(f)
+              .then((a) => n === uploads.current && setCoverAssetId(a.id))
+              .catch((err) => n === uploads.current && setError(errorText(err, t)))
+              .finally(() => n === uploads.current && setUploading(false));
+          }}
+        />
+      )}
     </Modal>
+  );
+}
+
+/** The order and the priority filter, as chips with a menu (the library's pattern). */
+function WishFilters({ view }: { view: ReturnType<typeof wishViewOf> }) {
+  const { t } = useI18n();
+  const set = (patch: Record<string, string | undefined>) => setParams(patch, { replace: true });
+  const priorityItems = [
+    { value: '', label: t('wish.allPriorities') },
+    ...WISH_PRIORITIES.map((p) => ({ value: p, label: t(`wish.priority.${p}`) })),
+  ];
+  return (
+    <div className="filters" role="group" aria-label={t('library.filters')}>
+      <SelectMenu
+        name={t('wish.priority')}
+        items={priorityItems}
+        value={view.priority ?? ''}
+        active={!!view.priority}
+        onChange={(v) => set({ priority: v || undefined })}
+      >
+        {view.priority
+          ? t('library.filterValue', { name: t('wish.priority'), value: t(`wish.priority.${view.priority}`) })
+          : t('wish.priority')}
+      </SelectMenu>
+      <span className="grow" />
+      <SelectMenu
+        name={t('library.sort')}
+        items={WISH_SORTS.map((k) => ({ value: k, label: t(`wish.sort.${k}`) }))}
+        value={view.sort}
+        align="end"
+        onChange={(v) => set({ sort: v === 'priority' ? undefined : v })}
+      >
+        <Icon name="sort" size={16} />
+        {t('library.sortBy', { field: t(`wish.sort.${view.sort}`) })}
+      </SelectMenu>
+    </div>
   );
 }

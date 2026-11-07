@@ -121,6 +121,20 @@
     <string name="cover_alt">Portada de {title}</string>
     <string name="cover_generated">Portada generada: {title}</string>
     <string name="cover_open">Abrir la portada</string>
+    <string name="cover_viewerHelp">Amplía con la rueda, pellizcando, con doble clic o con + y −; arrastra o usa las flechas para moverte.</string>
+    <string name="cover_zoomIn">Acercar</string>
+    <string name="cover_zoomOut">Alejar</string>
+    <string name="cover_zoomReset">Ajustar a la pantalla</string>
+    <string name="crop_apply">Usar este recorte</string>
+    <string name="crop_corner">Tamaño del recorte</string>
+    <string name="crop_cover">2:3 (portada)</string>
+    <string name="crop_degrees">{n}°</string>
+    <string name="crop_free">Libre</string>
+    <string name="crop_help">Las flechas mueven el recorte; sobre la esquina, cambian su tamaño. Con Mayús, pasos más grandes.</string>
+    <string name="crop_loadFailed">No se pudo abrir la imagen.</string>
+    <string name="crop_ratio">Proporción</string>
+    <string name="crop_reset">Empezar de nuevo</string>
+    <string name="crop_size">{w} × {h} px en {x}, {y}</string>
     <string name="data_backupHint">Las copias se hacen cada noche en el servidor. Para restaurar una, ejecuta deploy/scripts/restore.sh en el servidor: después los dispositivos se resincronizan solos.</string>
     <string name="data_backupNever">Todavía no hay ninguna copia. Configura la copia nocturna en el servidor (mira el runbook de despliegue).</string>
     <string name="data_backupOk">Última copia: {date}.</string>
@@ -370,8 +384,10 @@
     <string name="reading_finished">Terminado</string>
     <string name="reading_history">Lecturas anteriores ({n})</string>
     <string name="reading_markRead">Marcar como leído</string>
+    <string name="reading_noNotes">Sin notas en esta lectura.</string>
     <string name="reading_noRating">Sin valorar</string>
     <string name="reading_notes">Notas de esta lectura</string>
+    <string name="reading_notesSaved">Notas guardadas</string>
     <string name="reading_rating">Valoración</string>
     <string name="reading_reread">Volver a leer</string>
     <string name="reading_start">Empezar a leer</string>
@@ -380,6 +396,7 @@
     <string name="reading_status_pending">Sin leer</string>
     <string name="reading_status_read">Leído</string>
     <string name="reading_status_reading">Leyendo</string>
+    <string name="reading_statusLabel">Estado de lectura</string>
     <string name="reading_title">Lectura</string>
     <string name="retire_damaged">Deteriorado</string>
     <string name="retire_gifted">Regalado</string>
@@ -510,6 +527,7 @@
     <string name="wish_added">«{title}» añadido a tus deseos</string>
     <string name="wish_addedOn">Añadido</string>
     <string name="wish_addToWishlist">Añadir a deseos</string>
+    <string name="wish_allPriorities">Cualquier prioridad</string>
     <string name="wish_alreadyWished">Este ISBN ya está en tu lista de deseos.</string>
     <string name="wish_bought">Lo he comprado</string>
     <string name="wish_delete">Eliminar</string>
@@ -527,6 +545,9 @@
     <string name="wish_priority_high">Alta</string>
     <string name="wish_priority_low">Baja</string>
     <string name="wish_priority_normal">Normal</string>
+    <string name="wish_sort_added">Añadido (recientes)</string>
+    <string name="wish_sort_priority">Prioridad</string>
+    <string name="wish_sort_title">Título</string>
     <string name="wish_status_acquired">Comprado</string>
     <string name="wish_status_discarded">Descartado</string>
     <string name="wish_status_open">Lo quiero</string>

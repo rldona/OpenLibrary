@@ -296,6 +296,8 @@ export const LibraryQuery = z.object({
   q: z.string().trim().max(200).optional(),
   /** Location id (sub-locations included) or "none" for copies without a location. */
   location: z.union([Id, z.literal('none')]).optional(),
+  /** With `location`: false keeps only copies right there, without its sub-locations (default true). */
+  deep: QueryFlag.optional(),
   subject: z.string().max(200).optional(),
   language: z.string().max(8).optional(),
   /** The work's derived reading status (BR13): "pending" is "not read yet", abandoned readings included. */

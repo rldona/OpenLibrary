@@ -16,6 +16,7 @@ import { api, ApiError, errorText } from '../api';
 import { Banner, Cover, Icon } from '../components/ui';
 import { DialogCancel, Modal } from '../components/dialog';
 import { BusyLabel } from '../components/states';
+import { CoverEditor } from '../components/coverEditor';
 import { useToast } from '../components/snackbar';
 import {
   CopyFieldset,
@@ -136,6 +137,13 @@ export function BookForm({
         : { kind: 'none' },
   );
   const [cover, setCover] = useState<CoverChoice>(initialCover);
+  const [cropping, setCropping] = useState<File | null>(null);
+  // The preview of a chosen image is freed when another cover replaces it and when the form closes.
+  useEffect(() => {
+    if (cover.kind !== 'file') return;
+    const url = cover.preview;
+    return () => URL.revokeObjectURL(url);
+  }, [cover]);
   // Anything typed, looked up or chosen since the form opened: closing it asks first.
   const dirty =
     JSON.stringify(d) !== JSON.stringify(initial) ||
@@ -411,7 +419,9 @@ export function BookForm({
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) setCover({ kind: 'file', file: f, preview: URL.createObjectURL(f) });
+                    e.target.value = '';
+                    // Cropped first; the crop is what is uploaded.
+                    if (f) setCropping(f);
                   }}
                 />
               </label>
@@ -507,6 +517,16 @@ export function BookForm({
         {mode.kind !== 'edit' && <CopyFieldset value={copy} onChange={setCopy} />}
         {error && <Banner kind="err">{error}</Banner>}
       </form>
+      {cropping && (
+        <CoverEditor
+          file={cropping}
+          onCancel={() => setCropping(null)}
+          onDone={(f) => {
+            setCropping(null);
+            setCover({ kind: 'file', file: f, preview: URL.createObjectURL(f) });
+          }}
+        />
+      )}
     </Modal>
   );
 }

@@ -101,7 +101,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     shownView.current = view;
     document.querySelector<HTMLElement>('#content h1')?.focus();
   }, [view]);
-  const { flush } = useSnackbar();
+  const { flush, pending } = useSnackbar();
 
   // If the session expires, any 401 goes back to the login screen, after trying the pending deletions.
   const qc = useQueryClient();
@@ -152,7 +152,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       view={view}
       counts={{
         locations: locs.data?.items.length,
-        wishlist: wishes.data?.items.filter((w) => w.status === 'open').length,
+        // Wishes waiting for "Undo" are already out of the list, so out of the count too.
+        wishlist: wishes.data?.items.filter((w) => w.status === 'open' && !pending.has(`wish:${w.id}`))
+          .length,
       }}
       onSignOut={() => void logout()}
     />

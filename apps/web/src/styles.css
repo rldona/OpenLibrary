@@ -1190,8 +1190,22 @@ dialog[open]::backdrop {
   padding: 2rem 2rem 1.429rem;
   position: relative;
 }
-.dh > .cover {
+.dh > .cover,
+.dh > .cover-open {
   width: 150px;
+  flex: none;
+}
+/* A cover that opens the full-size viewer. */
+.cover-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 2px 5px 5px 2px;
+}
+.cover-open .cover {
+  width: 100%;
 }
 .dh .x {
   position: absolute;
@@ -1820,7 +1834,8 @@ legend {
   .dh {
     flex-direction: column;
   }
-  .dh > .cover {
+  .dh > .cover,
+  .dh > .cover-open {
     width: 120px;
   }
   .grid {
@@ -1886,28 +1901,46 @@ legend {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.143rem;
 }
-.stats .panel h3 {
+.stats .panel h2 {
+  font-size: var(--type-title-md);
   margin: 0 0 0.714rem;
 }
+.stats .panel h3 {
+  font-size: var(--type-title-sm);
+  margin: var(--space-3) 0 var(--space-2);
+}
+/* Figures as Material 3 filled cards: the number large, its name under it (read name first). */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.571rem;
-  margin-bottom: 0.714rem;
+  /* Two by two: four figures never leave one alone on a row. */
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  margin: 0 0 0.714rem;
 }
 .tile {
   display: flex;
-  flex-direction: column;
-  padding: 0.714rem;
-  border-radius: 0.714rem;
-  background: var(--accent-soft);
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-container-highest);
 }
-.tile b {
-  font-size: 1.571rem;
+.tile dd {
+  margin: 0;
+  font-size: var(--type-headline-sm);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
-.tile span {
+.tile dt {
   font-size: var(--type-label-md);
-  color: var(--muted);
+  color: var(--on-surface-variant);
+}
+.bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .bar-row {
   display: grid;
@@ -2218,4 +2251,327 @@ dialog .snackbar-host {
   dialog.modal:not([role='alertdialog']) {
     padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
   }
+}
+
+/* ---------- Segmented buttons (Material 3) ---------- */
+.segmented {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-left: 1px solid var(--outline);
+  background: none;
+  color: var(--on-surface);
+  font-weight: 500;
+  font-size: var(--type-label-lg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segmented button:first-child {
+  border-left: 0;
+}
+.segmented button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+.segmented button.on {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.segmented button:disabled {
+  color: color-mix(in srgb, var(--on-surface) 50%, transparent);
+  cursor: not-allowed;
+}
+.segmented[aria-busy='true'] button {
+  cursor: progress;
+}
+.segmented button:focus-visible {
+  outline-offset: -3px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.357rem;
+}
+.field-label,
+.kv-label {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- Reading ---------- */
+.reading-status {
+  align-items: center;
+  /* Keep the status selector apart from the session card below it. */
+  margin-bottom: var(--space-3);
+}
+.busy-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.inline-field {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.reading-rating,
+.reading-notes {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.reading-notes textarea {
+  width: 100%;
+}
+.notes-view {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.notes-view p {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+/* Star rating: five radios of at least 40 px. */
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.rating {
+  display: inline-flex;
+}
+.rating button {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  cursor: pointer;
+}
+.rating button:hover {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+.rating[aria-busy='true'] button {
+  cursor: progress;
+}
+.star-empty {
+  fill: none;
+  stroke: var(--outline);
+  stroke-width: 1.5;
+}
+.star-full {
+  fill: var(--tertiary);
+  stroke: var(--tertiary);
+  stroke-width: 1.5;
+}
+.rating-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Cover viewer: the full-size cover over everything ---------- */
+dialog.full {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: #fff;
+}
+dialog.full::backdrop {
+  background: #000;
+}
+dialog.full[open] {
+  display: flex;
+  flex-direction: column;
+  animation: fade-in var(--motion-duration-short4) var(--motion-easing-standard);
+}
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: calc(var(--space-2) + var(--safe-top)) calc(var(--space-2) + var(--safe-right)) var(--space-2)
+    calc(var(--space-2) + var(--safe-left));
+  position: relative;
+  z-index: 1;
+}
+.viewer-bar .icon-btn {
+  color: #fff;
+}
+.viewer-bar .icon-btn:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+.viewer-bar .icon-btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+.viewer-bar .icon-btn:focus-visible,
+.viewer-stage:focus-visible {
+  outline-color: #fff;
+}
+.viewer-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+.viewer-stage.zoomed {
+  cursor: grab;
+}
+.viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  transition: transform var(--motion-duration-short2) linear;
+}
+.viewer-stage .spinner {
+  position: absolute;
+}
+.viewer-failed {
+  color: #fff;
+}
+
+/* ---------- Cover crop editor ---------- */
+.crop-room {
+  height: min(55vh, 30rem);
+  display: grid;
+  place-items: center;
+  background: var(--surface-container-highest);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.crop-stage {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+}
+.crop-stage canvas {
+  display: block;
+}
+.crop-box {
+  position: absolute;
+  padding: 0;
+  border: 2px solid #fff;
+  background: none;
+  cursor: move;
+  /* Dims what is left out of the crop. */
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5);
+  outline: 1px solid rgb(0 0 0 / 0.4);
+}
+.crop-box:focus-visible {
+  outline: 3px solid var(--inverse-primary);
+  outline-offset: 2px;
+}
+.crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 0.5);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+}
+.crop-handle.h-topLeft {
+  left: 0;
+  top: 0;
+}
+.crop-handle.h-top {
+  left: 50%;
+  top: 0;
+}
+.crop-handle.h-topRight {
+  left: 100%;
+  top: 0;
+}
+.crop-handle.h-right {
+  left: 100%;
+  top: 50%;
+}
+.crop-handle.h-bottomRight {
+  left: 100%;
+  top: 100%;
+}
+.crop-handle.h-bottom {
+  left: 50%;
+  top: 100%;
+}
+.crop-handle.h-bottomLeft {
+  left: 0;
+  top: 100%;
+}
+.crop-handle.h-left {
+  left: 0;
+  top: 50%;
+}
+/* The corner that resizes from the keyboard; pointers use the box's edges. */
+.crop-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  transform: translate(-50%, -50%);
+  cursor: nwse-resize;
+  border-radius: 50%;
+}
+.crop-corner:focus-visible {
+  outline: 3px solid var(--inverse-primary);
+}
+.crop-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.crop-angle {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+.crop-angle input {
+  width: 12rem;
+  padding: 0;
+}
+.crop-angle output {
+  min-width: 3.5em;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  .viewer-stage img {
+    transition: none;
+  }
+}
+.field .segmented {
+  align-self: flex-start;
 }

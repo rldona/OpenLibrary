@@ -264,6 +264,31 @@ export function ConfirmDialog({
 }
 
 /**
+ * A dialog that takes the whole window (the cover viewer). Escape closes it; the focus goes to the
+ * element marked `data-autofocus`, otherwise to the dialog itself.
+ */
+export function FullDialog({
+  label,
+  onClose,
+  className = '',
+  children,
+}: {
+  label: string;
+  onClose: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const handlers = useLatest({ dismiss: onClose, forcedClose: () => onClose() });
+  useModal(ref, true, handlers, (d) => (d.querySelector<HTMLElement>('[data-autofocus]') ?? d).focus());
+  return (
+    <dialog ref={ref} className={`full ${className}`} aria-modal="true" aria-label={label} tabIndex={-1}>
+      {children}
+    </dialog>
+  );
+}
+
+/**
  * A side panel (book or wish details) as a modal dialog on the right. The URL stays the source of truth:
  * `open` follows it, and Escape, the backdrop and the ✕ call `onClose`, which changes it.
  */

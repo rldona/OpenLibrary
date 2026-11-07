@@ -25,6 +25,12 @@ const PATHS: Record<string, string> = {
   chevDown: 'm6 9 6 6 6-6',
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
   sort: 'M3 6h18M6 12h12M10 18h4',
+  edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z',
+  zoomIn: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5M11 8v6M8 11h6',
+  zoomOut: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-3.5-3.5M8 11h6',
+  rotate: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
+  crop: 'M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2',
+  expand: 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
   chart: 'M3 3v18h18M8 17V11M13 17V7M18 17v-4',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
@@ -98,6 +104,11 @@ export function Cover(props: {
   className?: string;
   /** Next to the title in the same control: hidden from assistive technology, which already has the title. */
   decorative?: boolean;
+  /**
+   * The width the cover is shown at (an `<img sizes>` value). With it, a stored cover offers its full-size
+   * variant too, for large or dense screens; without it only the 400 px thumbnail is used (grids).
+   */
+  sizes?: string;
 }) {
   const { t } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -108,8 +119,19 @@ export function Cover(props: {
       <div className={`cover img ${props.provisional ? 'prov' : ''} ${props.className ?? ''}`}>
         <img
           src={src}
+          srcSet={
+            props.sizes && props.assetId && !props.src
+              ? // The full variant is at most 1600 px on its longer side: about 1067 px wide for a 2:3 cover.
+                `${coverUrl(props.assetId)} 400w, ${coverUrl(props.assetId, 'full')} 1067w`
+              : undefined
+          }
+          sizes={props.sizes && props.assetId && !props.src ? props.sizes : undefined}
+          // The thumbnail's proportion (2:3), so the page does not jump while it loads.
+          width={400}
+          height={600}
           alt={props.decorative ? '' : t('cover.alt', { title: props.title })}
           loading="lazy"
+          decoding="async"
           onError={() => setBroken(true)}
         />
       </div>

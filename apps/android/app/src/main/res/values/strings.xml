@@ -121,6 +121,20 @@
     <string name="cover_alt">Cover of {title}</string>
     <string name="cover_generated">Generated cover: {title}</string>
     <string name="cover_open">Open the cover</string>
+    <string name="cover_viewerHelp">Zoom with the wheel, a pinch, a double click or + and −; drag or use the arrows to move.</string>
+    <string name="cover_zoomIn">Zoom in</string>
+    <string name="cover_zoomOut">Zoom out</string>
+    <string name="cover_zoomReset">Fit to screen</string>
+    <string name="crop_apply">Use this crop</string>
+    <string name="crop_corner">Crop size</string>
+    <string name="crop_cover">2:3 (cover)</string>
+    <string name="crop_degrees">{n}°</string>
+    <string name="crop_free">Free</string>
+    <string name="crop_help">Arrow keys move the crop; on the corner they resize it. Hold Shift for bigger steps.</string>
+    <string name="crop_loadFailed">The image could not be opened.</string>
+    <string name="crop_ratio">Proportion</string>
+    <string name="crop_reset">Start again</string>
+    <string name="crop_size">{w} × {h} px at {x}, {y}</string>
     <string name="data_backupHint">Backups run every night on the server. To restore one, run deploy/scripts/restore.sh on the server: devices resync on their own afterwards.</string>
     <string name="data_backupNever">There is no backup yet. Set up the nightly backup on the server (see the deployment runbook).</string>
     <string name="data_backupOk">Last backup: {date}.</string>
@@ -370,8 +384,10 @@
     <string name="reading_finished">Finished</string>
     <string name="reading_history">Earlier readings ({n})</string>
     <string name="reading_markRead">Mark as read</string>
+    <string name="reading_noNotes">No notes on this reading.</string>
     <string name="reading_noRating">No rating</string>
     <string name="reading_notes">Notes on this reading</string>
+    <string name="reading_notesSaved">Notes saved</string>
     <string name="reading_rating">Rating</string>
     <string name="reading_reread">Read again</string>
     <string name="reading_start">Start reading</string>
@@ -380,6 +396,7 @@
     <string name="reading_status_pending">Not read yet</string>
     <string name="reading_status_read">Read</string>
     <string name="reading_status_reading">Reading</string>
+    <string name="reading_statusLabel">Reading status</string>
     <string name="reading_title">Reading</string>
     <string name="retire_damaged">Damaged</string>
     <string name="retire_gifted">Given away</string>
@@ -510,6 +527,7 @@
     <string name="wish_added">\"{title}\" added to your wishlist</string>
     <string name="wish_addedOn">Added</string>
     <string name="wish_addToWishlist">Add to wishlist</string>
+    <string name="wish_allPriorities">Any priority</string>
     <string name="wish_alreadyWished">This ISBN is already in your wishlist.</string>
     <string name="wish_bought">I bought it</string>
     <string name="wish_delete">Delete</string>
@@ -527,6 +545,9 @@
     <string name="wish_priority_high">High</string>
     <string name="wish_priority_low">Low</string>
     <string name="wish_priority_normal">Normal</string>
+    <string name="wish_sort_added">Added (newest)</string>
+    <string name="wish_sort_priority">Priority</string>
+    <string name="wish_sort_title">Title</string>
     <string name="wish_status_acquired">Bought</string>
     <string name="wish_status_discarded">Discarded</string>
     <string name="wish_status_open">Wanted</string>
