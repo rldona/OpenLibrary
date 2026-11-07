@@ -49,6 +49,31 @@ describe('reading sessions', () => {
     });
   });
 
+  it('resets a reading in progress to pending and clears its dates', async () => {
+    const { c, workId, copyId } = await setup();
+    const started = await c.post('/reading-sessions', { copyId, status: 'reading' });
+    const session = started.body.readings[0];
+    expect(session.startedOn).toBe(TODAY);
+
+    const reset = await c.patch(`/reading-sessions/${session.id}`, {
+      baseVersion: 1,
+      fields: { status: 'pending', startedOn: null, finishedOn: null },
+    });
+    expect(reset.status).toBe(200);
+    expect(reset.body.readingStatus).toBe('pending');
+    expect(reset.body.readings[0]).toMatchObject({
+      status: 'pending',
+      startedOn: null,
+      finishedOn: null,
+      version: 2,
+    });
+
+    const again = await c.post('/reading-sessions', { copyId, status: 'reading' });
+    expect(again.body.readings.map((r: { status: string }) => r.status)).toEqual(['pending', 'reading']);
+    expect(again.body.readingStatus).toBe('reading');
+    expect((await c.get(`/works/${workId}`)).body.readings).toHaveLength(2);
+  });
+
   it('keeps dates the user gave and allows re-reading with a new session', async () => {
     const { c, workId, copyId } = await setup();
     const first = await c.post('/reading-sessions', {

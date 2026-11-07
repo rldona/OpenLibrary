@@ -31,23 +31,30 @@ class ReadingUiTest {
     }
 
     private val reading = ReadingEntity("r1", 1, "c1", "reading", "2026-11-01", null, null, "", T, T)
+    private val finished = ReadingEntity("r2", 1, "c2", "read", "2026-11-01", "2026-11-02", null, "", T, T)
 
     @Test
-    fun choosingAStatusStartsFinishesOrMarksTheReading() {
+    fun choosingAStatusStartsFinishesMarksOrResetsTheReading() {
         // Nothing to do for the status it already has.
-        assertNull(statusChange("pending", null, "pending", "c1"))
-        assertNull(statusChange("reading", reading, "reading", "c1"))
+        assertNull(statusChange("pending", null, "pending", "c1", emptyList()))
+        assertNull(statusChange("reading", reading, "reading", "c1", listOf(reading)))
         // Not read yet → start, or straight to read.
-        assertEquals(ReadingAction.Start("c1", "reading"), statusChange("pending", null, "reading", "c1"))
-        assertEquals(ReadingAction.Start("c1", "read"), statusChange("pending", null, "read", "c1"))
+        assertEquals(ReadingAction.Start("c1", "reading"), statusChange("pending", null, "reading", "c1", emptyList()))
+        assertEquals(ReadingAction.Start("c1", "read"), statusChange("pending", null, "read", "c1", emptyList()))
         // Reading → finish the session in progress.
-        assertEquals(ReadingAction.Edit(reading, mapOf("status" to "read")), statusChange("reading", reading, "read", "c1"))
+        assertEquals(ReadingAction.Edit(reading, mapOf("status" to "read")), statusChange("reading", reading, "read", "c1", listOf(reading)))
         // Read → read again.
-        assertEquals(ReadingAction.Start("c1", "reading"), statusChange("read", null, "reading", "c1"))
-        // "Not read" cannot be chosen back (that is "Abandon"), and nothing starts without a copy.
-        assertNull(statusChange("read", null, "pending", "c1"))
-        assertNull(statusChange("reading", reading, "pending", "c1"))
-        assertNull(statusChange("pending", null, "reading", null))
+        assertEquals(ReadingAction.Start("c1", "reading"), statusChange("read", null, "reading", "c1", listOf(finished)))
+        // Reading → not read yet: reset the session and clear its dates.
+        assertEquals(
+            ReadingAction.Edit(reading, mapOf("status" to "pending", "startedOn" to null, "finishedOn" to null)),
+            statusChange("reading", reading, "pending", "c1", listOf(reading)),
+        )
+        // But not after the work was read before (a re-read), and not from "read".
+        assertNull(statusChange("reading", reading, "pending", "c1", listOf(finished, reading)))
+        assertNull(statusChange("read", null, "pending", "c1", listOf(finished)))
+        // Nothing starts without a copy.
+        assertNull(statusChange("pending", null, "reading", null, emptyList()))
     }
 
     @Test
@@ -58,7 +65,10 @@ class ReadingUiTest {
         assertEquals("reading", status)
         assertEquals(reading, currentReading(readings))
         // "Read" finishes that one instead of creating another; "Reading" does nothing.
-        assertEquals(ReadingAction.Edit(reading, mapOf("status" to "read")), statusChange(status, currentReading(readings), "read", "c1"))
-        assertNull(statusChange(status, currentReading(readings), "reading", "c1"))
+        assertEquals(
+            ReadingAction.Edit(reading, mapOf("status" to "read")),
+            statusChange(status, currentReading(readings), "read", "c1", readings),
+        )
+        assertNull(statusChange(status, currentReading(readings), "reading", "c1", readings))
     }
 }

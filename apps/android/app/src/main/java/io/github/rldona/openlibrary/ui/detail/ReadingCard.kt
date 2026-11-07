@@ -67,13 +67,30 @@ private val STATUSES = listOf("pending", "reading", "read")
 
 /**
  * What choosing [target] in the status row does, given the work's [status] and the session in progress
- * ([current]): start (or read again), finish, or mark as read. Null when there is nothing to do: the
- * status already is that one, or it would mean undoing readings ("not read" is where a work starts; a
- * reading in progress is left with "Abandon").
+ * ([current]): start (or read again), finish, mark as read, or reset a reading in progress to "not read
+ * yet". Null when there is nothing to do, or when the change would not produce the chosen status.
+ *
+ * Reset (design §4, the "reset" arrow) only applies to a work that was never read: it clears the dates
+ * of the single reading in progress. After a previous finished reading the work is "read" (a re-read is
+ * in progress), so "not read yet" would be a lie; "Abandon" is the way out.
  */
-fun statusChange(status: String, current: ReadingEntity?, target: String, copyId: String?): ReadingAction? =
+fun statusChange(
+    status: String,
+    current: ReadingEntity?,
+    target: String,
+    copyId: String?,
+    readings: List<ReadingEntity>,
+): ReadingAction? =
     when {
         target == status -> null
+        target == "pending" -> {
+            when {
+                current == null -> null
+                readings.any { it.status == "read" } -> null
+                readings.count { it.status == "reading" } != 1 -> null
+                else -> ReadingAction.Edit(current, mapOf("status" to "pending", "startedOn" to null, "finishedOn" to null))
+            }
+        }
         target == "reading" -> copyId?.let { ReadingAction.Start(it, "reading") }
         target == "read" && current != null -> ReadingAction.Edit(current, mapOf("status" to "read"))
         target == "read" -> copyId?.let { ReadingAction.Start(it, "read") }
@@ -108,7 +125,7 @@ fun ReadingCard(
             }
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 STATUSES.forEachIndexed { i, target ->
-                    val change = statusChange(status, current, target, copyId)
+                    val change = statusChange(status, current, target, copyId, readings)
                     SegmentedButton(
                         selected = status == target,
                         onClick = { change?.let(onAction) },

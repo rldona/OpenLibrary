@@ -140,6 +140,7 @@ Asset                        id = sha256, mime, width, height, bytes, origin (up
 - BR11. Moving to `reading` sets `started_on` = today if empty; to `read`, `finished_on` = today. Dates are editable.
 - BR12. Rating and notes per session; the details view shows the latest.
 - BR13. Work status: `reading` if any session is active; `read` if any is finished; otherwise `pending`.
+- *Reset (web and Android):* choosing "not read yet" on a reading in progress clears its start/finish dates and returns the work to `pending`. It is only offered when the work has no finished reading: after a read, a re-read is in progress and the derived status would be `read` again, so "Abandon" is the way out.
 
 **Wishlist**
 - BR14. A wish never counts as collection. On acquisition: a copy is created (plus edition/work if missing) and the wish becomes `acquired`.
