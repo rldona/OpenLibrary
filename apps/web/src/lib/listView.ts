@@ -35,13 +35,16 @@ export function useListView(key: string, fallback: ListView = 'grid'): [ListView
     param === 'grid' || param === 'table' ? param : stored(key, fallback),
   );
 
-  // A view in the URL wins (a shared link) and becomes the new preference.
+  // A view in the URL wins (a shared link) and becomes the new preference. Without it, switching to
+  // another list (another key) loads that list's own saved view.
   useEffect(() => {
     if (param === 'grid' || param === 'table') {
       setSaved(param);
       remember(key, param);
+    } else {
+      setSaved(stored(key, fallback));
     }
-  }, [key, param]);
+  }, [fallback, key, param]);
 
   const view = param === 'grid' || param === 'table' ? param : saved;
   const set = (next: ListView) => {

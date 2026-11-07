@@ -19,7 +19,8 @@ export function Library({ onAdd, favoritesOnly = false }: { onAdd: () => void; f
   const invalidate = useInvalidate();
   const { params } = useLocation();
   const q = { ...libraryQueryOf(params), ...(favoritesOnly ? { favorite: true } : {}) };
-  const [view, setView] = useListView('library');
+  // Biblioteca and Favoritos are separate pages: each keeps its own covers/table choice.
+  const [view, setView] = useListView(favoritesOnly ? 'favorites' : 'library');
   const locs = useLocations();
 
   const lib = useInfiniteQuery({

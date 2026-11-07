@@ -206,8 +206,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           )}
         </header>
         <section className="view" id="content" tabIndex={-1}>
-          {view === 'library' && <Library onAdd={addBook} />}
-          {view === 'favorites' && <Library onAdd={addBook} favoritesOnly />}
+          {view === 'library' && <Library key="library" onAdd={addBook} />}
+          {view === 'favorites' && <Library key="favorites" onAdd={addBook} favoritesOnly />}
           {view === 'locations' && <Locations />}
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
           {view === 'stats' && <Stats />}

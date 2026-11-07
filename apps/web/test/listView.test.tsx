@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { useListView } from '../src/lib/listView';
 import { renderUi } from './render';
 
-function Probe() {
-  const [view, setView] = useListView('probe');
+function Probe({ k = 'probe' }: { k?: string }) {
+  const [view, setView] = useListView(k);
   return (
     <>
       <output>{view}</output>
@@ -31,5 +31,27 @@ describe('list view preference', () => {
     history.replaceState(null, '', '/wishlist');
     renderUi(<Probe />);
     expect(screen.getByText('table')).toBeTruthy();
+  });
+
+  it('keeps a separate view for each list', async () => {
+    const user = userEvent.setup();
+    localStorage.removeItem('openlibrary.view.library');
+    localStorage.removeItem('openlibrary.view.favorites');
+
+    history.replaceState(null, '', '/');
+    const library = renderUi(<Probe k="library" />);
+    await user.click(screen.getByRole('button', { name: 'choose table' }));
+    library.unmount();
+
+    // Opening Favorites (another list/key) starts with its own preference, not the library's table.
+    history.replaceState(null, '', '/favorites');
+    const favorites = renderUi(<Probe k="favorites" />);
+    expect(screen.getByText('grid')).toBeTruthy();
+    favorites.unmount();
+
+    history.replaceState(null, '', '/');
+    renderUi(<Probe k="library" />);
+    expect(screen.getByText('table')).toBeTruthy();
+    expect(localStorage.getItem('openlibrary.view.favorites')).toBeNull();
   });
 });
