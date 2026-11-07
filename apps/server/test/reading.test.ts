@@ -74,6 +74,37 @@ describe('reading sessions', () => {
     expect((await c.get(`/works/${workId}`)).body.readings).toHaveLength(2);
   });
 
+  it('resets a finished reading and a reread to pending', async () => {
+    const { c, workId, copyId } = await setup();
+    await c.post('/reading-sessions', {
+      copyId,
+      status: 'read',
+      startedOn: '2026-01-01',
+      finishedOn: '2026-01-02',
+    });
+    const reread = await c.post('/reading-sessions', { copyId, status: 'reading' });
+    expect(reread.body.readingStatus).toBe('reading');
+    expect(reread.body.readings).toHaveLength(2);
+
+    for (const r of reread.body.readings) {
+      const res = await c.patch(`/reading-sessions/${r.id}`, {
+        baseVersion: r.version,
+        fields: { status: 'pending', startedOn: null, finishedOn: null },
+      });
+      expect(res.status).toBe(200);
+    }
+
+    const work = (await c.get(`/works/${workId}`)).body;
+    expect(work.readingStatus).toBe('pending');
+    expect(work.readings).toHaveLength(2);
+    expect(
+      work.readings.every(
+        (r: { status: string; startedOn: string | null; finishedOn: string | null }) =>
+          r.status === 'pending' && r.startedOn === null && r.finishedOn === null,
+      ),
+    ).toBe(true);
+  });
+
   it('keeps dates the user gave and allows re-reading with a new session', async () => {
     const { c, workId, copyId } = await setup();
     const first = await c.post('/reading-sessions', {

@@ -45,14 +45,20 @@ class ReadingUiTest {
         assertEquals(ReadingAction.Edit(reading, mapOf("status" to "read")), statusChange("reading", reading, "read", "c1", listOf(reading)))
         // Read → read again.
         assertEquals(ReadingAction.Start("c1", "reading"), statusChange("read", null, "reading", "c1", listOf(finished)))
-        // Reading → not read yet: reset the session and clear its dates.
+        // Not read yet: reset every finished or in-progress reading and clear its dates.
         assertEquals(
-            ReadingAction.Edit(reading, mapOf("status" to "pending", "startedOn" to null, "finishedOn" to null)),
+            ReadingAction.Reset(listOf(reading)),
             statusChange("reading", reading, "pending", "c1", listOf(reading)),
         )
-        // But not after the work was read before (a re-read), and not from "read".
-        assertNull(statusChange("reading", reading, "pending", "c1", listOf(finished, reading)))
-        assertNull(statusChange("read", null, "pending", "c1", listOf(finished)))
+        // Including a finished reading before a re-read, and undoing a finished reading from "read".
+        assertEquals(
+            ReadingAction.Reset(listOf(finished, reading)),
+            statusChange("reading", reading, "pending", "c1", listOf(finished, reading)),
+        )
+        assertEquals(
+            ReadingAction.Reset(listOf(finished)),
+            statusChange("read", null, "pending", "c1", listOf(finished)),
+        )
         // Nothing starts without a copy.
         assertNull(statusChange("pending", null, "reading", null, emptyList()))
     }

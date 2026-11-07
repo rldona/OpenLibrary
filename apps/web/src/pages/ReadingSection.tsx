@@ -77,10 +77,16 @@ export function ReadingSection({ data, preferredCopy }: { data: WorkDetail; pref
   const versionOf = (id: string) => readings.current.find((r) => r.id === id)?.version ?? 0;
   const patch = (id: string, fields: Partial<ReadingFields>) =>
     run(() => api.patchReading(id, { baseVersion: versionOf(id), fields }));
+  const reset = (list: ReadingDTO[]) => {
+    // One patch per session; run() queues them so each one waits for the previous response.
+    for (const r of list) void patch(r.id, { status: 'pending', startedOn: null, finishedOn: null });
+  };
   const act = (a: ReadingAction) =>
     a.kind === 'start'
       ? run(() => api.createReading({ copyId: a.copyId, status: a.status }))
-      : patch(a.reading.id, a.fields);
+      : a.kind === 'reset'
+        ? reset(a.readings)
+        : patch(a.reading.id, a.fields);
 
   return (
     <section className="sec">

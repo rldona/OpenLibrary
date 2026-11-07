@@ -9,7 +9,8 @@ export const STATUS_CHOICES: readonly WorkReadingStatus[] = ['pending', 'reading
 
 export type ReadingAction =
   | { kind: 'start'; copyId: string; status: 'reading' | 'read' }
-  | { kind: 'edit'; reading: ReadingDTO; fields: Partial<ReadingFields> };
+  | { kind: 'edit'; reading: ReadingDTO; fields: Partial<ReadingFields> }
+  | { kind: 'reset'; readings: ReadingDTO[] };
 
 /**
  * The reading in progress: the latest one still "reading", even if a later one was abandoned (the same
@@ -19,13 +20,13 @@ export const currentReading = (readings: readonly ReadingDTO[]): ReadingDTO | un
   readings.findLast((r) => r.status === 'reading');
 
 /**
- * What choosing `target` does: start (or read again), finish, mark as read, or reset a reading in
- * progress to "not read yet". Null when there is nothing to do: the status already is that one, or the
- * change would not produce the chosen status.
+ * What choosing `target` does: start (or read again), finish, mark as read, or reset the work to
+ * "not read yet". Null when there is nothing to do: the status already is that one, or the change would
+ * not produce the chosen status.
  *
- * Reset (design §4, the "reset" arrow) only applies to a work that was never read: it clears the dates
- * of the single reading in progress. After a previous finished reading the work is "read" (a re-read is
- * in progress), so "not read yet" would be a lie; "Abandon" is the way out.
+ * Reset (design §4) is a work-level undo: every live reading of the work (finished and in progress) goes
+ * back to pending and its dates are cleared, so a book with a finished read and a re-read becomes "not
+ * read yet". Ratings and notes are kept.
  */
 export function statusChange(
   status: WorkReadingStatus,
@@ -36,14 +37,8 @@ export function statusChange(
 ): ReadingAction | null {
   if (target === status) return null;
   if (target === 'pending') {
-    if (!current) return null;
-    if (readings.some((r) => r.status === 'read')) return null;
-    if (readings.filter((r) => r.status === 'reading').length !== 1) return null;
-    return {
-      kind: 'edit',
-      reading: current,
-      fields: { status: 'pending', startedOn: null, finishedOn: null },
-    };
+    const toReset = readings.filter((r) => r.status === 'reading' || r.status === 'read');
+    return toReset.length ? { kind: 'reset', readings: toReset } : null;
   }
   if (target === 'reading') return copyId ? { kind: 'start', copyId, status: 'reading' } : null;
   if (target === 'read' && current) return { kind: 'edit', reading: current, fields: { status: 'read' } };

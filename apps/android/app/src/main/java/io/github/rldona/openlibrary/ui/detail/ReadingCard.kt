@@ -54,6 +54,7 @@ fun readingStatusLabel(status: String): Int =
 sealed interface ReadingAction {
     data class Start(val copyId: String, val status: String) : ReadingAction
     data class Edit(val reading: ReadingEntity, val fields: Map<String, Any?>) : ReadingAction
+    data class Reset(val readings: List<ReadingEntity>) : ReadingAction
 }
 
 /**
@@ -67,12 +68,12 @@ private val STATUSES = listOf("pending", "reading", "read")
 
 /**
  * What choosing [target] in the status row does, given the work's [status] and the session in progress
- * ([current]): start (or read again), finish, mark as read, or reset a reading in progress to "not read
- * yet". Null when there is nothing to do, or when the change would not produce the chosen status.
+ * ([current]): start (or read again), finish, mark as read, or reset the work to "not read yet". Null
+ * when there is nothing to do, or when the change would not produce the chosen status.
  *
- * Reset (design §4, the "reset" arrow) only applies to a work that was never read: it clears the dates
- * of the single reading in progress. After a previous finished reading the work is "read" (a re-read is
- * in progress), so "not read yet" would be a lie; "Abandon" is the way out.
+ * Reset (design §4) is a work-level undo: every live reading of the work (finished and in progress) goes
+ * back to pending and its dates are cleared, so a book with a finished read and a re-read becomes "not
+ * read yet". Ratings and notes are kept.
  */
 fun statusChange(
     status: String,
@@ -84,12 +85,8 @@ fun statusChange(
     when {
         target == status -> null
         target == "pending" -> {
-            when {
-                current == null -> null
-                readings.any { it.status == "read" } -> null
-                readings.count { it.status == "reading" } != 1 -> null
-                else -> ReadingAction.Edit(current, mapOf("status" to "pending", "startedOn" to null, "finishedOn" to null))
-            }
+            val toReset = readings.filter { it.status == "reading" || it.status == "read" }
+            if (toReset.isEmpty()) null else ReadingAction.Reset(toReset)
         }
         target == "reading" -> copyId?.let { ReadingAction.Start(it, "reading") }
         target == "read" && current != null -> ReadingAction.Edit(current, mapOf("status" to "read"))

@@ -106,9 +106,28 @@ describe('ReadingSection', () => {
     release();
   });
 
-  it('keeps "Not read yet" disabled after a finished reading (a re-read)', () => {
-    render(work([reading('r1', 'read'), reading('r2', 'reading')], 'reading'));
-    expect((screen.getByRole('button', { name: 'Not read yet' }) as HTMLButtonElement).disabled).toBe(true);
+  it('resets a finished reading and a re-read to "Not read yet"', async () => {
+    const user = userEvent.setup();
+    const done = reading('r2', 'read', { startedOn: '2026-10-01', finishedOn: '2026-10-02' });
+    const current = reading('r1', 'reading');
+    render(work([done, current], 'reading'));
+    const notRead = screen.getByRole('button', { name: 'Not read yet' }) as HTMLButtonElement;
+    expect(notRead.disabled).toBe(false);
+    await user.click(notRead);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toEqual({
+      method: 'PATCH',
+      url: '/api/v1/reading-sessions/r2',
+      body: { baseVersion: 1, fields: { status: 'pending', startedOn: null, finishedOn: null } },
+    });
+    release();
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1]).toEqual({
+      method: 'PATCH',
+      url: '/api/v1/reading-sessions/r1',
+      body: { baseVersion: 1, fields: { status: 'pending', startedOn: null, finishedOn: null } },
+    });
+    release();
   });
 
   it('finishes the reading in progress with "Read" and offers "Abandon"', async () => {

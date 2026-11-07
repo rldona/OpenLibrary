@@ -183,6 +183,18 @@ class DetailViewModel(private val c: AppContainer, private val workId: String) :
                         }
                     }
                     is ReadingAction.Edit -> c.writes.editReading(action.reading, JsonObject(action.fields.mapValues { (_, v) -> toJson(v) }))
+                    is ReadingAction.Reset -> action.readings.forEach { r ->
+                        c.writes.editReading(
+                            r,
+                            JsonObject(
+                                mapOf(
+                                    "status" to JsonPrimitive("pending"),
+                                    "startedOn" to JsonNull,
+                                    "finishedOn" to JsonNull,
+                                ),
+                            ),
+                        )
+                    }
                 }
             } finally {
                 readingBusy = false

@@ -63,18 +63,22 @@ describe('reading status', () => {
       copyId: 'c1',
       status: 'reading',
     });
-    // A reading in progress can go back to "not read yet", clearing its dates.
+    // "Not read yet" resets every finished or in-progress reading of the work.
     expect(statusChange('reading', reading, 'pending', 'c1', [reading])).toEqual({
-      kind: 'edit',
-      reading,
-      fields: { status: 'pending', startedOn: null, finishedOn: null },
+      kind: 'reset',
+      readings: [reading],
     });
-    // But not when the work was read before (this is a re-read), nor with several readings in progress.
-    expect(statusChange('reading', reading, 'pending', 'c1', [finished, reading])).toBeNull();
+    expect(statusChange('reading', reading, 'pending', 'c1', [finished, reading])).toEqual({
+      kind: 'reset',
+      readings: [finished, reading],
+    });
     expect(
       statusChange('reading', reading, 'pending', 'c1', [reading, session('r3', 'reading', 'c2')]),
-    ).toBeNull();
-    expect(statusChange('read', undefined, 'pending', 'c1', [finished])).toBeNull();
+    ).toEqual({ kind: 'reset', readings: [reading, session('r3', 'reading', 'c2')] });
+    expect(statusChange('read', undefined, 'pending', 'c1', [finished])).toEqual({
+      kind: 'reset',
+      readings: [finished],
+    });
     // Nothing starts without a copy.
     expect(statusChange('pending', undefined, 'reading', null, [])).toBeNull();
   });
