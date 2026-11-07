@@ -92,6 +92,17 @@ export const works = sqliteTable(
   (t) => [index('works_sort_title_idx').on(t.sortTitle), index('works_sort_author_idx').on(t.sortAuthor)],
 );
 
+/**
+ * Web favorite marks. Deliberately outside the sync entities and the import format: the web is the only
+ * client that shows Favorites for now, and adding a field to works would change the sync contract.
+ */
+export const workFavorites = sqliteTable('work_favorites', {
+  workId: text('work_id')
+    .primaryKey()
+    .references(() => works.id),
+  createdAt: text('created_at').notNull(),
+});
+
 export const editions = sqliteTable(
   'editions',
   {

@@ -17,6 +17,7 @@ import { Banner, Cover, Icon } from '../components/ui';
 import { DialogCancel, Modal } from '../components/dialog';
 import { BusyLabel } from '../components/states';
 import { CoverEditor } from '../components/coverEditor';
+import { SubjectsInput } from '../components/subjects';
 import { useToast } from '../components/snackbar';
 import {
   CopyFieldset,
@@ -27,7 +28,7 @@ import {
   type CopyDraft,
 } from '../components/fields';
 import { splitList } from '../lib/format';
-import { acquireWish, matchingWish, useInvalidate, useWishlist } from '../lib/queries';
+import { acquireWish, matchingWish, useFacets, useInvalidate, useWishlist } from '../lib/queries';
 import { openBook } from '../lib/router';
 import { useI18n } from '../i18n';
 
@@ -173,6 +174,7 @@ export function BookForm({
   const set = (k: keyof Draft, v: string) => setD((x) => ({ ...x, [k]: v }));
   const lockWork = mode.kind === 'edition';
   const wishes = useWishlist();
+  const facets = useFacets();
   const wish =
     mode.kind === 'add' ? matchingWish(wishes.data?.items, mode.prefill?.wishId, d.isbn) : undefined;
   // "I bought it" with an ISBN: look it up once on opening (it may also be an edition you already own).
@@ -495,15 +497,14 @@ export function BookForm({
             {t('book.series')}
             <input value={d.series} onChange={(e) => set('series', e.target.value)} disabled={lockWork} />
           </label>
-          <label className="span2">
-            {t('book.subjects')}
-            <input
+          <div className="span2">
+            <SubjectsInput
               value={d.subjects}
-              onChange={(e) => set('subjects', e.target.value)}
-              placeholder={t('form.subjectsPlaceholder')}
+              onChange={(v) => set('subjects', v)}
+              suggestions={(facets.data?.subjects ?? []).map((s) => s.name)}
               disabled={lockWork}
             />
-          </label>
+          </div>
           <label className="span2">
             {t('book.synopsis')}
             <textarea

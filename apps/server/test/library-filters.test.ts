@@ -104,6 +104,30 @@ describe('library filters', () => {
     expect((await c.get('/library?provisional=maybe')).status).toBe(400);
   });
 
+  it('favorites works and returns their latest rating', async () => {
+    const { c, add } = await setup();
+    const dune = await add('Dune');
+    await add('Emma');
+
+    const fav = await c.post(`/works/${dune.workId}/favorite`);
+    expect(fav.status).toBe(200);
+    expect(fav.body.work.favorite).toBe(true);
+    expect((await c.get(`/works/${dune.workId}`)).body.work.favorite).toBe(true);
+    expect(await titles(c, 'favorite=true')).toEqual(['Dune']);
+    expect(await titles(c, 'favorite=false')).toEqual(['Emma']);
+    expect((await c.get('/library?favorite=true')).body.items[0]).toMatchObject({
+      favorite: true,
+      rating: null,
+    });
+
+    await c.post('/reading-sessions', { copyId: dune.copyId, status: 'read', rating: 4.5 });
+    expect((await c.get('/library?favorite=true')).body.items[0].rating).toBe(4.5);
+
+    const off = await c.del(`/works/${dune.workId}/favorite`);
+    expect(off.body.work.favorite).toBe(false);
+    expect((await c.get('/library?favorite=true')).body.total).toBe(0);
+  });
+
   it('leaves out the sub-locations of a location with deep=false', async () => {
     const { c, add } = await setup();
     const room = (await c.post('/locations', { name: 'Room', kind: 'room', parentId: null })).body.items[0]

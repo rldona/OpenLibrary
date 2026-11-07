@@ -8,7 +8,7 @@ import type { NavMode } from '../lib/media';
 import { LanguageSwitch, useI18n } from '../i18n';
 import { Icon, Logo } from './ui';
 
-export type View = 'library' | 'locations' | 'wishlist' | 'stats' | 'data' | 'settings';
+export type View = 'library' | 'favorites' | 'locations' | 'wishlist' | 'stats' | 'data' | 'settings';
 
 type Dest = { view: View; to: string; icon: string; label: string; short: string; count?: number };
 
@@ -34,8 +34,9 @@ export function MainNav({
   });
   const main = [
     dest('library', '/', 'book', t('nav.library')),
+    dest('favorites', '/favorites', 'heart', t('nav.favorites')),
     dest('locations', '/locations', 'tree', t('nav.locations')),
-    dest('wishlist', '/wishlist', 'list', t('nav.wishlist')),
+    dest('wishlist', '/wishlist', 'list', t('nav.wishlist'), t('nav.wishlistShort')),
     dest('stats', '/stats', 'chart', t('nav.stats')),
   ];
   const data = dest('data', '/data', 'download', t('nav.data'), t('nav.dataShort'));
@@ -89,10 +90,17 @@ export function MainNav({
 
   return (
     <aside className={mode === 'rail' ? 'side rail' : 'side'}>
-      <div className="brand">
+      <a
+        className="brand"
+        href="/"
+        onClick={(e) => {
+          e.preventDefault();
+          navigate('/');
+        }}
+      >
         <Logo className="logo" />
         {mode === 'drawer' && 'OpenLibrary'}
-      </div>
+      </a>
       <nav aria-label={t('a11y.mainNav')}>
         {main.map(link)}
         {mode === 'drawer' && <div className="sep" />}

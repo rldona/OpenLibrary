@@ -216,6 +216,10 @@
     <string name="errors_retryInSeconds">Demasiados intentos. Vuelve a probar en {n} s.</string>
     <string name="fab_close">Ocultar las opciones</string>
     <string name="fab_open">Mostrar opciones para añadir</string>
+    <string name="favorites_add">Añadir a favoritos</string>
+    <string name="favorites_emptyText">Marca un libro con el corazón y aparecerá aquí.</string>
+    <string name="favorites_emptyTitle">Aún no hay favoritos</string>
+    <string name="favorites_remove">Quitar de favoritos</string>
     <string name="form_addAnotherCopy">Añadir otro ejemplar</string>
     <string name="form_addedAt">Añadido «{title}» · {code} en {path}</string>
     <string name="form_addedNoLocation">Añadido «{title}» · {code} (sin ubicación)</string>
@@ -258,7 +262,7 @@
     <string name="form_searching">Buscando…</string>
     <string name="form_section_work">Obra</string>
     <string name="form_separateWithSemicolon">Separa varios con ;</string>
-    <string name="form_subjectsPlaceholder">Novela; Ciencia ficción</string>
+    <string name="form_subjectsPlaceholder">Añade un género y pulsa Intro, o elige uno que ya uses</string>
     <string name="form_updated">Ficha actualizada</string>
     <string name="identify_failed">No se pudo completar la búsqueda. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="identify_failedTitle">La búsqueda falló</string>
@@ -361,12 +365,14 @@
     <string name="login_title">Tu biblioteca</string>
     <string name="nav_data">Importar y exportar</string>
     <string name="nav_dataShort">Datos</string>
+    <string name="nav_favorites">Favoritos</string>
     <string name="nav_library">Biblioteca</string>
     <string name="nav_locations">Ubicaciones</string>
     <string name="nav_logout">Cerrar sesión</string>
     <string name="nav_settings">Ajustes</string>
     <string name="nav_stats">Estadísticas</string>
-    <string name="nav_wishlist">Deseos</string>
+    <string name="nav_wishlist">Lista de deseos</string>
+    <string name="nav_wishlistShort">Deseos</string>
     <string name="quotes_add">+ Cita</string>
     <string name="quotes_deleted">Cita eliminada</string>
     <string name="quotes_note">Tu nota</string>

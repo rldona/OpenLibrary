@@ -44,6 +44,8 @@ export function App() {
 
   const logout = useCallback(() => {
     qc.clear();
+    // Signing out always leaves the app at the library, not at the page that was open.
+    navigate('/');
     setState({ phase: 'anon' });
   }, [qc]);
 
@@ -60,7 +62,15 @@ export function App() {
         </div>
       </div>
     );
-  if (state.phase === 'anon') return <Login onDone={() => setState({ phase: 'in' })} />;
+  if (state.phase === 'anon')
+    return (
+      <Login
+        onDone={() => {
+          navigate('/');
+          setState({ phase: 'in' });
+        }}
+      />
+    );
   return <Shell onLogout={logout} />;
 }
 
@@ -74,19 +84,22 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const locs = useLocations();
   const wishes = useWishlist();
   const mode = useNavMode();
-  const view: View = path.startsWith('/locations')
-    ? 'locations'
-    : path.startsWith('/wishlist')
-      ? 'wishlist'
-      : path.startsWith('/stats')
-        ? 'stats'
-        : path.startsWith('/data')
-          ? 'data'
-          : path.startsWith('/settings')
-            ? 'settings'
-            : 'library';
+  const view: View = path.startsWith('/favorites')
+    ? 'favorites'
+    : path.startsWith('/locations')
+      ? 'locations'
+      : path.startsWith('/wishlist')
+        ? 'wishlist'
+        : path.startsWith('/stats')
+          ? 'stats'
+          : path.startsWith('/data')
+            ? 'data'
+            : path.startsWith('/settings')
+              ? 'settings'
+              : 'library';
   const viewTitle = {
     library: t('nav.library'),
+    favorites: t('nav.favorites'),
     locations: t('nav.locations'),
     wishlist: t('nav.wishlist'),
     stats: t('nav.stats'),
@@ -164,6 +177,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     // Deletions still waiting for "Undo" reach the server while the session is valid.
     await flush({ timeoutMs: SIGN_OUT_FLUSH_MS });
     await api.logout().catch(() => undefined);
+    navigate('/');
     onLogout();
   }
 
@@ -193,6 +207,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         </header>
         <section className="view" id="content" tabIndex={-1}>
           {view === 'library' && <Library onAdd={addBook} />}
+          {view === 'favorites' && <Library onAdd={addBook} favoritesOnly />}
           {view === 'locations' && <Locations />}
           {view === 'wishlist' && <Wishlist onBought={boughtWish} />}
           {view === 'stats' && <Stats />}

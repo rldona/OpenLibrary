@@ -1,21 +1,25 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { formatIsbn, type LibraryItem } from '@openlibrary/contracts/client';
-import { api } from '../api';
+import { api, errorText } from '../api';
 import { Cover, Icon } from '../components/ui';
+import { useToast } from '../components/snackbar';
 import { EmptyState, ErrorState, GridSkeleton, Spinner, useDelayed } from '../components/states';
 import { fmtDate } from '../lib/format';
-import { keys, shortPath, useLocations } from '../lib/queries';
-import { openBook, setParams, useLocation } from '../lib/router';
+import { keys, shortPath, useInvalidate, useLocations } from '../lib/queries';
+import { useListView } from '../lib/listView';
+import { navigate, openBook, useLocation } from '../lib/router';
 import { clearFilters, isFiltered, LibraryFilters, libraryQueryOf } from './LibraryFilters';
 import { useI18n } from '../i18n';
 
 const PAGE = 60;
 
-export function Library({ onAdd }: { onAdd: () => void }) {
+export function Library({ onAdd, favoritesOnly = false }: { onAdd: () => void; favoritesOnly?: boolean }) {
   const { t } = useI18n();
+  const toast = useToast();
+  const invalidate = useInvalidate();
   const { params } = useLocation();
-  const q = libraryQueryOf(params);
-  const view = params.get('view') === 'table' ? 'table' : 'grid';
+  const q = { ...libraryQueryOf(params), ...(favoritesOnly ? { favorite: true } : {}) };
+  const [view, setView] = useListView('library');
   const locs = useLocations();
 
   const lib = useInfiniteQuery({
@@ -36,6 +40,16 @@ export function Library({ onAdd }: { onAdd: () => void }) {
   const refiltering = lib.isFetching && lib.isPlaceholderData;
   const pathOf = (c: LibraryItem['copies'][number]) =>
     c.locationId ? shortPath(c.locationPath, locs.data) : t('copy.noLocation');
+  const title = favoritesOnly ? t('nav.favorites') : t('nav.library');
+
+  async function toggleFavorite(it: LibraryItem) {
+    try {
+      await api.setFavorite(it.workId, !it.favorite);
+      invalidate();
+    } catch (e) {
+      toast(errorText(e, t), { kind: 'error' });
+    }
+  }
 
   const summary = [
     t(
@@ -62,7 +76,7 @@ export function Library({ onAdd }: { onAdd: () => void }) {
     <>
       <div className="vh">
         <div>
-          <h1 tabIndex={-1}>{t('nav.library')}</h1>
+          <h1 tabIndex={-1}>{title}</h1>
           <p className="sub">
             {lib.isPending ? t('common.loading') : summary}
             {refiltering && <Refreshing />}
@@ -72,7 +86,7 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           <button
             className={view === 'grid' ? 'on' : ''}
             aria-pressed={view === 'grid'}
-            onClick={() => setParams({ view: undefined }, { replace: true })}
+            onClick={() => setView('grid')}
           >
             <Icon name="grid" size={16} />
             {t('library.viewCovers')}
@@ -80,7 +94,7 @@ export function Library({ onAdd }: { onAdd: () => void }) {
           <button
             className={view === 'table' ? 'on' : ''}
             aria-pressed={view === 'table'}
-            onClick={() => setParams({ view: 'table' }, { replace: true })}
+            onClick={() => setView('table')}
           >
             <Icon name="list" size={16} />
             {t('library.viewTable')}
@@ -96,13 +110,25 @@ export function Library({ onAdd }: { onAdd: () => void }) {
       )}
       {lib.isSuccess && !items.length && (
         <EmptyState
-          icon={filtered ? 'search' : 'book'}
-          title={t(filtered ? 'library.noMatchesTitle' : 'library.emptyTitle')}
-          text={t(filtered ? 'library.noMatchesText' : 'library.emptyText')}
+          icon={filtered ? 'search' : favoritesOnly ? 'heart' : 'book'}
+          title={t(
+            filtered
+              ? 'library.noMatchesTitle'
+              : favoritesOnly
+                ? 'favorites.emptyTitle'
+                : 'library.emptyTitle',
+          )}
+          text={t(
+            filtered ? 'library.noMatchesText' : favoritesOnly ? 'favorites.emptyText' : 'library.emptyText',
+          )}
           action={
             filtered ? (
               <button className="btn" onClick={clearFilters}>
                 {t('library.clearFilters')}
+              </button>
+            ) : favoritesOnly ? (
+              <button className="btn" onClick={() => navigate('/')}>
+                {t('nav.library')}
               </button>
             ) : (
               <button className="btn primary" onClick={onAdd}>
@@ -116,17 +142,40 @@ export function Library({ onAdd }: { onAdd: () => void }) {
       {view === 'grid' ? (
         <div className={`grid ${refiltering ? 'stale' : ''}`} aria-busy={refiltering}>
           {items.map((it) => (
-            <button key={it.editionId} className="card" onClick={() => openBook(it.workId, it.editionId)}>
-              <Cover
-                assetId={it.coverAssetId}
-                title={it.title}
-                authors={it.authors}
-                provisional={it.metadataStatus === 'provisional'}
-                seed={it.editionId}
-              />
-              <div>
+            <div key={it.editionId} className="card">
+              <div className="cover-wrap">
+                <button
+                  type="button"
+                  className="cover-open"
+                  onClick={() => openBook(it.workId, it.editionId)}
+                  aria-label={it.title}
+                >
+                  <Cover
+                    assetId={it.coverAssetId}
+                    title={it.title}
+                    authors={it.authors}
+                    provisional={it.metadataStatus === 'provisional'}
+                    seed={it.editionId}
+                  />
+                </button>
+                {it.rating != null && (
+                  <span className="rating-flap" title={t('reading.rating')}>
+                    ★ {it.rating}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className={`favorite ${it.favorite ? 'on' : ''}`}
+                  aria-pressed={it.favorite}
+                  aria-label={t(it.favorite ? 'favorites.remove' : 'favorites.add')}
+                  onClick={() => void toggleFavorite(it)}
+                >
+                  <Icon name="heart" size={16} />
+                </button>
+              </div>
+              <button type="button" className="card-text" onClick={() => openBook(it.workId, it.editionId)}>
                 <div className="t">{it.title}</div>
-                <div className="a">{it.authors.join(', ') || ' '}</div>
+                <div className="a">{it.authors.join(', ') || ' '}</div>
                 <div className="x">
                   {it.copies.length > 1 && <span className="badge">×{it.copies.length}</span>}
                   {it.editionCount > 1 && (
@@ -140,8 +189,8 @@ export function Library({ onAdd }: { onAdd: () => void }) {
                   <Icon name="pin" size={13} />
                   <span>{it.copies[0] ? pathOf(it.copies[0]) : ''}</span>
                 </div>
-              </div>
-            </button>
+              </button>
+            </div>
           ))}
         </div>
       ) : (
@@ -151,6 +200,7 @@ export function Library({ onAdd }: { onAdd: () => void }) {
               <tr>
                 <th />
                 <th>{t('book.title')}</th>
+                <th>{t('reading.rating')}</th>
                 <th>{t('book.publisher')}</th>
                 <th>ISBN</th>
                 <th title={t('library.copiesColumnTitle')}>{t('library.copiesColumn')}</th>
@@ -173,18 +223,33 @@ export function Library({ onAdd }: { onAdd: () => void }) {
                     />
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="linklike"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openBook(it.workId, it.editionId);
-                      }}
-                    >
-                      <b>{it.title}</b>
-                    </button>
-                    <div className="muted">{it.authors.join(', ')}</div>
+                    <div className="title-line">
+                      <button
+                        type="button"
+                        className="linklike"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBook(it.workId, it.editionId);
+                        }}
+                      >
+                        <b>{it.title}</b>
+                      </button>
+                      <button
+                        type="button"
+                        className={`favorite inline ${it.favorite ? 'on' : ''}`}
+                        aria-pressed={it.favorite}
+                        aria-label={t(it.favorite ? 'favorites.remove' : 'favorites.add')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleFavorite(it);
+                        }}
+                      >
+                        <Icon name="heart" size={15} />
+                      </button>
+                    </div>
+                    <div className="authors">{it.authors.join(', ')}</div>
                   </td>
+                  <td className="rating-cell">{it.rating != null ? `★ ${it.rating}` : '—'}</td>
                   <td>
                     {it.publisher ?? '—'}
                     {it.publishedYear ? ` · ${it.publishedYear}` : ''}

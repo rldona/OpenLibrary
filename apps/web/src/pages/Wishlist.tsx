@@ -9,6 +9,7 @@ import { usePendingDeletes, useSnackbar } from '../components/snackbar';
 import { BusyLabel, EmptyState, ErrorState, LoadingState } from '../components/states';
 import { SelectMenu } from '../components/menu';
 import { Segmented } from '../components/segmented';
+import { useListView } from '../lib/listView';
 import { arrangeWishes, WISH_SORTS, wishViewOf, type WishPriority } from '../lib/wishes';
 import { useFieldError } from '../components/fields';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,8 +38,9 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
   useProviderCovers(all);
   // Wishes deleted but still waiting for "Undo" are already out of the list.
   const open = all.filter((w) => !pending.has(`wish:${w.id}`));
-  const view = wishViewOf(params);
-  const shown = arrangeWishes(open, view);
+  const filters = wishViewOf(params);
+  const [layout, setLayout] = useListView('wishlist', 'table');
+  const shown = arrangeWishes(open, filters);
   // After a deletion the focus was on a row (or in the panel) that is gone: the page heading takes it,
   // once the panel has closed and given the focus back.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -78,14 +80,34 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
           </h1>
           <p className="sub">{t('wish.subtitle')}</p>
         </div>
-        <button className="btn" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={16} /> {t('wish.add')}
-        </button>
+        <div className="actions tight">
+          <div className="seg" role="group" aria-label={t('library.view')}>
+            <button
+              className={layout === 'grid' ? 'on' : ''}
+              aria-pressed={layout === 'grid'}
+              onClick={() => setLayout('grid')}
+            >
+              <Icon name="grid" size={16} />
+              {t('library.viewCovers')}
+            </button>
+            <button
+              className={layout === 'table' ? 'on' : ''}
+              aria-pressed={layout === 'table'}
+              onClick={() => setLayout('table')}
+            >
+              <Icon name="list" size={16} />
+              {t('library.viewTable')}
+            </button>
+          </div>
+          <button className="btn" onClick={() => setEditing('new')}>
+            <Icon name="plus" size={16} /> {t('wish.add')}
+          </button>
+        </div>
       </div>
 
       {list.isPending && <LoadingState />}
       {list.isError && <ErrorState error={list.error} onRetry={() => void list.refetch()} />}
-      {open.length > 0 && <WishFilters view={view} />}
+      {open.length > 0 && <WishFilters filters={filters} />}
       {list.isSuccess && !open.length && (
         <EmptyState icon="list" title={t('wish.emptyTitle')} text={t('wish.emptyText')} />
       )}
@@ -100,47 +122,69 @@ export function Wishlist({ onBought }: { onBought: Bought }) {
           }
         />
       )}
-      <ul className="list">
-        {shown.map((w) => (
-          <li key={w.id}>
-            {/* One control per wish: the cover and the text open its panel together. */}
-            <button className="wish-open" onClick={() => openWish(w.id)}>
-              <Cover
-                assetId={w.coverAssetId}
-                title={w.title}
-                authors={w.authors}
-                className="wish-cover"
-                decorative
-              />
-              <span className="grow">
-                <b>{w.title}</b>{' '}
-                {w.priority !== 'normal' && (
-                  <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
-                    {t(`wish.priority.${w.priority}`)}
+      {layout === 'table' ? (
+        <ul className="list">
+          {shown.map((w) => (
+            <li key={w.id}>
+              {/* One control per wish: the cover and the text open its panel together. */}
+              <button className="wish-open" onClick={() => openWish(w.id)}>
+                <Cover
+                  assetId={w.coverAssetId}
+                  title={w.title}
+                  authors={w.authors}
+                  className="wish-cover"
+                  decorative
+                />
+                <span className="grow">
+                  <b>{w.title}</b>{' '}
+                  {w.priority !== 'normal' && (
+                    <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
+                      {t(`wish.priority.${w.priority}`)}
+                    </span>
+                  )}
+                  <span className="small line">
+                    {w.authors.length > 0 && <span className="authors">{w.authors.join(', ')}</span>}
+                    {w.authors.length > 0 && w.isbn13 ? ' · ' : ''}
+                    {w.isbn13 && <span className="muted">ISBN {formatIsbn(w.isbn13)}</span>}
                   </span>
-                )}
-                <span className="muted small line">
-                  {[w.authors.join(', '), w.isbn13 && `ISBN ${formatIsbn(w.isbn13)}`]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {w.notes && <span className="note line">{w.notes}</span>}
                 </span>
-                {w.notes && <span className="note line">{w.notes}</span>}
-              </span>
+              </button>
+              <div className="actions tight">
+                <button className="btn sm primary" onClick={() => onBought(w)}>
+                  {t('wish.bought')}
+                </button>
+                <button className="btn sm" onClick={() => setEditing(w)}>
+                  {t('common.edit')}
+                </button>
+                <button className="btn sm ghost danger" onClick={() => void remove(w)}>
+                  {t('wish.delete')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="grid">
+          {shown.map((w) => (
+            <button key={w.id} className="card" onClick={() => openWish(w.id)}>
+              <Cover assetId={w.coverAssetId} title={w.title} authors={w.authors} />
+              <div>
+                <div className="t">{w.title}</div>
+                <div className="a authors">{w.authors.join(', ') || ' '}</div>
+                <div className="x">
+                  {w.priority !== 'normal' && (
+                    <span className={`badge ${w.priority === 'high' ? 'accent' : ''}`}>
+                      {t(`wish.priority.${w.priority}`)}
+                    </span>
+                  )}
+                  {w.isbn13 && <span className="badge">ISBN {formatIsbn(w.isbn13)}</span>}
+                </div>
+              </div>
             </button>
-            <div className="actions tight">
-              <button className="btn sm primary" onClick={() => onBought(w)}>
-                {t('wish.bought')}
-              </button>
-              <button className="btn sm" onClick={() => setEditing(w)}>
-                {t('common.edit')}
-              </button>
-              <button className="btn sm ghost danger" onClick={() => void remove(w)}>
-                {t('wish.delete')}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      )}
 
       <WishDrawer
         items={open}
@@ -265,7 +309,7 @@ function WishDrawer({
                 {t(`wish.status.${w.status}`)} · {t('wish.priority')}: {t(`wish.priority.${w.priority}`)}
               </div>
               <h2 id={titleId}>{w.title}</h2>
-              <div>{w.authors.join(', ') || t('book.unknownAuthor')}</div>
+              <div className="authors">{w.authors.join(', ') || t('book.unknownAuthor')}</div>
               {w.isbn13 && <div className="muted mono small">ISBN {formatIsbn(w.isbn13)}</div>}
               <div className="actions">
                 <button
@@ -603,7 +647,7 @@ function WishForm({ wish, onClose }: { wish: WishDTO | null; onClose: () => void
 }
 
 /** The order and the priority filter, as chips with a menu (the library's pattern). */
-function WishFilters({ view }: { view: ReturnType<typeof wishViewOf> }) {
+function WishFilters({ filters }: { filters: ReturnType<typeof wishViewOf> }) {
   const { t } = useI18n();
   const set = (patch: Record<string, string | undefined>) => setParams(patch, { replace: true });
   const priorityItems = [
@@ -615,24 +659,27 @@ function WishFilters({ view }: { view: ReturnType<typeof wishViewOf> }) {
       <SelectMenu
         name={t('wish.priority')}
         items={priorityItems}
-        value={view.priority ?? ''}
-        active={!!view.priority}
+        value={filters.priority ?? ''}
+        active={!!filters.priority}
         onChange={(v) => set({ priority: v || undefined })}
       >
-        {view.priority
-          ? t('library.filterValue', { name: t('wish.priority'), value: t(`wish.priority.${view.priority}`) })
+        {filters.priority
+          ? t('library.filterValue', {
+              name: t('wish.priority'),
+              value: t(`wish.priority.${filters.priority}`),
+            })
           : t('wish.priority')}
       </SelectMenu>
       <span className="grow" />
       <SelectMenu
         name={t('library.sort')}
         items={WISH_SORTS.map((k) => ({ value: k, label: t(`wish.sort.${k}`) }))}
-        value={view.sort}
+        value={filters.sort}
         align="end"
         onChange={(v) => set({ sort: v === 'priority' ? undefined : v })}
       >
         <Icon name="sort" size={16} />
-        {t('library.sortBy', { field: t(`wish.sort.${view.sort}`) })}
+        {t('library.sortBy', { field: t(`wish.sort.${filters.sort}`) })}
       </SelectMenu>
     </div>
   );

@@ -45,6 +45,15 @@ export function BookDrawer(actions: DrawerActions) {
   const retired = ed?.copies.filter((c) => c.status === 'retired') ?? [];
   const totalCopies = eds.reduce((n, e) => n + e.copies.filter((c) => c.status === 'active').length, 0);
 
+  async function toggleFavorite() {
+    if (!data) return;
+    try {
+      invalidate(await api.setFavorite(data.work.id, !data.work.favorite));
+    } catch (e) {
+      toast(errorText(e, t), { kind: 'error' });
+    }
+  }
+
   async function reactivate(c: CopyDTO) {
     try {
       invalidate(await api.patchCopy(c.id, { baseVersion: c.version, fields: { status: 'active' } }));
@@ -115,7 +124,7 @@ export function BookDrawer(actions: DrawerActions) {
               </div>
               <h2 id={titleId}>{data.work.title}</h2>
               {data.work.subtitle && <div className="subt">{data.work.subtitle}</div>}
-              <div>{data.work.authors.join(', ') || t('book.unknownAuthor')}</div>
+              <div className="authors">{data.work.authors.join(', ') || t('book.unknownAuthor')}</div>
               <div className="chips">
                 {data.work.subjects.map((s) => (
                   <span key={s} className="chip">
@@ -127,6 +136,14 @@ export function BookDrawer(actions: DrawerActions) {
                 )}
               </div>
               <div className="actions">
+                <button
+                  className={`btn sm ${data.work.favorite ? 'primary' : ''}`}
+                  aria-pressed={data.work.favorite}
+                  onClick={() => void toggleFavorite()}
+                >
+                  <Icon name="heart" size={16} />{' '}
+                  {t(data.work.favorite ? 'favorites.remove' : 'favorites.add')}
+                </button>
                 <button className="btn sm" onClick={() => actions.editBook(data.work, ed)}>
                   {t('drawer.editBook')}
                 </button>

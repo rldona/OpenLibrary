@@ -246,7 +246,11 @@ export type LocationPatch = z.input<typeof LocationPatch>;
 
 // ---------- Responses ----------
 type Versioned = { id: string; version: number; createdAt: string; updatedAt: string };
-export type WorkDTO = Versioned & z.infer<typeof WorkFields>;
+export type WorkDTO = Versioned &
+  z.infer<typeof WorkFields> & {
+    /** Web favorite mark (GET/PUT/DELETE /works/{id}/favorite); not part of the sync format. */
+    favorite: boolean;
+  };
 export type EditionDTO = Versioned &
   z.infer<typeof EditionFields> & { workId: string; isbn10: string | null };
 export type CopyDTO = Versioned &
@@ -304,6 +308,8 @@ export const LibraryQuery = z.object({
   reading: z.enum(WORK_READING_STATUSES).optional(),
   /** Only provisional editions: those still to complete. */
   provisional: QueryFlag.optional(),
+  /** Only favorite works (`true`) or only non-favorites (`false`); the favorites screen uses true. */
+  favorite: QueryFlag.optional(),
   sort: z.enum(LIBRARY_SORTS).default('title'),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
@@ -326,6 +332,10 @@ export type LibraryItem = {
   editionCount: number;
   copies: { id: string; code: string; locationId: string | null; locationPath: string[] }[];
   lastAcquiredOn: string | null;
+  /** Web favorite mark of the work. */
+  favorite: boolean;
+  /** Latest rating given to a reading of the work, if any. */
+  rating: number | null;
 };
 export type LibraryPage = { items: LibraryItem[]; total: number; tookMs: number };
 export type LibraryFacets = { subjects: { name: string; count: number }[]; languages: string[] };

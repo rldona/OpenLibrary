@@ -274,6 +274,8 @@ a {
   font-family: var(--serif);
   font-size: 1.357rem;
   font-weight: 700;
+  color: inherit;
+  text-decoration: none;
 }
 .logo {
   display: block;
@@ -415,7 +417,7 @@ main {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   min-height: var(--bar-height);
   padding: var(--space-2) var(--space-1) calc(var(--space-2) + var(--safe-bottom));
   background: var(--surface-container);
@@ -1012,15 +1014,101 @@ main {
   gap: 2rem 1.571rem;
 }
 .card {
+  position: relative;
   border: 0;
   background: none;
   padding: 0;
   text-align: left;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 0.714rem;
   color: inherit;
+  cursor: pointer;
+}
+.cover-wrap {
+  position: relative;
+  display: block;
+}
+.cover-open,
+.card-text {
+  display: block;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cover-open {
+  width: 100%;
+}
+.cover-open:focus-visible,
+.card-text:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 0.286rem;
+}
+/* The score, in the cover's top-right corner. */
+.rating-flap {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.143rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--type-label-md);
+  font-weight: 700;
+  line-height: 1.4;
+  pointer-events: none;
+  box-shadow: 0 0.143rem 0.429rem color-mix(in srgb, #000 25%, transparent);
+}
+/* The favorite marker, in the cover's bottom-right corner. */
+.favorite {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.286rem;
+  height: 2.286rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 0.143rem 0.429rem color-mix(in srgb, #000 22%, transparent);
+}
+.favorite:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.favorite.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.favorite.on svg {
+  fill: currentColor;
+}
+.favorite.inline {
+  position: static;
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0.143rem;
+}
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.357rem;
+}
+.rating-cell {
+  white-space: nowrap;
 }
 .card .cover {
   transition: transform 0.18s ease;
@@ -1042,11 +1130,16 @@ main {
   overflow: hidden;
 }
 .card .a {
-  color: var(--muted);
+  color: var(--accent);
   font-size: var(--type-label-lg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Author names use the app's orange, as on Android. */
+.authors {
+  color: var(--accent);
+  font-weight: 500;
 }
 .card .x {
   display: flex;
@@ -2065,6 +2158,84 @@ table.report thead th {
 }
 .wish-open .line {
   display: block;
+}
+
+/* ---------- Genre chips and suggestions ---------- */
+.subject-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.357rem;
+}
+.subject-box {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.357rem;
+  min-height: var(--target-min);
+  padding: 0.286rem 0.571rem;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.subject-box:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.subject-box > input {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+  border: 0;
+  background: none;
+  padding: 0.286rem;
+  color: var(--ink);
+  font: inherit;
+}
+.subject-box > input:focus-visible {
+  outline: none;
+}
+.subject-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.286rem;
+}
+.subject-remove {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 0.143rem;
+}
+.subject-remove:hover:not(:disabled) {
+  color: var(--accent);
+}
+.subject-options {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 14rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.286rem;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.subject-options li {
+  padding: 0.5rem 0.714rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.subject-options li.on,
+.subject-options li:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ---------- Loading, empty and error states ---------- */

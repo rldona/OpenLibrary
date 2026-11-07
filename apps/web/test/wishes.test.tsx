@@ -83,6 +83,27 @@ describe('Wishlist filters', () => {
       .getAllByRole('listitem')
       .map((li) => li.querySelector('b')!.textContent);
 
+  it('switches between covers and the table, remembering it', async () => {
+    const user = userEvent.setup();
+    history.replaceState(null, '', '/wishlist');
+    localStorage.removeItem('openlibrary.view.wishlist');
+    renderUi(
+      <main>
+        <Wishlist onBought={vi.fn()} />
+      </main>,
+    );
+    await waitFor(() => expect(listed()).toHaveLength(4));
+
+    await user.click(screen.getByRole('button', { name: 'Covers' }));
+    expect(document.querySelector('.grid .card')).toBeTruthy();
+    expect(document.querySelector('ul.list')).toBeNull();
+    expect(localStorage.getItem('openlibrary.view.wishlist')).toBe('grid');
+
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    expect(document.querySelector('ul.list')).toBeTruthy();
+    expect(document.querySelector('.grid')).toBeNull();
+  });
+
   it('filters by priority and orders from the chip menus, in the URL', async () => {
     const user = userEvent.setup();
     history.replaceState(null, '', '/wishlist?priority=high');

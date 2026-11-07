@@ -39,6 +39,9 @@ export async function catalogRoutes(app: FastifyInstance, opts: { catalog: Catal
     return catalog.createBook(parse(BookCreate, req.body, req.lang), sid(req));
   });
   app.get('/works/:id', async (req) => catalog.getWork(idParam(req)));
+  // Web-only favorite mark (not a sync entity for now).
+  app.post('/works/:id/favorite', async (req) => catalog.setFavorite(idParam(req), true));
+  app.delete('/works/:id/favorite', async (req) => catalog.setFavorite(idParam(req), false));
   app.patch('/works/:id', async (req) =>
     catalog.patchWork(idParam(req), parse(WorkPatch, req.body, req.lang), sid(req)),
   );

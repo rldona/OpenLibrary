@@ -100,6 +100,8 @@ export const api = {
   library: (q: LibraryQuery) => request<LibraryPage>('GET', `/library?${qs(q)}`),
   facets: () => request<LibraryFacets>('GET', '/library/facets'),
   work: (id: string) => request<WorkDetail>('GET', `/works/${id}`),
+  setFavorite: (id: string, favorite: boolean) =>
+    request<WorkDetail>(favorite ? 'POST' : 'DELETE', `/works/${id}/favorite`),
   createBook: (b: BookCreate) => request<Created<{ editionId: string; copyId: string }>>('POST', '/books', b),
   patchWork: (id: string, p: WorkPatch) => request<WorkDetail>('PATCH', `/works/${id}`, p),
   patchEdition: (id: string, p: EditionPatch) => request<WorkDetail>('PATCH', `/editions/${id}`, p),

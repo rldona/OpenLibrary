@@ -27,12 +27,12 @@ function expectLinks(names: string[]) {
 }
 
 describe('adaptive navigation', () => {
-  it('is a bottom bar with the five main destinations below 600 px', async () => {
+  it('is a bottom bar with the six main destinations below 600 px', async () => {
     setWidth(375);
     const { container } = renderUi(<Nav />);
     expect(container.querySelector('[data-mode]')!.getAttribute('data-mode')).toBe('bar');
     expect(container.querySelector('.bottom-bar')).toBeTruthy();
-    expectLinks(['Library', 'Locations 15', 'Wishlist 2', 'Statistics', 'Settings']);
+    expectLinks(['Library', 'Favorites', 'Locations 15', 'Wishlist 2', 'Statistics', 'Settings']);
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
     expect(screen.getByRole('link', { name: /Wishlist/ }).getAttribute('aria-current')).toBe('page');
     expect(await axeViolations(document.body)).toEqual([]);
@@ -42,7 +42,7 @@ describe('adaptive navigation', () => {
     setWidth(800);
     const { container } = renderUi(<Nav />);
     expect(container.querySelector('.side.rail')).toBeTruthy();
-    expectLinks(['Library', 'Locations 15', 'Wishlist 2', 'Statistics', 'Data', 'Settings']);
+    expectLinks(['Library', 'Favorites', 'Locations 15', 'Wishlist 2', 'Statistics', 'Data', 'Settings']);
     expect(container.querySelector('.badge-n')!.textContent).toBe('15');
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   });
@@ -52,7 +52,15 @@ describe('adaptive navigation', () => {
     const { container } = renderUi(<Nav />);
     expect(container.querySelector('.side:not(.rail)')).toBeTruthy();
     expect(container.querySelector('.brand')!.textContent).toBe('OpenLibrary');
-    expectLinks(['Library', 'Locations 15', 'Wishlist 2', 'Statistics', 'Import and export', 'Settings']);
+    expectLinks([
+      'Library',
+      'Favorites',
+      'Locations 15',
+      'Wish list 2',
+      'Statistics',
+      'Import and export',
+      'Settings',
+    ]);
     expect(container.querySelector('.badge-n')).toBeNull();
   });
 });

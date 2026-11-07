@@ -7,6 +7,7 @@ import { ConfirmDialog, DialogCancel, Modal } from '../components/dialog';
 import { useToast } from '../components/snackbar';
 import { BusyLabel, EmptyState, ErrorState, LoadingState } from '../components/states';
 import { useFieldError } from '../components/fields';
+import { useListView } from '../lib/listView';
 import { flattenLocations, keys, useInvalidate, useLocations } from '../lib/queries';
 import { navigate, openBook, setParams, useLocation } from '../lib/router';
 import { useI18n } from '../i18n';
@@ -50,6 +51,7 @@ export function Locations() {
   const sel = params.get('id') ?? flat[0]?.id ?? null;
   const loc = (sel && byId.get(sel)) || null;
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [layout, setLayout] = useListView('locations', 'table');
   const [deep, setDeep] = useState(true);
   const [deleting, setDeleting] = useState<LocationDTO | null>(null);
   const invalidate = useInvalidate();
@@ -179,6 +181,24 @@ export function Locations() {
                   <button className="btn sm ghost danger" onClick={() => setDeleting(loc)}>
                     {t('common.delete')}
                   </button>
+                  <div className="seg" role="group" aria-label={t('library.view')}>
+                    <button
+                      className={layout === 'grid' ? 'on' : ''}
+                      aria-pressed={layout === 'grid'}
+                      onClick={() => setLayout('grid')}
+                    >
+                      <Icon name="grid" size={16} />
+                      {t('library.viewCovers')}
+                    </button>
+                    <button
+                      className={layout === 'table' ? 'on' : ''}
+                      aria-pressed={layout === 'table'}
+                      onClick={() => setLayout('table')}
+                    >
+                      <Icon name="list" size={16} />
+                      {t('library.viewTable')}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -213,24 +233,63 @@ export function Locations() {
               {books.isSuccess && !rows.length && !books.hasNextPage && (
                 <EmptyState compact icon="shelf" title={t('locations.noCopiesHere')} />
               )}
-              {rows.map(({ it, c }) => (
-                <button key={c.id} className="row" onClick={() => openBook(it.workId, it.editionId)}>
-                  <Cover
-                    assetId={it.coverAssetId}
-                    title={it.title}
-                    authors={it.authors}
-                    seed={it.editionId}
-                    decorative
-                  />
-                  <div className="grow">
-                    <b>{it.title}</b> <span className="mono muted">{c.code}</span>
-                    <div className="muted">
-                      {it.authors.join(', ')}
-                      {c.locationId !== sel && ` · ${c.locationPath.slice(loc.path.length).join(' › ')}`}
-                    </div>
-                  </div>
-                </button>
-              ))}
+              {layout === 'table'
+                ? rows.map(({ it, c }) => (
+                    <button key={c.id} className="row" onClick={() => openBook(it.workId, it.editionId)}>
+                      <Cover
+                        assetId={it.coverAssetId}
+                        title={it.title}
+                        authors={it.authors}
+                        seed={it.editionId}
+                        decorative
+                      />
+                      <div className="grow">
+                        <b>{it.title}</b> <span className="mono muted">{c.code}</span>
+                        <div>
+                          <span className="authors">{it.authors.join(', ')}</span>
+                          {c.locationId !== sel && (
+                            <span className="muted">
+                              {' '}
+                              · {c.locationPath.slice(loc.path.length).join(' › ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                : null}
+              {layout === 'grid' && (
+                <div className="grid">
+                  {rows.map(({ it, c }) => (
+                    <button key={c.id} className="card" onClick={() => openBook(it.workId, it.editionId)}>
+                      {it.rating != null && (
+                        <span className="rating-flap" title={t('reading.rating')}>
+                          ★ {it.rating}
+                        </span>
+                      )}
+                      <Cover
+                        assetId={it.coverAssetId}
+                        title={it.title}
+                        authors={it.authors}
+                        seed={it.editionId}
+                      />
+                      <div>
+                        <div className="t">{it.title}</div>
+                        <div className="a authors">{it.authors.join(', ') || ' '}</div>
+                        <div className="x">
+                          <span className="badge">{c.code}</span>
+                        </div>
+                        {c.locationId !== sel && (
+                          <div className="w">
+                            <Icon name="pin" size={13} />
+                            <span>{c.locationPath.slice(loc.path.length).join(' › ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
               {books.isError && editions.length > 0 && (
                 <ErrorState compact error={books.error} onRetry={() => void books.fetchNextPage()} />
               )}

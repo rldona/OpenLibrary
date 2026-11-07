@@ -22,6 +22,8 @@ const book = (title: string, n: number): LibraryItem => ({
   editionCount: 1,
   copies: [],
   lastAcquiredOn: null,
+  favorite: false,
+  rating: null,
 });
 
 let fetchMock: ReturnType<typeof vi.fn>;

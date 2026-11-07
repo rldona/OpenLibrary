@@ -28,6 +28,7 @@ import {
   quotes,
   readingSessions,
   wishlistItems,
+  workFavorites,
   works,
 } from '../db/schema.js';
 import { badRequest, HttpError, notFound } from '../errors.js';
@@ -49,7 +50,10 @@ export const workDerived = (w: { title: string; authors: string[] }) => ({
   sortAuthor: authorSortKey(w.authors),
 });
 
-const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): WorkDTO => w;
+const toWork = ({ sortTitle: _a, sortAuthor: _b, deletedAt: _c, ...w }: WorkRow): WorkDTO => ({
+  ...w,
+  favorite: false,
+});
 const toReading = ({ deletedAt: _d, ...r }: ReadingRow): ReadingDTO => r;
 const toWish = ({ deletedAt: _d, ...w }: WishRow): WishDTO => w;
 const toQuote = ({ deletedAt: _d, ...q }: QuoteRow): QuoteDTO => q;
@@ -261,7 +265,7 @@ export class CatalogService {
       .sort((a, b) => (a.page ?? Infinity) - (b.page ?? Infinity) || a.createdAt.localeCompare(b.createdAt))
       .map(toQuote);
     return {
-      work: toWork(w),
+      work: { ...toWork(w), favorite: this.isFavorite(w.id) },
       quotes: qs,
       readings,
       readingStatus: workReadingStatus(readings),
@@ -277,6 +281,26 @@ export class CatalogService {
 
   private toCopy({ deletedAt: _d, ...c }: CopyRow, map: Map<string, LocationRow>): CopyDTO {
     return { ...c, locationPath: this.pathOf(map, c.locationId) };
+  }
+
+  private isFavorite(workId: string): boolean {
+    return !!this.db
+      .select({ workId: workFavorites.workId })
+      .from(workFavorites)
+      .where(eq(workFavorites.workId, workId))
+      .get();
+  }
+
+  /** Web-only favorite mark; the favorite is not a sync entity yet. */
+  setFavorite(workId: string, favorite: boolean): WorkDetail {
+    const w = this.db.select().from(works).where(eq(works.id, workId)).get();
+    if (!w || w.deletedAt) throw notFound('errors.workNotFound');
+    if (favorite) {
+      this.db.insert(workFavorites).values({ workId, createdAt: this.ts() }).onConflictDoNothing().run();
+    } else {
+      this.db.delete(workFavorites).where(eq(workFavorites.workId, workId)).run();
+    }
+    return this.getWork(workId);
   }
 
   /** Library listing: one row per edition with active copies. */
@@ -316,6 +340,11 @@ export class CatalogService {
       params.push(q.reading);
     }
     if (q.provisional) where.push("e.metadata_status = 'provisional'");
+    if (q.favorite === true) {
+      where.push('EXISTS (SELECT 1 FROM work_favorites wf WHERE wf.work_id = w.id)');
+    } else if (q.favorite === false) {
+      where.push('NOT EXISTS (SELECT 1 FROM work_favorites wf WHERE wf.work_id = w.id)');
+    }
     const from = `FROM editions e JOIN works w ON w.id = e.work_id WHERE ${where.join(' AND ')}`;
     const lastAcq =
       "(SELECT max(c2.acquired_on) FROM copies c2 WHERE c2.edition_id = e.id AND c2.deleted_at IS NULL AND c2.status = 'active')";
@@ -328,13 +357,25 @@ export class CatalogService {
     }[q.sort];
 
     const total = (client.prepare(`SELECT count(*) AS n ${from}`).get(...params) as { n: number }).n;
+    const rating = `(SELECT r.rating FROM reading_sessions r
+      JOIN copies rc ON rc.id = r.copy_id JOIN editions re ON re.id = rc.edition_id
+      WHERE re.work_id = w.id AND r.rating IS NOT NULL
+        AND r.deleted_at IS NULL AND rc.deleted_at IS NULL AND re.deleted_at IS NULL
+      ORDER BY r.created_at DESC, r.id DESC LIMIT 1)`;
     const select = `SELECT e.id AS editionId, e.work_id AS workId, coalesce(e.title, w.title) AS title,
       coalesce(e.subtitle, w.subtitle) AS subtitle, w.authors, w.subjects, e.publisher, e.published_year AS publishedYear,
-      e.language, e.isbn13, e.cover_asset_id AS coverAssetId, e.metadata_status AS metadataStatus ${from} ORDER BY ${order}`;
+      e.language, e.isbn13, e.cover_asset_id AS coverAssetId, e.metadata_status AS metadataStatus,
+      EXISTS (SELECT 1 FROM work_favorites wf WHERE wf.work_id = w.id) AS favorite,
+      ${rating} AS rating ${from} ORDER BY ${order}`;
 
-    type Row = Omit<LibraryItem, 'authors' | 'subjects' | 'copies' | 'editionCount' | 'lastAcquiredOn'> & {
+    type Row = Omit<
+      LibraryItem,
+      'authors' | 'subjects' | 'copies' | 'editionCount' | 'lastAcquiredOn' | 'favorite' | 'rating'
+    > & {
       authors: string;
       subjects: string;
+      favorite: number;
+      rating: number | null;
     };
     let rows: Row[];
     if (q.sort === 'location') {
@@ -394,6 +435,8 @@ export class CatalogService {
       const mine = cs.filter((c) => c.editionId === r.editionId);
       return {
         ...r,
+        favorite: !!r.favorite,
+        rating: r.rating ?? null,
         authors: JSON.parse(r.authors) as string[],
         subjects: JSON.parse(r.subjects) as string[],
         editionCount: edCount.get(r.workId) ?? 1,
