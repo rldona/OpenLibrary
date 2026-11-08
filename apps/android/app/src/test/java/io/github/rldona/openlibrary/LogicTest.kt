@@ -12,6 +12,8 @@ import io.github.rldona.openlibrary.ui.library.subtree
 import io.github.rldona.openlibrary.ui.locations.flattenTree
 import io.github.rldona.openlibrary.ui.locations.nextLocationKind
 import io.github.rldona.openlibrary.ui.locations.visibleNodes
+import io.github.rldona.openlibrary.ui.wishlist.arrangeWishes
+import io.github.rldona.openlibrary.data.WishEntity
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -68,6 +70,24 @@ class LogicTest {
         assertEquals(2, nodes.first { it.location.id == "salon" }.total)
         // Direct children, for the fold chevron.
         assertEquals(listOf("casa" to 2, "despacho" to 0, "salon" to 1, "balda" to 0), nodes.map { it.location.id to it.children })
+    }
+
+    private fun wish(id: String, title: String, priority: String, created: String) =
+        WishEntity(id, 1, title, emptyList(), null, null, priority, "", "open", null, created, created)
+
+    @Test
+    fun wishesAreFilteredByPriorityAndOrderedLikeTheWeb() {
+        val a = wish("a", "Zorba", "normal", "2026-11-01")
+        val b = wish("b", "Ética", "high", "2026-11-02")
+        val c = wish("c", "Ágora", "low", "2026-11-03")
+        val d = wish("d", "Ulises", "high", "2026-11-04")
+        val all = listOf(a, b, c, d)
+        // Priority first, newest within it.
+        assertEquals(listOf("d", "b", "a", "c"), arrangeWishes(all, "priority", null).map { it.id })
+        assertEquals(listOf("d", "c", "b", "a"), arrangeWishes(all, "added", null).map { it.id })
+        // Titles without accents in the way.
+        assertEquals(listOf("c", "b", "d", "a"), arrangeWishes(all, "title", null).map { it.id })
+        assertEquals(listOf("d", "b"), arrangeWishes(all, "priority", "high").map { it.id })
     }
 
     @Test

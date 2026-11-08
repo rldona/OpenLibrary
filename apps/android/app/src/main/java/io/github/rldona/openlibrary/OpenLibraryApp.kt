@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.rldona.openlibrary.data.AppDatabase
 import io.github.rldona.openlibrary.data.DataStoreSessionStore
 import io.github.rldona.openlibrary.data.LockPolicy
+import io.github.rldona.openlibrary.data.AppearancePrefs
 import io.github.rldona.openlibrary.data.LibraryPrefs
 import io.github.rldona.openlibrary.data.LockSettings
 import io.github.rldona.openlibrary.data.SessionStore
@@ -21,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 /** Manual dependency wiring: small enough that a DI framework would only add build time. */
-class AppContainer(app: Application) {
+class AppContainer(val app: Application) {
     /** Opened on first use (encrypted, so it needs the native SQLCipher library: not in JVM unit tests). */
     val db: AppDatabase by lazy { AppDatabase.open(app) }
     val sessions: SessionStore = DataStoreSessionStore(app)
@@ -42,6 +43,7 @@ class AppContainer(app: Application) {
     val deletes = PendingDeletes(appScope)
     val lockSettings = LockSettings(app)
     val libraryPrefs = LibraryPrefs(app)
+    val appearance = AppearancePrefs(app)
     val lock = LockPolicy()
 }
 

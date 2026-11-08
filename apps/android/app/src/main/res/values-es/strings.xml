@@ -364,7 +364,7 @@
     <string name="locations_updated">Ubicación actualizada</string>
     <string name="lock_prompt">Desbloquear OpenLibrary</string>
     <string name="lock_setting">Bloquear la app</string>
-    <string name="lock_settingHint">Pide tu huella, tu cara o el bloqueo de pantalla al abrir la app o al volver tras un minuto fuera. La biblioteca de este móvil se guarda siempre cifrada.</string>
+    <string name="lock_settingHint">Huella, cara o bloqueo de pantalla al abrir la app o al volver tras un minuto fuera.</string>
     <string name="lock_title">OpenLibrary está bloqueada</string>
     <string name="lock_unavailable">Configura primero un bloqueo de pantalla en este móvil.</string>
     <string name="lock_unlock">Desbloquear</string>
@@ -449,6 +449,7 @@
     <string name="search_results_other">{n} libros encontrados</string>
     <string name="security_title">Seguridad</string>
     <string name="settings_about">Acerca de</string>
+    <string name="settings_appearance">Apariencia</string>
     <string name="settings_appVersion">Versión de la app</string>
     <string name="settings_browser">Navegador</string>
     <string name="settings_changePassword">Cambiar contraseña</string>
@@ -475,6 +476,8 @@
     <string name="settings_sessions">Sesiones y dispositivos</string>
     <string name="settings_sessionsHint">Cada navegador y cada móvil tienen su propio acceso. Si pierdes el teléfono, revócalo aquí.</string>
     <string name="settings_status">Estado</string>
+    <string name="settings_storage">Datos en este móvil</string>
+    <string name="settings_storageEncrypted">Siempre cifrados</string>
     <string name="settings_subtitle">Idioma, servidor, sesiones y seguridad.</string>
     <string name="settings_sync">Sincronización</string>
     <string name="settings_thisSession">esta sesión</string>
@@ -491,6 +494,8 @@
     <string name="setup_title">Conecta con tu biblioteca</string>
     <string name="state_errorTitle">Algo ha fallado</string>
     <string name="stats_acquiredByYear">Ejemplares adquiridos por año</string>
+    <string name="stats_acquiredIncludesRetired_one">Incluye {n} ejemplar retirado</string>
+    <string name="stats_acquiredIncludesRetired_other">Incluye {n} ejemplares retirados</string>
     <string name="stats_authors">Autores</string>
     <string name="stats_averageRating">Valoración media</string>
     <string name="stats_collection">Colección</string>
@@ -500,6 +505,7 @@
     <string name="stats_locations_one">{n} ubicación</string>
     <string name="stats_locations_other">{n} ubicaciones</string>
     <string name="stats_none">Nada todavía.</string>
+    <string name="stats_noRating">Sin valorar</string>
     <string name="stats_pages">{n} páginas</string>
     <string name="stats_provisional_one">{n} provisional</string>
     <string name="stats_provisional_other">{n} provisionales</string>
@@ -507,6 +513,8 @@
     <string name="stats_reading">Lectura</string>
     <string name="stats_retired">Retirados</string>
     <string name="stats_sessions">{finished} lecturas terminadas · {abandoned} abandonadas</string>
+    <string name="stats_showAll">Ver todos ({n})</string>
+    <string name="stats_showLess">Ver menos</string>
     <string name="stats_subjects">Géneros</string>
     <string name="stats_subtitle">Obras y ejemplares se cuentan aparte: dos ejemplares de un libro son una obra.</string>
     <string name="stats_unknownLanguage">Desconocido</string>
@@ -531,6 +539,9 @@
     <string name="sync_savedLocally">Guardado en este móvil. Llegará al servidor en la próxima sincronización.</string>
     <string name="sync_synced">Sincronizado · {ago}</string>
     <string name="sync_syncing">Sincronizando…</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_system">Como el sistema</string>
     <string name="time_days">hace {n} d</string>
     <string name="time_hours">hace {n} h</string>
     <string name="time_justNow">ahora mismo</string>

@@ -20,7 +20,8 @@ fun DestructiveDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = MaterialTheme.colorScheme.error) },
+        // Material keeps the title neutral; only the action that destroys is in the error colour.
+        title = { Text(title) },
         text = { Text(text) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(dismiss) } },

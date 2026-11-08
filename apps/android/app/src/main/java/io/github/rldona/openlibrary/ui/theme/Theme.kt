@@ -211,9 +211,14 @@ private val AppShapes =
  * transitions use the standard scheme instead (see MainActivity).
  */
 @Composable
-fun OpenLibraryTheme(content: @Composable () -> Unit) {
+fun OpenLibraryTheme(theme: String = "system", content: @Composable () -> Unit) {
+    val dark = when (theme) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
     MaterialExpressiveTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        colorScheme = if (dark) DarkColors else LightColors,
         motionScheme = MotionScheme.expressive(),
         typography = typography(),
         shapes = AppShapes,

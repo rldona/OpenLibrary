@@ -9,7 +9,15 @@ import io.github.rldona.openlibrary.ui.components.animateListItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.HideImage
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,7 +74,13 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.annotation.StringRes
+import io.github.rldona.openlibrary.core.fold
+import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -105,6 +119,7 @@ import io.github.rldona.openlibrary.ui.components.FillCover
 import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -150,10 +165,13 @@ sealed interface WishNote {
 class WishlistViewModel(private val c: AppContainer) : ViewModel() {
     /** Deleting waits for the snackbar's "Undo" (app-wide, so it survives this view model); the wish leaves the list at once. */
     private val deletes = c.deletes
+    /** Order and priority filter, as the web's `?sort=` and `?priority=`; not kept between visits, like the library's chips. */
+    val sort = MutableStateFlow("priority")
+    val priority = MutableStateFlow<String?>(null)
     val wishes =
-        combine(c.db.catalog().wishes(), deletes.hidden) { list, hidden ->
+        combine(c.db.catalog().wishes(), deletes.hidden, sort, priority) { list, hidden, sort, priority ->
             deletes.settle(WISH, list.mapTo(HashSet()) { WISH + it.id })
-            list.filterNot { WISH + it.id in hidden }
+            arrangeWishes(list.filterNot { WISH + it.id in hidden }, sort, priority)
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val covers = c.covers
@@ -300,12 +318,35 @@ class WishlistViewModel(private val c: AppContainer) : ViewModel() {
 
 private const val WISH = "wish:"
 
+val WISH_SORTS = listOf("priority", "added", "title")
+val WISH_PRIORITIES = listOf("high", "normal", "low")
+private val RANK = mapOf("high" to 0, "normal" to 1, "low" to 2)
+
+/** The wishes to show, filtered by [priority] and in [sort] order (ties: newest first), as the web's `arrangeWishes`. */
+fun arrangeWishes(items: List<WishEntity>, sort: String, priority: String?): List<WishEntity> {
+    val shown = if (priority == null) items else items.filter { it.priority == priority }
+    val newest = compareByDescending<WishEntity> { it.createdAt }
+    return when (sort) {
+        "added" -> shown.sortedWith(newest)
+        "title" -> shown.sortedWith(compareBy<WishEntity> { fold(it.title) }.then(newest))
+        else -> shown.sortedWith(compareBy<WishEntity> { RANK[it.priority] ?: 1 }.then(newest))
+    }
+}
+
+@StringRes
+fun wishSortLabel(sort: String): Int =
+    when (sort) {
+        "added" -> R.string.wish_sort_added
+        "title" -> R.string.wish_sort_title
+        else -> R.string.wish_sort_priority
+    }
+
 /**
  * Books you want (BR14). "I bought it" opens the add-book form pre-filled from the wish; once bought, the
  * wish is kept as a record but no longer listed. A wish you no longer want is deleted, with a moment to undo.
  */
 @Composable
-fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Unit, onBought: (wishId: String) -> Unit) {
+fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Unit, onGallery: () -> Unit, onBought: (wishId: String) -> Unit) {
     val all by vm.wishes.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
     val deleted = stringResource(R.string.wish_deleted)
@@ -325,6 +366,8 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
                     contentDescription = stringResource(if (grid) R.string.library_viewTable else R.string.library_viewCovers),
                 )
             }
+            val sort by vm.sort.collectAsStateWithLifecycle()
+            WishSortMenu(sort) { vm.sort.value = it }
         },
         fab = {
             AddFabMenu(
@@ -338,22 +381,99 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
         },
     ) { inner ->
         val open = all
-        val modifier = Modifier.padding(inner)
-        when {
-            open == null -> LoadingState(modifier)
-            open.isEmpty() ->
-                EmptyState(
-                    Icons.Default.FavoriteBorder,
-                    stringResource(R.string.wish_emptyTitle),
-                    modifier,
-                    // What the list is for is said here, the first time, not above every list.
-                    text = stringResource(R.string.wish_subtitle) + " " + stringResource(R.string.wish_emptyText),
-                    action = stringResource(R.string.wish_add) to vm::add,
-                )
-            else -> Box(modifier) { WishList(vm, open, onBought, delete, grid) }
+        val shown = open.orEmpty()
+        val priority by vm.priority.collectAsStateWithLifecycle()
+        Column(Modifier.padding(inner).fillMaxSize()) {
+            if (open != null && (shown.isNotEmpty() || priority != null)) PriorityFilter(priority) { vm.priority.value = it }
+            val modifier = Modifier.weight(1f)
+            when {
+                open == null -> LoadingState(modifier)
+                shown.isEmpty() && priority != null ->
+                    EmptyState(Icons.Default.SearchOff, stringResource(R.string.library_noMatchesTitle), modifier, text = stringResource(R.string.library_noMatchesText))
+                shown.isEmpty() ->
+                    EmptyState(
+                        Icons.Default.FavoriteBorder,
+                        stringResource(R.string.wish_emptyTitle),
+                        modifier,
+                        // What the list is for is said here, the first time, not above every list.
+                        text = stringResource(R.string.wish_subtitle) + " " + stringResource(R.string.wish_emptyText),
+                        action = stringResource(R.string.wish_add) to vm::add,
+                    )
+                else -> Box(modifier) { WishList(vm, shown, onBought, delete, grid) }
+            }
         }
     }
-    vm.draft?.let { d -> WishDialog(vm, d, onScan, onPhoto) }
+    vm.draft?.let { d -> WishDialog(vm, d, onScan, onPhoto, onGallery) }
+}
+
+/** Order, from the bar: priority first (the web's default), newest first, or by title. */
+@Composable
+private fun WishSortMenu(sort: String, onSort: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.library_sort))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            WISH_SORTS.forEach { value ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(wishSortLabel(value))) },
+                    onClick = { onSort(value); open = false },
+                    leadingIcon = { if (value == sort) Icon(Icons.Default.Check, contentDescription = null) },
+                )
+            }
+        }
+    }
+}
+
+/** One chip with a menu: any priority, or only the high, normal or low ones. */
+@Composable
+private fun PriorityFilter(priority: String?, onSelect: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        FilterChip(
+            selected = priority != null,
+            onClick = { open = true },
+            label = { Text(stringResource(priority?.let(::priorityLabel) ?: R.string.wish_priority)) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            (listOf<String?>(null) + WISH_PRIORITIES).forEach { value ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(value?.let(::priorityLabel) ?: R.string.wish_allPriorities)) },
+                    onClick = { onSelect(value); open = false },
+                    leadingIcon = { if (value == priority) Icon(Icons.Default.Check, contentDescription = null) },
+                )
+            }
+        }
+    }
+}
+
+/** Tapping a cover: what the row offers at a glance (buy, edit, delete), since the covers view has no room for it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WishActionsSheet(vm: WishlistViewModel, w: WishEntity, onBought: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = Spacing.page)) {
+            ListItem(
+                leadingContent = { Cover(vm.covers, w.coverAssetId, w.title, Spacing.rowCover, authors = w.authors) },
+                supportingContent = { if (w.authors.isNotEmpty()) Text(w.authors.joinToString(", "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                colors = pageListItemColors(),
+            ) { Text(w.title, style = BookTitle.list, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            ListItem(onClick = { onDismiss(); onBought() }, leadingContent = { Icon(Icons.Default.Check, contentDescription = null) }, colors = pageListItemColors()) {
+                Text(stringResource(R.string.wish_bought))
+            }
+            ListItem(onClick = { onDismiss(); vm.edit(w) }, leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }, colors = pageListItemColors()) {
+                Text(stringResource(R.string.common_edit))
+            }
+            ListItem(
+                onClick = { onDismiss(); onDelete() },
+                leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                colors = pageListItemColors(),
+            ) { Text(stringResource(R.string.wish_delete), color = MaterialTheme.colorScheme.error) }
+        }
+    }
 }
 
 @Composable
@@ -364,6 +484,8 @@ private fun WishList(
     onDelete: (WishEntity) -> Unit,
     grid: Boolean,
 ) {
+    var actions by remember { mutableStateOf<WishEntity?>(null) }
+    actions?.let { w -> WishActionsSheet(vm, w, onBought = { onBought(w.id) }, onDelete = { onDelete(w) }, onDismiss = { actions = null }) }
     if (grid) {
         LazyVerticalGrid(
             GridCells.Adaptive(104.dp),
@@ -372,7 +494,7 @@ private fun WishList(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            gridItems(open, key = { it.id }) { w -> WishCard(vm, w) }
+            gridItems(open, key = { it.id }) { w -> WishCard(vm, w, onClick = { actions = w }) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
@@ -388,9 +510,9 @@ private fun WishList(
 }
 
 @Composable
-private fun WishCard(vm: WishlistViewModel, w: WishEntity) {
+private fun WishCard(vm: WishlistViewModel, w: WishEntity, onClick: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { vm.edit(w) },
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         FillCover(vm.covers, w.coverAssetId, w.title, w.authors, false)
@@ -467,7 +589,7 @@ private fun WishRow(vm: WishlistViewModel, w: WishEntity, onBought: (wishId: Str
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WishDialog(vm: WishlistViewModel, d: WishDraft, onScan: () -> Unit, onPhoto: () -> Unit) {
+private fun WishDialog(vm: WishlistViewModel, d: WishDraft, onScan: () -> Unit, onPhoto: () -> Unit, onGallery: () -> Unit) {
     val canSave = d.title.isNotBlank() && (d.isbn.isBlank() || d.isbn13 != null)
     var confirmDiscard by remember { mutableStateOf(false) }
     // ✕ and Back ask before throwing away what was typed; with nothing changed they just close.
@@ -511,12 +633,30 @@ private fun WishDialog(vm: WishlistViewModel, d: WishDraft, onScan: () -> Unit, 
                 // Cover: the provider's when the lookup finds one, or a photo of the book (e.g. in a bookshop).
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.item), verticalAlignment = Alignment.CenterVertically) {
                     Cover(vm.covers, d.coverAssetId, d.title.ifBlank { "?" }, 64.dp, authors = d.authorList)
-                    Column {
-                        OutlinedButton(onClick = onPhoto) {
-                            Text(stringResource(if (d.coverAssetId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
+                    // The same menu as the book form: the camera, the gallery, or no cover.
+                    var coverMenu by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { coverMenu = true }) {
+                            Text(stringResource(if (d.coverAssetId == null) R.string.form_addCover else R.string.form_changeCover))
                         }
-                        if (d.coverAssetId != null) {
-                            TextButton(onClick = { vm.update(d.copy(coverAssetId = null)) }) { Text(stringResource(R.string.form_removeCover)) }
+                        DropdownMenu(expanded = coverMenu, onDismissRequest = { coverMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.form_coverCamera)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoCamera, contentDescription = null) },
+                                onClick = { coverMenu = false; onPhoto() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.capture_gallery)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                                onClick = { coverMenu = false; onGallery() },
+                            )
+                            if (d.coverAssetId != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.form_removeCover)) },
+                                    leadingIcon = { Icon(Icons.Default.HideImage, contentDescription = null) },
+                                    onClick = { coverMenu = false; vm.update(d.copy(coverAssetId = null)) },
+                                )
+                            }
                         }
                     }
                 }

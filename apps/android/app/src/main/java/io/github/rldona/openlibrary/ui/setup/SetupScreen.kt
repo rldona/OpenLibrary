@@ -3,6 +3,7 @@ package io.github.rldona.openlibrary.ui.setup
 import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.material3.ButtonDefaults
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,7 +58,10 @@ sealed interface SetupError {
 
 class SetupViewModel(private val c: AppContainer, private val onConnected: () -> Unit) : ViewModel() {
     var server by mutableStateOf("")
-    var deviceName by mutableStateOf(Build.MODEL ?: "Android")
+    // The name the owner gave the phone ("Raúl's Galaxy"), which the web's device list shows; the model as a fallback.
+    var deviceName by mutableStateOf(
+        Settings.Global.getString(c.app.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL ?: "Android",
+    )
     var password by mutableStateOf("")
     var busy by mutableStateOf(false)
         private set

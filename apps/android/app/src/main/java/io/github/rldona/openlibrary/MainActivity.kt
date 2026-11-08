@@ -157,8 +157,11 @@ class MainActivity : FragmentActivity() {
         // Reading the small session file decides the first screen without a flash of the setup screen.
         val connected = runBlocking { container.sessions.session.first() != null }
         if (connected) SyncWorker.schedule(this)
+        // The chosen theme is read before the first frame, so a dark choice never flashes light.
+        val startTheme = runBlocking { container.appearance.theme.first() }
         setContent {
-            OpenLibraryTheme {
+            val theme by container.appearance.theme.collectAsStateWithLifecycle(startTheme)
+            OpenLibraryTheme(theme) {
                 // The app stays composed under the lock so you come back to where you were (a half-filled form…).
                 val locked by container.lock.locked.collectAsStateWithLifecycle()
                 Box {
@@ -377,6 +380,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                                 vm,
                                 onScan = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
                                 onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+                                onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
                             ) { wishId -> nav.navigate(AddBookRoute(wishId)) }
                         }
                         screen<EditBookRoute>(topBar = true) { e ->

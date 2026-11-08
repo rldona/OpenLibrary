@@ -52,6 +52,19 @@ class LibraryPrefs(private val context: Context) {
     }
 }
 
+val THEMES = listOf("system", "light", "dark")
+
+/** Light, dark or the system's choice, remembered on this phone; "system" until something is chosen. */
+class AppearancePrefs(private val context: Context) {
+    private val themeKey = stringPreferencesKey("theme")
+
+    val theme: Flow<String> = context.prefs.data.map { p -> p[themeKey]?.takeIf { it in THEMES } ?: "system" }
+
+    suspend fun setTheme(theme: String) {
+        context.prefs.edit { it[themeKey] = theme }
+    }
+}
+
 /**
  * [query] first in the recent searches, without repeating one that only differs in case or accents, and
  * keeping at most [max]. Blank queries change nothing.

@@ -22,7 +22,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,12 +108,20 @@ private fun Figures(s: Stats) {
             r.read to stringResource(R.string.reading_status_read),
             r.reading to stringResource(R.string.reading_status_reading),
             r.pending to stringResource(R.string.reading_status_pending),
-            (r.averageRating ?: "—") to stringResource(R.string.stats_averageRating),
+            // No ratings yet: the tile says so instead of leaving a dash to interpret.
+            (r.averageRating ?: "—") to stringResource(if (r.averageRating == null) R.string.stats_noRating else R.string.stats_averageRating),
         )
         Text(str(R.string.stats_sessions, "finished" to r.finishedSessions, "abandoned" to r.abandonedSessions), style = MaterialTheme.typography.bodySmall)
         Bars(stringResource(R.string.stats_readByYear), r.byYear.map { Triple(it.year.toString(), it.works, str(R.string.stats_pages, "n" to it.pages)) })
     }
-    Section(null) { Bars(stringResource(R.string.stats_acquiredByYear), s.acquiredByYear.map { Triple(it.year.toString(), it.copies, null) }) }
+    Section(null) {
+        Bars(
+            stringResource(R.string.stats_acquiredByYear),
+            s.acquiredByYear.map { Triple(it.year.toString(), it.copies, null) },
+            // Acquired counts retired copies too, which the collection figures leave out.
+            note = if (c.retiredCopies > 0) plural(R.string.stats_acquiredIncludesRetired_one, R.string.stats_acquiredIncludesRetired_other, c.retiredCopies) else null,
+        )
+    }
     Section(null) { Bars(stringResource(R.string.stats_authors), counts(s.authors)) }
     Section(null) { Bars(stringResource(R.string.stats_subjects), counts(s.subjects)) }
     val unknown = stringResource(R.string.stats_unknownLanguage)
@@ -148,13 +160,19 @@ private fun Tiles(vararg tiles: Pair<Any, String>) {
     }
 }
 
-/** Horizontal bars relative to the largest value. */
+/** Long lists (authors, languages) show this many rows until "Show all". */
+private const val TOP = 6
+
+/** Horizontal bars relative to the largest value; a [note] under them explains the figures when needed. */
 @Composable
-private fun Bars(title: String, rows: List<Triple<String, Int, String?>>) {
+private fun Bars(title: String, rows: List<Triple<String, Int, String?>>, note: String? = null) {
     Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
     if (rows.isEmpty()) Text(stringResource(R.string.stats_none), style = MaterialTheme.typography.bodySmall)
     val max = (rows.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
-    rows.forEach { (label, value, note) ->
+    var all by rememberSaveable(title) { mutableStateOf(false) }
+    // Cutting one row to show a "Show all" button would be silly: only lists clearly longer are cut.
+    val cut = rows.size > TOP + 1 && !all
+    (if (cut) rows.take(TOP) else rows).forEach { (label, value, note) ->
         val description = "$label: $value" + (note?.let { ", $it" } ?: "")
         // The bar is a picture: TalkBack reads the row as its label and value instead.
         Row(
@@ -169,4 +187,10 @@ private fun Bars(title: String, rows: List<Triple<String, Int, String?>>) {
             Text(value.toString() + (note?.let { " · $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
         }
     }
+    if (rows.size > TOP + 1) {
+        TextButton(onClick = { all = !all }) {
+            Text(if (all) stringResource(R.string.stats_showLess) else str(R.string.stats_showAll, "n" to rows.size))
+        }
+    }
+    note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }

@@ -364,7 +364,7 @@
     <string name="locations_updated">Location updated</string>
     <string name="lock_prompt">Unlock OpenLibrary</string>
     <string name="lock_setting">Lock the app</string>
-    <string name="lock_settingHint">Asks for your fingerprint, face or screen lock when you open the app or come back after a minute away. The library on this phone is always stored encrypted.</string>
+    <string name="lock_settingHint">Fingerprint, face or screen lock when you open the app or come back after a minute away.</string>
     <string name="lock_title">OpenLibrary is locked</string>
     <string name="lock_unavailable">Set up a screen lock on this phone first.</string>
     <string name="lock_unlock">Unlock</string>
@@ -449,6 +449,7 @@
     <string name="search_results_other">{n} books found</string>
     <string name="security_title">Security</string>
     <string name="settings_about">About</string>
+    <string name="settings_appearance">Appearance</string>
     <string name="settings_appVersion">App version</string>
     <string name="settings_browser">Browser</string>
     <string name="settings_changePassword">Change password</string>
@@ -475,6 +476,8 @@
     <string name="settings_sessions">Sessions and devices</string>
     <string name="settings_sessionsHint">Every browser and phone has its own access. If you lose your phone, revoke it here.</string>
     <string name="settings_status">Status</string>
+    <string name="settings_storage">Data on this phone</string>
+    <string name="settings_storageEncrypted">Always encrypted</string>
     <string name="settings_subtitle">Language, server, sessions and security.</string>
     <string name="settings_sync">Synchronisation</string>
     <string name="settings_thisSession">this session</string>
@@ -491,6 +494,8 @@
     <string name="setup_title">Connect to your library</string>
     <string name="state_errorTitle">Something went wrong</string>
     <string name="stats_acquiredByYear">Copies acquired per year</string>
+    <string name="stats_acquiredIncludesRetired_one">Includes {n} retired copy</string>
+    <string name="stats_acquiredIncludesRetired_other">Includes {n} retired copies</string>
     <string name="stats_authors">Authors</string>
     <string name="stats_averageRating">Average rating</string>
     <string name="stats_collection">Collection</string>
@@ -500,6 +505,7 @@
     <string name="stats_locations_one">{n} location</string>
     <string name="stats_locations_other">{n} locations</string>
     <string name="stats_none">Nothing yet.</string>
+    <string name="stats_noRating">Not rated yet</string>
     <string name="stats_pages">{n} pages</string>
     <string name="stats_provisional_one">{n} provisional</string>
     <string name="stats_provisional_other">{n} provisional</string>
@@ -507,6 +513,8 @@
     <string name="stats_reading">Reading</string>
     <string name="stats_retired">Retired</string>
     <string name="stats_sessions">{finished} readings finished · {abandoned} abandoned</string>
+    <string name="stats_showAll">Show all ({n})</string>
+    <string name="stats_showLess">Show fewer</string>
     <string name="stats_subjects">Subjects</string>
     <string name="stats_subtitle">Works and copies are counted separately: two copies of one book are one work.</string>
     <string name="stats_unknownLanguage">Unknown</string>
@@ -531,6 +539,9 @@
     <string name="sync_savedLocally">Saved on this phone. It reaches the server on the next sync.</string>
     <string name="sync_synced">Synced · {ago}</string>
     <string name="sync_syncing">Syncing…</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">Like the system</string>
     <string name="time_days">{n} d ago</string>
     <string name="time_hours">{n} h ago</string>
     <string name="time_justNow">just now</string>

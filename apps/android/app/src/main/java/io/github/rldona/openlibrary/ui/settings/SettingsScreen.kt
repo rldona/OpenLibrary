@@ -15,7 +15,15 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Icon
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import io.github.rldona.openlibrary.data.THEMES
+import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.github.rldona.openlibrary.ui.components.DestructiveDialog
@@ -64,6 +72,10 @@ class SettingsViewModel(private val c: AppContainer, private val onDisconnected:
     val lockEnabled = c.lockSettings.enabled
 
     fun setLock(on: Boolean) = viewModelScope.launch { c.lockSettings.set(on) }
+
+    val theme = c.appearance.theme
+
+    fun setTheme(theme: String) = viewModelScope.launch { c.appearance.setTheme(theme) }
 
     fun syncNow() = viewModelScope.launch { c.sync.sync() }
 
@@ -122,12 +134,24 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
                     supportingContent = { Text(stringResource(R.string.sync_resyncHint)) },
                 ) { Text(stringResource(R.string.sync_resync)) }
             }
+            SectionHeader(stringResource(R.string.settings_appearance))
+            val theme by vm.theme.collectAsStateWithLifecycle("system")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                THEMES.forEachIndexed { i, value ->
+                    SegmentedButton(
+                        selected = theme == value,
+                        onClick = { vm.setTheme(value) },
+                        shape = SegmentedButtonDefaults.itemShape(i, THEMES.size),
+                    ) { Text(stringResource(themeLabel(value)), maxLines = 1) }
+                }
+            }
             SectionHeader(stringResource(R.string.security_title))
             LockSetting(vm)
             SectionHeader(stringResource(R.string.settings_about))
             Group(
                 listOf(
                     Triple(Icons.Default.Info, stringResource(R.string.settings_appVersion), appVersion(context)),
+                    Triple(Icons.Default.Lock, stringResource(R.string.settings_storage), stringResource(R.string.settings_storageEncrypted)),
                     // Diagnostics: the first characters identify the server's data set, as the web shows it.
                     Triple(Icons.Default.Tag, stringResource(R.string.settings_epoch), state?.epoch.orEmpty().take(8)),
                 ),
@@ -164,18 +188,27 @@ private fun SectionHeader(text: String) {
     )
 }
 
-/** Read-only facts as one block of rows: label on top, value below. */
+@StringRes
+private fun themeLabel(theme: String): Int =
+    when (theme) {
+        "light" -> R.string.theme_light
+        "dark" -> R.string.theme_dark
+        else -> R.string.theme_system
+    }
+
+/** Read-only facts: plain rows, label on top, value below. Only the actions get the card look. */
 @Composable
 private fun Group(rows: List<Triple<ImageVector, String, String>>) {
-    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
-        rows.forEachIndexed { i, (icon, label, value) ->
-            SegmentedListItem(
-                shapes = ListItemDefaults.segmentedShapes(i, rows.size),
+    Column {
+        rows.forEach { (icon, label, value) ->
+            ListItem(
+                headlineContent = { Text(value.ifEmpty { "—" }) },
                 // Label and value are read together.
                 modifier = Modifier.semantics(mergeDescendants = true) {},
                 leadingContent = { Icon(icon, contentDescription = null) },
                 overlineContent = { Text(label) },
-            ) { Text(value.ifEmpty { "—" }) }
+                colors = pageListItemColors(),
+            )
         }
     }
 }
