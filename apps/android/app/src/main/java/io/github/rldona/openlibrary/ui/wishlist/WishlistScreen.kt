@@ -58,7 +58,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
@@ -347,7 +346,8 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
                     Icons.Default.FavoriteBorder,
                     stringResource(R.string.wish_emptyTitle),
                     modifier,
-                    text = stringResource(R.string.wish_emptyText),
+                    // What the list is for is said here, the first time, not above every list.
+                    text = stringResource(R.string.wish_subtitle) + " " + stringResource(R.string.wish_emptyText),
                     action = stringResource(R.string.wish_add) to vm::add,
                 )
             else -> Box(modifier) { WishList(vm, open, onBought, delete, grid) }
@@ -372,14 +372,10 @@ private fun WishList(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(stringResource(R.string.wish_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
-            }
             gridItems(open, key = { it.id }) { w -> WishCard(vm, w) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
-            item { Text(stringResource(R.string.wish_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.page)) }
             items(open, key = { it.id }) { w ->
                 // The rows close the gap of a deleted wish (and open it again on "Undo") instead of jumping.
                 Column(animateListItem()) {

@@ -109,6 +109,8 @@ export const en = {
   'copy.pendingCode': 'not synced yet',
   'locations.add': 'New location',
   'locations.none': 'None (top level)',
+  'library.locationFilter': 'Location',
+  'favorites.badge': 'Favorite',
 
   'security.title': 'Security',
   'lock.title': 'OpenLibrary is locked',

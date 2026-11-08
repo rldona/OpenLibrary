@@ -191,7 +191,7 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
         EmptyState(
             Icons.Default.Place,
             stringResource(R.string.locations_emptyTitle),
-            text = stringResource(R.string.locations_emptyText),
+            text = stringResource(R.string.locations_subtitle) + " " + stringResource(R.string.locations_emptyText),
             action = stringResource(R.string.locations_add) to onAdd,
         )
         return
@@ -199,9 +199,6 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
     val level = stringResource(R.string.locations_level)
     // Bottom room so the floating button never covers the last location.
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
-        item {
-            Text(stringResource(R.string.locations_subtitle), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(Spacing.page))
-        }
         items(nodes, key = { it.location.id }) { n ->
             // Indented by depth; TalkBack hears the depth too ("Level 2"), since it cannot see the indent.
             ListItem(

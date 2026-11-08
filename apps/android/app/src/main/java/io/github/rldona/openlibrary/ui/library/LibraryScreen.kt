@@ -150,7 +150,9 @@ data class LibraryState(
     val sort: LibrarySort = LibrarySort.Title,
     val favoritesOnly: Boolean = false,
 ) {
-    val filtered get() = location != null || onlyProvisional || reading != null
+    val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly
+    /** Only the favorites chip is on: an empty list then means there are no favorites, not a search without matches. */
+    val onlyFavorites get() = favoritesOnly && location == null && !onlyProvisional && reading == null
 }
 
 /** Library list over the local copy: works with the server off. */
@@ -158,7 +160,6 @@ data class LibraryState(
 class LibraryViewModel(
     private val c: AppContainer,
     locationId: String?,
-    private val favoritesOnly: Boolean = false,
 ) : ViewModel() {
     val query = MutableStateFlow("")
     /** A search to put in the search field (handed over by another screen); the screen clears it once applied. */
@@ -169,6 +170,7 @@ class LibraryViewModel(
     }
     private val locationFilter = MutableStateFlow(locationId)
     val onlyProvisional = MutableStateFlow(false)
+    val favoritesOnly = MutableStateFlow(false)
     private val readingFilter = MutableStateFlow<String?>(null)
     private val locations = c.db.catalog().locations()
     private val prefs = c.libraryPrefs
@@ -187,15 +189,16 @@ class LibraryViewModel(
                     // Reading statuses are only worked out while filtering by one.
                     if (f.reading != null) c.db.catalog().readingStatuses() else flowOf(emptyList()),
                     prefs.sort,
-                ) { rows, places, statuses, sort ->
+                    favoritesOnly,
+                ) { rows, places, statuses, sort, favorites ->
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
-                    val shown = shapeLibrary(rows, statuses.associate { it.workId to it.status }, f.reading, f.prov, sort, favoritesOnly)
+                    val shown = shapeLibrary(rows, statuses.associate { it.workId to it.status }, f.reading, f.prov, sort, favorites)
                     LibraryState(
                         provisional = rows.count { it.metadataStatus == "provisional" },
                         onlyProvisional = f.prov,
                         reading = f.reading,
                         sort = sort,
-                        favoritesOnly = favoritesOnly,
+                        favoritesOnly = favorites,
                         items = shown.map { r ->
                             val inFilter = firstPlace[r.editionId].orEmpty().firstOrNull { f.loc == null || it in ids }
                             LibraryItem(r, pathOf(byId, inFilter))
@@ -407,17 +410,17 @@ fun LibraryScreen(
         ) {
             when {
                 !state.loaded -> LoadingState()
+                state.items.isEmpty() && state.onlyFavorites && text.text.isEmpty() ->
+                    EmptyState(
+                        Icons.Default.FavoriteBorder,
+                        stringResource(R.string.favorites_emptyTitle),
+                        text = stringResource(R.string.favorites_emptyText),
+                    )
                 state.items.isEmpty() && (text.text.isNotEmpty() || state.filtered) ->
                     EmptyState(
                         Icons.Default.SearchOff,
                         stringResource(R.string.library_noMatchesTitle),
                         text = stringResource(R.string.library_noMatchesText),
-                    )
-                state.items.isEmpty() && state.favoritesOnly ->
-                    EmptyState(
-                        Icons.Default.FavoriteBorder,
-                        stringResource(R.string.favorites_emptyTitle),
-                        text = stringResource(R.string.favorites_emptyText),
                     )
                 state.items.isEmpty() ->
                     EmptyState(
@@ -487,13 +490,14 @@ private fun SortMenu(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     }
 }
 
-/** Reading status, location and "to complete", as chips under the search bar. */
+/** Location, reading status, favorites and "to complete", as chips under the search bar. */
 @Composable
 private fun Filters(state: LibraryState, vm: LibraryViewModel) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item { LocationFilter(state, vm::setLocation) }
         items(READING_FILTERS) { status ->
             val selected = state.reading == status
             FilterChip(
@@ -503,7 +507,14 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
                 leadingIcon = if (selected) ({ Icon(Icons.Default.Check, contentDescription = null) }) else null,
             )
         }
-        item { LocationFilter(state, vm::setLocation) }
+        item {
+            FilterChip(
+                selected = state.favoritesOnly,
+                onClick = { vm.favoritesOnly.value = !state.favoritesOnly },
+                label = { Text(stringResource(R.string.nav_favorites)) },
+                leadingIcon = { Icon(if (state.favoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null) },
+            )
+        }
         if (state.provisional > 0 || state.onlyProvisional) {
             item {
                 FilterChip(
@@ -525,7 +536,8 @@ private fun LocationFilter(state: LibraryState, onSelect: (String?) -> Unit) {
         FilterChip(
             selected = state.location != null,
             onClick = { open = true },
-            label = { Text(state.location?.name ?: stringResource(R.string.library_allLocations), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            // Short when nothing is chosen, so the chip stays whole on a phone; the menu says "All locations".
+            label = { Text(state.location?.name ?: stringResource(R.string.library_locationFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
         )
@@ -623,21 +635,32 @@ private fun RatingFlap(value: Double, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun FavoriteButton(favorite: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FavoriteBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
         tonalElevation = 2.dp,
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
-            Icon(
-                if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = stringResource(if (favorite) R.string.favorites_remove else R.string.favorites_add),
-                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        Icon(
+            Icons.Default.Favorite,
+            contentDescription = stringResource(R.string.favorites_badge),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(7.dp).size(18.dp),
+        )
+    }
+}
+
+/** The heart of a list row: a toggle, quiet until it is on. */
+@Composable
+private fun FavoriteButton(favorite: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, modifier = modifier.size(32.dp)) {
+        Icon(
+            if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            contentDescription = stringResource(if (favorite) R.string.favorites_remove else R.string.favorites_add),
+            tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
@@ -693,11 +716,8 @@ private fun Books(
                         item.row.rating?.let {
                             RatingFlap(it, Modifier.align(Alignment.TopEnd).padding(6.dp))
                         }
-                        FavoriteButton(
-                            item.row.favorite,
-                            onClick = { onFavorite(item.row) },
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-                        )
+                        // Only favorites wear the heart (the detail toggles it): an empty heart on every cover is noise.
+                        if (item.row.favorite) FavoriteBadge(Modifier.align(Alignment.BottomEnd).padding(6.dp))
                     }
                     Text(item.row.title, style = BookTitle.grid, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(

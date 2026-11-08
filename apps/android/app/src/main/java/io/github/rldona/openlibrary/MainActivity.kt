@@ -49,7 +49,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -61,6 +60,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -132,7 +132,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SetupRoute
 @Serializable data class LibraryRoute(val locationId: String? = null)
-@Serializable object FavoritesRoute
 @Serializable data class DetailRoute(val workId: String, val editionId: String? = null)
 @Serializable object LocationsRoute
 @Serializable object SettingsRoute
@@ -190,7 +189,7 @@ private fun App(c: AppContainer, connected: Boolean) {
     val context = LocalContext.current
     val entry by nav.currentBackStackEntryAsState()
     val dest = entry?.destination
-    val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "FavoritesRoute", "LocationsRoute", "WishlistRoute", "StatsRoute", "SettingsRoute").any { r.contains(it) } } == true
+    val inTabs = dest?.route?.let { r -> listOf("LibraryRoute", "LocationsRoute", "WishlistRoute", "StatsRoute", "SettingsRoute").any { r.contains(it) } } == true
     val status by c.sync.status.collectAsStateWithLifecycle()
 
     // Relative times ("2 min ago") refresh every half minute.
@@ -321,23 +320,6 @@ private fun App(c: AppContainer, connected: Boolean) {
                                 onBulk = { nav.navigate(BulkScanRoute) },
                                 // Straight to the identify camera, with the add-book form below it to receive
                                 // the candidate. Both in one go: the empty form is never shown on the way in.
-                                onIdentify = {
-                                    nav.navigate(AddBookRoute())
-                                    nav.navigate(CaptureRoute("identify", tabs = true, closeForm = true))
-                                },
-                                onReview = { nav.navigate(ReviewRoute) },
-                            )
-                        }
-                        screen<FavoritesRoute>(topBar = true) {
-                            val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, null, favoritesOnly = true) } })
-                            LibraryScreen(
-                                vm,
-                                now,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedVisibilityScope = this,
-                                onOpen = { workId, editionId -> nav.navigate(DetailRoute(workId, editionId)) },
-                                onAdd = { nav.navigate(AddBookRoute()) },
-                                onBulk = { nav.navigate(BulkScanRoute) },
                                 onIdentify = {
                                     nav.navigate(AddBookRoute())
                                     nav.navigate(CaptureRoute("identify", tabs = true, closeForm = true))
@@ -584,16 +566,15 @@ private fun BookForm(
     )
 }
 
-/** The six tabs, as a bottom bar or (wide windows) a rail. */
+/** The five tabs, as a bottom bar or (wide windows) a rail; favorites are a filter of the library. */
 @Composable
 private fun Tabs(nav: NavHostController, rail: Boolean) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route.orEmpty()
     val tabs = listOf(
         Triple(LibraryRoute(), R.string.nav_library, Icons.AutoMirrored.Filled.LibraryBooks) to "LibraryRoute",
-        Triple(FavoritesRoute, R.string.nav_favorites, Icons.Default.Favorite) to "FavoritesRoute",
         Triple(LocationsRoute, R.string.nav_locations, Icons.Default.Place) to "LocationsRoute",
-        Triple(WishlistRoute, R.string.nav_wishlist, Icons.Default.BookmarkBorder) to "WishlistRoute",
+        Triple(WishlistRoute, R.string.nav_wishlistShort, Icons.Default.BookmarkBorder) to "WishlistRoute",
         Triple(StatsRoute, R.string.nav_stats, Icons.Default.BarChart) to "StatsRoute",
         Triple(SettingsRoute, R.string.nav_settings, Icons.Default.Settings) to "SettingsRoute",
     )
@@ -641,7 +622,8 @@ private fun Tabs(nav: NavHostController, rail: Boolean) {
                 selected = route.contains(name),
                 onClick = { go(target) },
                 icon = { Icon(icon, contentDescription = null) },
-                label = { Text(stringResource(label)) },
+                // Never broken in the middle of a word: five labels fit a phone, a longer one is cut.
+                label = { Text(stringResource(label), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                 colors = NavigationBarItemDefaults.colors(selectedIconColor = primary, selectedTextColor = primary, indicatorColor = indicator),
             )
         }

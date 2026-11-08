@@ -73,7 +73,6 @@ fun StatsScreen(vm: StatsViewModel) {
             Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.stats_subtitle), style = MaterialTheme.typography.bodySmall)
             Figures(stats)
         }
     }
@@ -97,6 +96,8 @@ private fun Figures(s: Stats) {
         if (c.value.isNotEmpty()) {
             Text(stringResource(R.string.stats_value) + ": " + c.value.joinToString(" + ") { money(it.cents, it.currency) })
         }
+        // How works and copies are counted, next to the figures it explains.
+        Text(stringResource(R.string.stats_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Section(stringResource(R.string.stats_reading)) {
         Tiles(

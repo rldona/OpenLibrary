@@ -217,6 +217,7 @@
     <string name="fab_close">Hide the options</string>
     <string name="fab_open">Show ways to add</string>
     <string name="favorites_add">Add to favorites</string>
+    <string name="favorites_badge">Favorite</string>
     <string name="favorites_emptyText">Mark a book with the heart and it will appear here.</string>
     <string name="favorites_emptyTitle">No favorites yet</string>
     <string name="favorites_remove">Remove from favorites</string>
@@ -301,6 +302,7 @@
     <string name="library_filterValue">{name}: {value}</string>
     <string name="library_loadError">The library could not be loaded.</string>
     <string name="library_loadMore">Load more ({n} left)</string>
+    <string name="library_locationFilter">Location</string>
     <string name="library_noMatchesText">No books match. Try another search or remove some filters.</string>
     <string name="library_noMatchesTitle">Nothing here</string>
     <string name="library_removeFilter">Remove filter: {filter}</string>
@@ -309,9 +311,9 @@
     <string name="library_sort">Sort</string>
     <string name="library_sort_acquired">Acquired (newest)</string>
     <string name="library_sort_added">Added (newest)</string>
-    <string name="library_sort_author">Author</string>
+    <string name="library_sort_author">Author A→Z</string>
     <string name="library_sort_location">Location</string>
-    <string name="library_sort_title">Title</string>
+    <string name="library_sort_title">Title A→Z</string>
     <string name="library_sortBy">Sort: {field}</string>
     <string name="library_toComplete">To complete</string>
     <string name="library_toComplete_one">{n} to complete</string>

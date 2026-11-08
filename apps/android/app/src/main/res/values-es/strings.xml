@@ -217,6 +217,7 @@
     <string name="fab_close">Ocultar las opciones</string>
     <string name="fab_open">Mostrar opciones para añadir</string>
     <string name="favorites_add">Añadir a favoritos</string>
+    <string name="favorites_badge">Favorito</string>
     <string name="favorites_emptyText">Marca un libro con el corazón y aparecerá aquí.</string>
     <string name="favorites_emptyTitle">Aún no hay favoritos</string>
     <string name="favorites_remove">Quitar de favoritos</string>
@@ -301,6 +302,7 @@
     <string name="library_filterValue">{name}: {value}</string>
     <string name="library_loadError">No se pudo cargar la biblioteca.</string>
     <string name="library_loadMore">Cargar más ({n} restantes)</string>
+    <string name="library_locationFilter">Ubicación</string>
     <string name="library_noMatchesText">No hay libros que coincidan. Prueba con otra búsqueda o quita filtros.</string>
     <string name="library_noMatchesTitle">Nada por aquí</string>
     <string name="library_removeFilter">Quitar filtro: {filter}</string>
@@ -309,9 +311,9 @@
     <string name="library_sort">Ordenar</string>
     <string name="library_sort_acquired">Adquirido (recientes)</string>
     <string name="library_sort_added">Añadido (recientes)</string>
-    <string name="library_sort_author">Autor</string>
+    <string name="library_sort_author">Autor A→Z</string>
     <string name="library_sort_location">Ubicación</string>
-    <string name="library_sort_title">Título</string>
+    <string name="library_sort_title">Título A→Z</string>
     <string name="library_sortBy">Ordenar: {field}</string>
     <string name="library_toComplete">Por completar</string>
     <string name="library_toComplete_one">{n} por completar</string>

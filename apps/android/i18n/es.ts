@@ -108,6 +108,8 @@ export const es: Record<keyof typeof en, string> = {
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',
   'locations.none': 'Ninguna (nivel superior)',
+  'library.locationFilter': 'Ubicación',
+  'favorites.badge': 'Favorito',
 
   'security.title': 'Seguridad',
   'lock.title': 'OpenLibrary está bloqueada',

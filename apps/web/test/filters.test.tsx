@@ -145,7 +145,7 @@ describe('Library filters', () => {
     expect(within(group).getByRole('button', { name: 'Remove filter: To complete' })).toBeTruthy();
     expect(within(group).getByRole('button', { name: 'Remove filter: Search: “dune”' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'To complete' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Sort: Author' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sort: Author A→Z' })).toBeTruthy();
 
     await user.click(within(group).getByRole('button', { name: 'Remove filter: Reading: Reading' }));
     let p = new URLSearchParams(location.search);
@@ -162,8 +162,10 @@ describe('Library filters', () => {
   it('chooses the order from a menu with a check', async () => {
     const user = userEvent.setup();
     render('');
-    await user.click(screen.getByRole('button', { name: 'Sort: Title' }));
-    expect(screen.getByRole('menuitemradio', { name: 'Title' }).getAttribute('aria-checked')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Sort: Title A→Z' }));
+    expect(screen.getByRole('menuitemradio', { name: 'Title A→Z' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
     await user.click(screen.getByRole('menuitemradio', { name: 'Acquired (newest)' }));
     expect(new URLSearchParams(location.search).get('sort')).toBe('acquired');
   });
