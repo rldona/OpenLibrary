@@ -3,6 +3,7 @@ package io.github.rldona.openlibrary.ui.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -43,7 +44,17 @@ fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (Q
     var editing by remember { mutableStateOf<QuoteEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
     OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (quotes.isEmpty()) {
+            // Nothing to read yet: one row, so an empty card does not take a block of the page.
+            Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.quotes_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                TextButton(onClick = { adding = true }) { Text(stringResource(R.string.quotes_add)) }
+            }
+        } else Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.quotes_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             quotes.forEach { q ->
                 Column {

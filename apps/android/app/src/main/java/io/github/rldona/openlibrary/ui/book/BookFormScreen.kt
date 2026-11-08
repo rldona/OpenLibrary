@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,14 +25,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.HideImage
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -126,6 +136,7 @@ class BookFormViewModel(
     var authors by mutableStateOf("")
     var subjects by mutableStateOf("")
     var suggestions by mutableStateOf<List<String>>(emptyList())
+    var authorSuggestions by mutableStateOf<List<String>>(emptyList())
     var publisher by mutableStateOf("")
     var year by mutableStateOf("")
     var language by mutableStateOf("")
@@ -181,7 +192,10 @@ class BookFormViewModel(
     val dirty get() = fields() != baseline
 
     init {
-        viewModelScope.launch { suggestions = c.db.catalog().subjects() }
+        viewModelScope.launch {
+            suggestions = c.db.catalog().subjects()
+            authorSuggestions = c.db.catalog().authors()
+        }
         if (wishId != null) viewModelScope.launch {
             val w = c.db.catalog().wishById(wishId) ?: return@launch
             wish = w
@@ -523,6 +537,8 @@ fun BookFormScreen(
     vm: BookFormViewModel,
     onScan: () -> Unit,
     onPhoto: () -> Unit,
+    /** Choose the cover from the gallery (the camera screen hosts the picker and the crop editor). */
+    onGallery: () -> Unit,
     onOpenWork: (String) -> Unit,
     onSaved: (String) -> Unit,
     onWishAdded: () -> Unit = {},
@@ -564,6 +580,8 @@ fun BookFormScreen(
                 }
             }
             if (!vm.editing) CaptureButtons(onScan, onIdentify)
+            // Said where the decision is made (fill in or look up), not at the bottom of the form.
+            Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             vm.wish?.let { Notice(it) }
             vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
@@ -571,8 +589,8 @@ fun BookFormScreen(
             SectionTitle(stringResource(R.string.form_section_work))
             Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
             Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
-            Field(stringResource(R.string.book_authors), vm.authors, { vm.authors = it }, hint = stringResource(R.string.form_separateWithSemicolon))
-            SubjectsField(vm.subjects, vm.suggestions) { vm.subjects = it }
+            ChipsField(stringResource(R.string.book_authors), vm.authors, vm.authorSuggestions, stringResource(R.string.form_authorsPlaceholder)) { vm.authors = it }
+            ChipsField(stringResource(R.string.book_subjects), vm.subjects, vm.suggestions, stringResource(R.string.form_subjectsPlaceholder)) { vm.subjects = it }
 
             SectionTitle(stringResource(R.string.drawer_edition))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -586,14 +604,38 @@ fun BookFormScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    OutlinedButton(onClick = onPhoto) {
-                        Text(stringResource(if (vm.coverId == null) R.string.add_takePhoto else R.string.add_retakePhoto))
-                    }
-                    if (vm.photoId != null && !vm.editing) {
-                        OutlinedButton(onClick = { vm.photoId = null }) { Text(stringResource(R.string.add_removePhoto)) }
-                    }
-                    if (fromProvider) {
-                        TextButton(onClick = vm::dropProviderCover) { Text(stringResource(R.string.form_removeCover)) }
+                    // One button, every way: the camera, the gallery, or no cover at all.
+                    var coverMenu by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { coverMenu = true }) {
+                            Text(stringResource(if (vm.coverId == null) R.string.form_addCover else R.string.form_changeCover))
+                        }
+                        DropdownMenu(expanded = coverMenu, onDismissRequest = { coverMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.form_coverCamera)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoCamera, contentDescription = null) },
+                                onClick = { coverMenu = false; onPhoto() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.capture_gallery)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                                onClick = { coverMenu = false; onGallery() },
+                            )
+                            if (vm.photoId != null && !vm.editing) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.add_removePhoto)) },
+                                    leadingIcon = { Icon(Icons.Default.HideImage, contentDescription = null) },
+                                    onClick = { coverMenu = false; vm.photoId = null },
+                                )
+                            }
+                            if (fromProvider) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.form_removeCover)) },
+                                    leadingIcon = { Icon(Icons.Default.HideImage, contentDescription = null) },
+                                    onClick = { coverMenu = false; vm.dropProviderCover() },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -601,8 +643,7 @@ fun BookFormScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Field(stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), number = true)
                 Field(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
-                // The code is what is stored; its name under the field says the phone understood it.
-                Field(stringResource(R.string.book_language), vm.language, { vm.language = it.take(8) }, Modifier.weight(1f), hint = languageName(vm.language).takeIf { it != vm.language.trim() })
+                LanguageField(vm.language, { vm.language = it }, Modifier.weight(1f))
             }
             // The whole row is the checkbox, for touch and for TalkBack.
             Row(
@@ -630,7 +671,6 @@ fun BookFormScreen(
                     Text(stringResource(R.string.wish_addToWishlist))
                 }
             }
-            Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall)
         }
     }
     if (confirmDiscard) {
@@ -720,21 +760,21 @@ private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (Ow
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SubjectsField(value: String, suggestions: List<String>, onChange: (String) -> Unit) {
+private fun ChipsField(label: String, value: String, suggestions: List<String>, placeholder: String, onChange: (String) -> Unit) {
     val selected = value.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
     var text by remember { mutableStateOf("") }
 
     fun commit(raw: String) {
-        val name = raw.trim()
-        if (name.isEmpty()) return
-        if (selected.none { it.equals(name, ignoreCase = true) }) {
-            onChange((selected + name).joinToString("; "))
-        }
+        // A pasted "Ana García; Luis Pérez" still gives two chips.
+        val names = raw.split(';').map { it.trim() }.filter { it.isNotEmpty() }
+        if (names.isEmpty()) return
+        val added = names.filter { name -> selected.none { it.equals(name, ignoreCase = true) } }.distinctBy { it.lowercase() }
+        if (added.isNotEmpty()) onChange((selected + added).joinToString("; "))
         text = ""
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.book_subjects), style = MaterialTheme.typography.labelLarge)
+        Text(label, style = MaterialTheme.typography.labelLarge)
         if (selected.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 selected.forEach { subject ->
@@ -759,12 +799,12 @@ private fun SubjectsField(value: String, suggestions: List<String>, onChange: (S
                 onValueChange = { text = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text(stringResource(R.string.form_subjectsPlaceholder)) },
+                placeholder = { Text(placeholder) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { commit(text) }),
             )
             IconButton(onClick = { commit(text) }, enabled = text.isNotBlank()) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.book_subjects))
+                Icon(Icons.Default.Add, contentDescription = label)
             }
         }
         val remaining = suggestions
@@ -803,4 +843,31 @@ private fun Field(
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
         modifier = modifier,
     )
+}
+
+/** The usual languages of the form, as the web's BOOK_LANGUAGES (ISO 639-1); any other code can be typed. */
+val BOOK_LANGUAGES = listOf("es", "en", "fr", "it", "pt", "de", "ca", "gl", "eu", "la")
+
+/** ISO code typed or picked from the usual languages; the name under the field confirms the code was understood. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanguageField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    val name = languageName(value).takeIf { it != value.trim() }
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onChange(it.take(8)) },
+            label = { Text(stringResource(R.string.book_language)) },
+            supportingText = name?.let { { Text(it) } },
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            BOOK_LANGUAGES.forEach { code ->
+                DropdownMenuItem(text = { Text(languageName(code)) }, onClick = { onChange(code); open = false })
+            }
+        }
+    }
 }

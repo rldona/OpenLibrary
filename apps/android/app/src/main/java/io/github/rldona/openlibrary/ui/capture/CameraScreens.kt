@@ -165,6 +165,8 @@ fun CaptureScreen(
     start: CaptureMode,
     showTabs: Boolean,
     identify: IdentifySearch? = null,
+    /** Open the gallery picker on entry (the form's "Choose from the gallery"); cancelling it leaves the camera. */
+    startWithGallery: Boolean = false,
     onDone: (CaptureResult) -> Unit,
 ) {
     val context = LocalContext.current
@@ -202,6 +204,14 @@ fun CaptureScreen(
     // A picture from the gallery starts with the largest centred 2:3 crop.
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch { openEditor(prepareGalleryImage(context, uri), null) }
+    }
+    // Once per visit: after process death the picker's own result comes back, so it is not shown again.
+    var galleryShown by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (startWithGallery && !galleryShown) {
+            galleryShown = true
+            pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
     }
 
     val session = edit

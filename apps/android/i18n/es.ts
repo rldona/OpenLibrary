@@ -108,6 +108,9 @@ export const es: Record<keyof typeof en, string> = {
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',
   'locations.none': 'Ninguna (nivel superior)',
+  'locations.addInside': 'Añadir dentro de {name}',
+  'locations.collapse': 'Plegar {name}',
+  'locations.expand': 'Desplegar {name}',
   'library.locationFilter': 'Ubicación',
   'favorites.badge': 'Favorito',
 
@@ -142,6 +145,10 @@ export const es: Record<keyof typeof en, string> = {
 
   'form.providerCover': 'Portada de {source}',
   'form.removeCover': 'Sin esta portada',
+  'form.addCover': 'Añadir portada',
+  'form.changeCover': 'Cambiar portada',
+  'form.coverCamera': 'Hacer una foto',
+  'form.authorsPlaceholder': 'Añadir autor',
 
   'form.lookupFailed': 'La búsqueda falló: {error}',
   'setup.showPassword': 'Mostrar contraseña',

@@ -267,7 +267,7 @@ export const en = {
     'It will be added as another edition of the work; the work data (title, authors, subjects) is not duplicated.',
   'form.separateWithSemicolon': 'Separate several with ;',
   'form.formatPlaceholder': 'Paperback, hardcover…',
-  'form.subjectsPlaceholder': 'Add a genre and press Enter, or choose one you already use',
+  'form.subjectsPlaceholder': 'Add subject',
   'form.updated': 'Details updated',
   'form.noChanges': 'There were no changes',
   'form.addedAt': 'Added "{title}" · {code} at {path}',

@@ -222,11 +222,15 @@
     <string name="favorites_emptyTitle">Aún no hay favoritos</string>
     <string name="favorites_remove">Quitar de favoritos</string>
     <string name="form_addAnotherCopy">Añadir otro ejemplar</string>
+    <string name="form_addCover">Añadir portada</string>
     <string name="form_addedAt">Añadido «{title}» · {code} en {path}</string>
     <string name="form_addedNoLocation">Añadido «{title}» · {code} (sin ubicación)</string>
     <string name="form_addToLibrary">Añadir a la biblioteca</string>
+    <string name="form_authorsPlaceholder">Añadir autor</string>
+    <string name="form_changeCover">Cambiar portada</string>
     <string name="form_chooseImage">Elegir imagen…</string>
     <string name="form_cover">Portada</string>
+    <string name="form_coverCamera">Hacer una foto</string>
     <string name="form_coverCurrent">Portada actual.</string>
     <string name="form_coverDownloadFailed">No se pudo descargar la portada del proveedor; el libro se guarda sin ella.</string>
     <string name="form_coverFile">Imagen elegida desde tu ordenador.</string>
@@ -263,7 +267,7 @@
     <string name="form_searching">Buscando…</string>
     <string name="form_section_work">Obra</string>
     <string name="form_separateWithSemicolon">Separa varios con ;</string>
-    <string name="form_subjectsPlaceholder">Añade un género y pulsa Intro, o elige uno que ya uses</string>
+    <string name="form_subjectsPlaceholder">Añadir género</string>
     <string name="form_updated">Ficha actualizada</string>
     <string name="identify_failed">No se pudo completar la búsqueda. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="identify_failedTitle">La búsqueda falló</string>
@@ -330,7 +334,9 @@
     <string name="locationKind_shelf">Balda</string>
     <string name="locations_add">Nueva ubicación</string>
     <string name="locations_addChild">+ Subdivisión</string>
+    <string name="locations_addInside">Añadir dentro de {name}</string>
     <string name="locations_allBooks">Libros aquí</string>
+    <string name="locations_collapse">Plegar {name}</string>
     <string name="locations_created">«{name}» creada</string>
     <string name="locations_createFirst">Crear la primera</string>
     <string name="locations_deleteConfirm">¿Borrar «{name}»?</string>
@@ -340,6 +346,7 @@
     <string name="locations_editTitle">Editar «{name}»</string>
     <string name="locations_emptyText">Crea la principal (por ejemplo «Casa») y luego sus habitaciones, estanterías y baldas.</string>
     <string name="locations_emptyTitle">Aún no hay ubicaciones</string>
+    <string name="locations_expand">Desplegar {name}</string>
     <string name="locations_goTo">Ir a</string>
     <string name="locations_includeChildren">Incluir lo que hay en las subdivisiones</string>
     <string name="locations_inside">Dentro de</string>

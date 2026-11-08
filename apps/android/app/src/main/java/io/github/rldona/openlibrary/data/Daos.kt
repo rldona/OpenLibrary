@@ -133,6 +133,10 @@ interface CatalogDao {
     /** Every genre already used, for the form's suggestions. */
     @Query("SELECT DISTINCT value FROM works, json_each(works.subjects) ORDER BY value")
     suspend fun subjects(): List<String>
+
+    /** Every author already in the library, for the form's suggestions. */
+    @Query("SELECT DISTINCT value FROM works, json_each(works.authors) ORDER BY value")
+    suspend fun authors(): List<String>
     @Query("SELECT * FROM editions WHERE id = :id") suspend fun editionById(id: String): EditionEntity?
     @Query("SELECT * FROM copies WHERE id = :id") suspend fun copyById(id: String): CopyEntity?
     @Query("SELECT * FROM locations WHERE id = :id") suspend fun locationById(id: String): LocationEntity?

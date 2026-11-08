@@ -303,16 +303,21 @@ fun DetailScreen(
                         }
                     }
                     if (work != null && primary != null) {
-                        IconButton(onClick = { onEdit(work.id, primary.id) }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.drawer_editBook))
-                        }
+                        // The bar keeps the heart; editing and adding a copy live in one menu (the edition
+                        // card offers them too, per edition), so nothing is on the screen twice.
                         Box {
                             IconButton(onClick = { menu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more))
                             }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.drawer_editBook)) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = { menu = false; onEdit(work.id, primary.id) },
+                                )
+                                DropdownMenuItem(
                                     text = { Text(stringResource(R.string.drawer_addCopy)) },
+                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
                                     onClick = { menu = false; dialog = Dialog.Add(primary.id) },
                                 )
                             }
@@ -369,21 +374,37 @@ fun DetailScreen(
                 provisional = s.editions.any { it.metadataStatus == "provisional" },
             )
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    str(
-                        R.string.drawer_kicker,
-                        "editions" to plural(R.string.library_editions_one, R.string.library_editions_other, s.editions.size),
-                        "copies" to plural(R.string.library_copies_one, R.string.library_copies_other, active.size),
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                // "Work · 1 edition · 1 copy" says nothing for most books: only shown with more than one.
+                if (s.editions.size > 1 || active.size > 1) {
+                    Text(
+                        str(
+                            R.string.drawer_kicker,
+                            "editions" to plural(R.string.library_editions_one, R.string.library_editions_other, s.editions.size),
+                            "copies" to plural(R.string.library_copies_one, R.string.library_copies_other, active.size),
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
                 if (titleCut) Text(work.title, style = MaterialTheme.typography.headlineSmall)
                 work.subtitle?.let { Text(it, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Text(
-                    work.authors.joinToString(", ").ifEmpty { stringResource(R.string.book_unknownAuthor) },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                if (work.authors.isEmpty()) {
+                    Text(stringResource(R.string.book_unknownAuthor), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    // In the accent colour because they are links: each one searches the library, like the subjects.
+                    val searchFor = stringResource(R.string.subject_search)
+                    FlowRow {
+                        work.authors.forEachIndexed { i, author ->
+                            Text(
+                                if (i < work.authors.lastIndex) "$author," else author,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable(onClickLabel = format(searchFor, "subject" to author), role = Role.Button) { onSubject(author) }
+                                    .padding(end = 6.dp),
+                            )
+                        }
+                    }
+                }
                 work.series?.let {
                     val idx = work.seriesIndex?.let { i -> " #" + if (i % 1.0 == 0.0) i.toInt() else i } ?: ""
                     Text(str(R.string.drawer_series, "series" to it + idx), style = MaterialTheme.typography.bodySmall)
@@ -502,7 +523,7 @@ private fun EditionCard(
                 clickableItem(onClick = onAddCopy, label = addCopy, icon = { Icon(Icons.Default.Add, contentDescription = null) })
             }
             Text(stringResource(R.string.drawer_copiesOfEdition), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-            copies.sortedBy { it.status != "active" }.forEach { c -> CopyLine(c, locations, onEditCopy, onRetire, onRestore) }
+            copies.sortedBy { it.status != "active" }.forEach { c -> CopyLine(c, locations, single = copies.size == 1, onEditCopy, onRetire, onRestore) }
         }
     }
 }
@@ -511,6 +532,8 @@ private fun EditionCard(
 private fun CopyLine(
     c: CopyEntity,
     locations: Map<String, LocationEntity>,
+    /** The edition's only copy: where it is matters more than its code, which goes to the second line. */
+    single: Boolean,
     onEdit: (CopyEntity) -> Unit,
     onRetire: (CopyEntity) -> Unit,
     onRestore: (CopyEntity) -> Unit,
@@ -520,13 +543,15 @@ private fun CopyLine(
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f).padding(top = 8.dp)) {
+            val place = pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }
             Text(
-                code + " · " + (pathOf(locations, c.locationId).joinToString(" › ").ifEmpty { stringResource(R.string.copy_noLocation) }),
+                if (single) place else "$code · $place",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (retired) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 listOfNotNull(
+                    if (single) code else null,
                     stringResource(conditionLabel(c.condition)),
                     c.acquiredOn?.let { stringResource(R.string.copy_acquired) + " " + fmtDate(it) },
                     if (retired) stringResource(R.string.detail_retired) + " (" + stringResource(retireLabel(c.retiredReason)) + ")" else null,

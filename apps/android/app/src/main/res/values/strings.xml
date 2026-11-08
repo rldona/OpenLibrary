@@ -222,11 +222,15 @@
     <string name="favorites_emptyTitle">No favorites yet</string>
     <string name="favorites_remove">Remove from favorites</string>
     <string name="form_addAnotherCopy">Add another copy</string>
+    <string name="form_addCover">Add cover</string>
     <string name="form_addedAt">Added \"{title}\" · {code} at {path}</string>
     <string name="form_addedNoLocation">Added \"{title}\" · {code} (no location)</string>
     <string name="form_addToLibrary">Add to library</string>
+    <string name="form_authorsPlaceholder">Add author</string>
+    <string name="form_changeCover">Change cover</string>
     <string name="form_chooseImage">Choose image…</string>
     <string name="form_cover">Cover</string>
+    <string name="form_coverCamera">Take a photo</string>
     <string name="form_coverCurrent">Current cover.</string>
     <string name="form_coverDownloadFailed">The provider\'s cover could not be downloaded; the book is saved without it.</string>
     <string name="form_coverFile">Image chosen from your computer.</string>
@@ -263,7 +267,7 @@
     <string name="form_searching">Searching…</string>
     <string name="form_section_work">Work</string>
     <string name="form_separateWithSemicolon">Separate several with ;</string>
-    <string name="form_subjectsPlaceholder">Add a genre and press Enter, or choose one you already use</string>
+    <string name="form_subjectsPlaceholder">Add subject</string>
     <string name="form_updated">Details updated</string>
     <string name="identify_failed">The search could not be completed. Check the connection and try again.</string>
     <string name="identify_failedTitle">The search failed</string>
@@ -330,7 +334,9 @@
     <string name="locationKind_shelf">Shelf</string>
     <string name="locations_add">New location</string>
     <string name="locations_addChild">+ Sub-location</string>
+    <string name="locations_addInside">Add inside {name}</string>
     <string name="locations_allBooks">Books here</string>
+    <string name="locations_collapse">Collapse {name}</string>
     <string name="locations_created">\"{name}\" created</string>
     <string name="locations_createFirst">Create the first one</string>
     <string name="locations_deleteConfirm">Delete \"{name}\"?</string>
@@ -340,6 +346,7 @@
     <string name="locations_editTitle">Edit \"{name}\"</string>
     <string name="locations_emptyText">Create the top-level one (e.g. \"Home\") and then its rooms, bookcases and shelves.</string>
     <string name="locations_emptyTitle">No locations yet</string>
+    <string name="locations_expand">Expand {name}</string>
     <string name="locations_goTo">Go to</string>
     <string name="locations_includeChildren">Include what is in the sub-locations</string>
     <string name="locations_inside">Inside</string>

@@ -141,7 +141,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class EditBookRoute(val workId: String, val editionId: String)
 /** Full-screen camera: `mode` is "isbn", "cover" or "identify"; `tabs` lets the user switch between them. */
 /** [closeForm]: opened straight from the library, so leaving with nothing also drops the empty add-book form below. */
-@Serializable data class CaptureRoute(val mode: String, val tabs: Boolean, val closeForm: Boolean = false)
+/** `gallery` opens the picture picker at once; the camera stays behind it as the fallback. */
+@Serializable data class CaptureRoute(val mode: String, val tabs: Boolean, val closeForm: Boolean = false, val gallery: Boolean = false)
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
 @Serializable object BulkScanRoute
@@ -403,7 +404,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                             val cancel = { nav.popBackStack<AddBookRoute>(inclusive = true) }
                             // The editor inside the camera registers its own back handler later, so it still wins.
                             BackHandler(enabled = route.closeForm) { cancel() }
-                            CaptureScreen(c.covers, start, route.tabs, identify = identify) { result ->
+                            CaptureScreen(c.covers, start, route.tabs, identify = identify, startWithGallery = route.gallery) { result ->
                                 if (route.closeForm && result.isbn == null && result.photoId == null && result.candidate == null) {
                                     cancel()
                                     return@CaptureScreen
@@ -558,6 +559,7 @@ private fun BookForm(
         // Adding a book: ISBN then cover in one camera session. Editing: just the camera for each.
         onScan = { nav.navigate(CaptureRoute("isbn", tabs = !vm.editing)) },
         onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+        onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
         onWishAdded = onWishAdded,

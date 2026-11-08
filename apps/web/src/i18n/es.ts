@@ -271,7 +271,7 @@ export const es: Record<keyof typeof en, string> = {
     'Se añadirá como otra edición de la obra; los datos de la obra (título, autores, géneros) no se duplican.',
   'form.separateWithSemicolon': 'Separa varios con ;',
   'form.formatPlaceholder': 'Bolsillo, tapa dura…',
-  'form.subjectsPlaceholder': 'Añade un género y pulsa Intro, o elige uno que ya uses',
+  'form.subjectsPlaceholder': 'Añadir género',
   'form.updated': 'Ficha actualizada',
   'form.noChanges': 'No había cambios',
   'form.addedAt': 'Añadido «{title}» · {code} en {path}',

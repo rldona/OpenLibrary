@@ -109,6 +109,9 @@ export const en = {
   'copy.pendingCode': 'not synced yet',
   'locations.add': 'New location',
   'locations.none': 'None (top level)',
+  'locations.addInside': 'Add inside {name}',
+  'locations.collapse': 'Collapse {name}',
+  'locations.expand': 'Expand {name}',
   'library.locationFilter': 'Location',
   'favorites.badge': 'Favorite',
 
@@ -143,6 +146,10 @@ export const en = {
 
   'form.providerCover': 'Cover from {source}',
   'form.removeCover': 'Without this cover',
+  'form.addCover': 'Add cover',
+  'form.changeCover': 'Change cover',
+  'form.coverCamera': 'Take a photo',
+  'form.authorsPlaceholder': 'Add author',
 
   'form.lookupFailed': 'The lookup failed: {error}',
   'setup.showPassword': 'Show password',

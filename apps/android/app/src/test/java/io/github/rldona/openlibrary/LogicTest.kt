@@ -11,6 +11,7 @@ import io.github.rldona.openlibrary.sync.pathOf
 import io.github.rldona.openlibrary.ui.library.subtree
 import io.github.rldona.openlibrary.ui.locations.flattenTree
 import io.github.rldona.openlibrary.ui.locations.nextLocationKind
+import io.github.rldona.openlibrary.ui.locations.visibleNodes
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -65,6 +66,16 @@ class LogicTest {
         assertEquals(listOf("casa" to 0, "despacho" to 1, "salon" to 1, "balda" to 2), nodes.map { it.location.id to it.depth })
         assertEquals(3, nodes.first { it.location.id == "casa" }.total)
         assertEquals(2, nodes.first { it.location.id == "salon" }.total)
+        // Direct children, for the fold chevron.
+        assertEquals(listOf("casa" to 2, "despacho" to 0, "salon" to 1, "balda" to 0), nodes.map { it.location.id to it.children })
+    }
+
+    @Test
+    fun foldingALocationHidesEverythingUnderIt() {
+        val nodes = flattenTree(tree, emptyMap())
+        assertEquals(listOf("casa", "despacho", "salon"), visibleNodes(nodes, setOf("salon")).map { it.location.id })
+        assertEquals(listOf("casa"), visibleNodes(nodes, setOf("casa", "salon")).map { it.location.id })
+        assertEquals(nodes, visibleNodes(nodes, emptySet()))
     }
 
     @Test

@@ -29,6 +29,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.github.rldona.openlibrary.core.str
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
@@ -44,7 +49,10 @@ import io.github.rldona.openlibrary.ui.components.Spacing
 import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -63,7 +71,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import io.github.rldona.openlibrary.ui.components.LocationPicker
 
-data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int)
+data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int, val children: Int = 0)
 
 /** Depth-first tree with cumulative copy counts (a bookcase counts the copies on all its shelves). */
 fun flattenTree(all: List<LocationEntity>, directCounts: Map<String?, Int>): List<LocationNode> {
@@ -72,13 +80,28 @@ fun flattenTree(all: List<LocationEntity>, directCounts: Map<String?, Int>): Lis
     val out = mutableListOf<LocationNode>()
     fun walk(parent: String?, depth: Int) {
         for (l in children[parent].orEmpty()) {
-            out += LocationNode(l, depth, total(l.id))
+            out += LocationNode(l, depth, total(l.id), children[l.id].orEmpty().size)
             if (depth < 50) walk(l.id, depth + 1)
         }
     }
     walk(null, 0)
     return out
 }
+
+/** The tree without what lies under a collapsed location (its descendants stay in [nodes], just hidden). */
+fun visibleNodes(nodes: List<LocationNode>, collapsed: Set<String>): List<LocationNode> {
+    val out = mutableListOf<LocationNode>()
+    var hiddenBelow = -1 // depth of the nearest collapsed ancestor, -1 when none
+    for (n in nodes) {
+        if (hiddenBelow >= 0 && n.depth > hiddenBelow) continue
+        hiddenBelow = if (n.location.id in collapsed) n.depth else -1
+        out += n
+    }
+    return out
+}
+
+/** The sheet is open, to create a location at the top level or inside [parentId]. */
+private data class AddSheet(val parentId: String?)
 
 class LocationsViewModel(private val c: AppContainer) : ViewModel() {
     val all = c.db.catalog().locations()
@@ -94,23 +117,23 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
 
 @Composable
 fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
-    var adding by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf<AddSheet?>(null) }
     val fab = rememberFabVisibility()
     TabScaffold(
         stringResource(R.string.nav_locations),
         Modifier.nestedScroll(fab.connection),
         fab = {
             ExtendedFloatingActionButton(
-                onClick = { adding = true },
+                onClick = { adding = AddSheet(null) },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.locations_add)) },
                 expanded = fab.visible,
             )
         },
     ) { inner ->
-        Box(Modifier.fillMaxSize().padding(inner)) { LocationTree(vm, onOpen, onAdd = { adding = true }) }
+        Box(Modifier.fillMaxSize().padding(inner)) { LocationTree(vm, onOpen, onAdd = { adding = AddSheet(null) }, onAddInside = { adding = AddSheet(it) }) }
     }
-    if (adding) NewLocationSheet(vm, onDismiss = { adding = false })
+    adding?.let { NewLocationSheet(vm, it.parentId, onDismiss = { adding = null }) }
 }
 
 /**
@@ -119,13 +142,14 @@ fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NewLocationSheet(vm: LocationsViewModel, onDismiss: () -> Unit) {
+private fun NewLocationSheet(vm: LocationsViewModel, parentId: String?, onDismiss: () -> Unit) {
     val all by vm.all.collectAsState(emptyList())
     var name by remember { mutableStateOf("") }
-    var parent by remember { mutableStateOf<String?>(null) }
+    var parent by remember { mutableStateOf(parentId) }
     // The kind follows the parent (a shelf inside a bookcase) until the user picks one.
     var kind by remember { mutableStateOf(nextLocationKind(null)) }
     var kindChosen by remember { mutableStateOf(false) }
+    LaunchedEffect(all) { if (!kindChosen) kind = nextLocationKind(all.firstOrNull { it.id == parent }?.kind) }
     val sheet = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(
@@ -180,7 +204,7 @@ fun nextLocationKind(parentKind: String?): String =
     }
 
 @Composable
-private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onAdd: () -> Unit) {
+private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onAdd: () -> Unit, onAddInside: (parentId: String) -> Unit) {
     val tree by vm.tree.collectAsStateWithLifecycle()
     val nodes = tree
     if (nodes == null) {
@@ -197,17 +221,42 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
         return
     }
     val level = stringResource(R.string.locations_level)
+    // Folded branches, kept while the tab is away and across rotation.
+    var collapsed by rememberSaveable { mutableStateOf(ArrayList<String>()) }
+    val shown = visibleNodes(nodes, collapsed.toSet())
     // Bottom room so the floating button never covers the last location.
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
-        items(nodes, key = { it.location.id }) { n ->
+        items(shown, key = { it.location.id }) { n ->
+            val id = n.location.id
+            val folded = id in collapsed
             // Indented by depth; TalkBack hears the depth too ("Level 2"), since it cannot see the indent.
             ListItem(
-                onClick = { onOpen(n.location.id) },
+                onClick = { onOpen(id) },
                 modifier = Modifier.semantics { stateDescription = format(level, "n" to n.depth + 1) },
+                // The chevron's room is kept on leaves too, so siblings line up.
+                leadingContent = {
+                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                        if (n.children > 0) {
+                            IconButton(onClick = { collapsed = ArrayList(if (folded) collapsed - id else collapsed + id) }) {
+                                Icon(
+                                    if (folded) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.Default.ExpandMore,
+                                    contentDescription = str(if (folded) R.string.locations_expand else R.string.locations_collapse, "name" to n.location.name),
+                                )
+                            }
+                        }
+                    }
+                },
                 supportingContent = { Text(stringResource(locationKindLabel(n.location.kind))) },
-                trailingContent = { Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium) },
+                trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium)
+                        IconButton(onClick = { onAddInside(id) }) {
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = str(R.string.locations_addInside, "name" to n.location.name))
+                        }
+                    }
+                },
                 colors = pageListItemColors(),
-                contentPadding = PaddingValues(start = (16 + 20 * n.depth).dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                contentPadding = PaddingValues(start = (4 + 20 * n.depth).dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             ) { Text(n.location.name) }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
