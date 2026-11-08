@@ -541,7 +541,7 @@
     <string name="sync_syncing">Syncing…</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
-    <string name="theme_system">Like the system</string>
+    <string name="theme_system">System</string>
     <string name="time_days">{n} d ago</string>
     <string name="time_hours">{n} h ago</string>
     <string name="time_justNow">just now</string>

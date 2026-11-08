@@ -170,7 +170,7 @@ export const es: Record<keyof typeof en, string> = {
   'settings.sync': 'Sincronización',
   'settings.about': 'Acerca de',
   'settings.appearance': 'Apariencia',
-  'theme.system': 'Como el sistema',
+  'theme.system': 'Sistema',
   'theme.light': 'Claro',
   'theme.dark': 'Oscuro',
   'settings.storage': 'Datos en este móvil',

@@ -224,6 +224,8 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
     // Folded branches, kept while the tab is away and across rotation.
     var collapsed by rememberSaveable { mutableStateOf(ArrayList<String>()) }
     val shown = visibleNodes(nodes, collapsed.toSet())
+    // A flat list (nothing to fold anywhere) needs no room for chevrons.
+    val foldable = nodes.any { it.children > 0 }
     // Bottom room so the floating button never covers the last location.
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
         items(shown, key = { it.location.id }) { n ->
@@ -234,7 +236,7 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
                 onClick = { onOpen(id) },
                 modifier = Modifier.semantics { stateDescription = format(level, "n" to n.depth + 1) },
                 // The chevron's room is kept on leaves too, so siblings line up.
-                leadingContent = {
+                leadingContent = if (!foldable) null else ({
                     Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                         if (n.children > 0) {
                             IconButton(onClick = { collapsed = ArrayList(if (folded) collapsed - id else collapsed + id) }) {
@@ -245,7 +247,7 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
                             }
                         }
                     }
-                },
+                }),
                 supportingContent = { Text(stringResource(locationKindLabel(n.location.kind))) },
                 trailingContent = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -256,7 +258,7 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
                     }
                 },
                 colors = pageListItemColors(),
-                contentPadding = PaddingValues(start = (4 + 20 * n.depth).dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                contentPadding = PaddingValues(start = ((if (foldable) 4 else 16) + 20 * n.depth).dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             ) { Text(n.location.name) }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }

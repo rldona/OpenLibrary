@@ -172,7 +172,7 @@ export const en = {
   'settings.sync': 'Synchronisation',
   'settings.about': 'About',
   'settings.appearance': 'Appearance',
-  'theme.system': 'Like the system',
+  'theme.system': 'System',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
   'settings.storage': 'Data on this phone',
