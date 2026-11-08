@@ -1,13 +1,17 @@
 package io.github.rldona.openlibrary
 
+import io.github.rldona.openlibrary.core.fmtDate
 import io.github.rldona.openlibrary.core.fold
 import io.github.rldona.openlibrary.core.format
 import io.github.rldona.openlibrary.core.ftsQuery
+import io.github.rldona.openlibrary.core.languageName
 import io.github.rldona.openlibrary.data.LocationEntity
 import io.github.rldona.openlibrary.network.normalizeServerUrl
 import io.github.rldona.openlibrary.sync.pathOf
 import io.github.rldona.openlibrary.ui.library.subtree
 import io.github.rldona.openlibrary.ui.locations.flattenTree
+import io.github.rldona.openlibrary.ui.locations.nextLocationKind
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -20,6 +24,30 @@ class LogicTest {
         assertEquals("benito perez galdos", fold("Benito Pérez Galdós"))
         assertEquals("gal* per*", ftsQuery("  Gal, PÉR "))
         assertEquals("", ftsQuery(" - "))
+    }
+
+    @Test
+    fun datesAndLanguagesAreShownInThePhonesLanguage() {
+        assertEquals("5 nov 2026", fmtDate("2026-11-05", Locale("es", "ES")))
+        assertEquals("5 Nov 2026", fmtDate("2026-11-05", Locale.UK))
+        // Not a date: shown as stored rather than hidden.
+        assertEquals("2026-11", fmtDate("2026-11", Locale.UK))
+        assertEquals("Español", languageName("es", Locale("es", "ES")))
+        assertEquals("Spanish", languageName("es", Locale.UK))
+        assertEquals("English", languageName(" en ", Locale.UK))
+        // An unknown code is kept as typed, so the form can show it has no name.
+        assertEquals("zz", languageName("zz", Locale.UK))
+        assertEquals("", languageName("", Locale.UK))
+    }
+
+    @Test
+    fun aNewLocationIsOneLevelBelowItsParent() {
+        assertEquals("room", nextLocationKind(null))
+        assertEquals("room", nextLocationKind("home"))
+        assertEquals("bookcase", nextLocationKind("room"))
+        assertEquals("shelf", nextLocationKind("bookcase"))
+        assertEquals("box", nextLocationKind("shelf"))
+        assertEquals("other", nextLocationKind("box"))
     }
 
     @Test

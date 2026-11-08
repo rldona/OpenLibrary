@@ -107,6 +107,7 @@ export const es: Record<keyof typeof en, string> = {
 
   'copy.pendingCode': 'aún sin sincronizar',
   'locations.add': 'Nueva ubicación',
+  'locations.none': 'Ninguna (nivel superior)',
 
   'security.title': 'Seguridad',
   'lock.title': 'OpenLibrary está bloqueada',
@@ -153,6 +154,8 @@ export const es: Record<keyof typeof en, string> = {
 
   'locations.level': 'Nivel {n}',
   'settings.sync': 'Sincronización',
+  'settings.about': 'Acerca de',
+  'settings.appVersion': 'Versión de la app',
   'copy.actions': 'Acciones de {code}',
   'subject.search': 'Buscar «{subject}» en la biblioteca',
   'add.openSettings': 'Abrir ajustes',

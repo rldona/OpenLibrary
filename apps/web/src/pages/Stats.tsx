@@ -29,6 +29,7 @@ export function Stats() {
 
 function Figures({ s }: { s: StatsDTO }) {
   const { t } = useI18n();
+  const count = (key: string, n: number) => t(`${key}.${n === 1 ? 'one' : 'other'}`, { n });
   const c = s.collection;
   const r = s.reading;
   // The page is the h1; each card is an h2 and a chart inside a card an h3.
@@ -43,9 +44,9 @@ function Figures({ s }: { s: StatsDTO }) {
           <Tile n={c.retiredCopies} label={t('stats.retired')} />
         </dl>
         <p className="muted small">
-          {t('stats.withoutLocation', { n: c.copiesWithoutLocation })} ·{' '}
-          {t('stats.provisional', { n: c.provisionalEditions })} · {t('stats.locations', { n: c.locations })}{' '}
-          · {t('stats.wishlistOpen', { n: s.wishlistOpen })}
+          {count('stats.withoutLocation', c.copiesWithoutLocation)} ·{' '}
+          {count('stats.provisional', c.provisionalEditions)} · {count('stats.locations', c.locations)} ·{' '}
+          {count('stats.wishlistOpen', s.wishlistOpen)}
         </p>
         {c.value.length > 0 && (
           <p>

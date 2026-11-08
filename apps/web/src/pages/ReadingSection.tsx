@@ -15,7 +15,14 @@ import { BusyLabel, Spinner } from '../components/states';
 import { Icon } from '../components/ui';
 import { fmtDate } from '../lib/format';
 import { keys, useInvalidate } from '../lib/queries';
-import { currentReading, STATUS_CHOICES, statusChange, type ReadingAction } from '../lib/reading';
+import {
+  currentReading,
+  editableReading,
+  historyReadings,
+  STATUS_CHOICES,
+  statusChange,
+  type ReadingAction,
+} from '../lib/reading';
 import { useI18n } from '../i18n';
 
 export const stars = (r: number) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
@@ -47,10 +54,19 @@ export function ReadingSection({ data, preferredCopy }: { data: WorkDetail; pref
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const status = data.readingStatus;
   const current = currentReading(data.readings);
-  // The latest session is the one the details show and edit (BR12).
-  const latest = data.readings.at(-1);
-  const earlier = data.readings.slice(0, -1).reverse();
+  // The latest session is the one the details show and edit (BR12), unless it was reset.
+  const latest = editableReading(data.readings);
+  const earlier = historyReadings(data.readings);
   const codeOf = (id: string) => copies.find((c) => c.id === id)?.code ?? '';
+  /** "1 Nov 2026 → 2 Nov 2026", or the one date a reading has; nothing for a reset one. */
+  const historyDates = (r: ReadingDTO) =>
+    r.startedOn && r.finishedOn
+      ? `${fmtDate(r.startedOn)} → ${fmtDate(r.finishedOn)}`
+      : r.startedOn
+        ? `${t('reading.started')} ${fmtDate(r.startedOn)}`
+        : r.finishedOn
+          ? `${t('reading.finished')} ${fmtDate(r.finishedOn)}`
+          : '';
 
   /** Queues one change after the others; resolves to true when it was saved. */
   function run(call: () => Promise<WorkDetail>): Promise<boolean> {
@@ -154,10 +170,8 @@ export function ReadingSection({ data, preferredCopy }: { data: WorkDetail; pref
           <summary>{t('reading.history', { n: earlier.length })}</summary>
           {earlier.map((r) => (
             <div key={r.id} className="row-sm">
-              <span>{t(`reading.status.${r.status}`)}</span>
-              <span className="muted">
-                {fmtDate(r.startedOn)} → {fmtDate(r.finishedOn)} · {codeOf(r.copyId)}
-              </span>
+              <span>{r.status === 'pending' ? t('reading.wasReset') : t(`reading.status.${r.status}`)}</span>
+              <span className="muted">{[historyDates(r), codeOf(r.copyId)].filter(Boolean).join(' · ')}</span>
               {r.rating ? (
                 <span aria-label={`${t('reading.rating')}: ${t('rating.value', { n: r.rating, max: 5 })}`}>
                   {stars(r.rating)}

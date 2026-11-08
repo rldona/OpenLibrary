@@ -167,6 +167,16 @@ describe('ReadingSection', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit notes' }));
   });
 
+  it('edits nothing for a reset reading and lists it only while it keeps a rating', () => {
+    const rated = reading('r1', 'pending', { startedOn: null, rating: 4 });
+    const bare = reading('r2', 'pending', { startedOn: null });
+    render(work([rated, bare], 'pending'));
+    expect(screen.queryByRole('button', { name: 'Edit notes' })).toBeNull();
+    expect(screen.getByText('Earlier readings (1)')).toBeTruthy();
+    expect(screen.getByText('Reset')).toBeTruthy();
+    expect(screen.queryByText(/→/)).toBeNull();
+  });
+
   it('saves a date typed digit by digit once, with its final value', async () => {
     render(work([reading('r1', 'reading')], 'reading'));
     const started = screen.getByLabelText('Started');

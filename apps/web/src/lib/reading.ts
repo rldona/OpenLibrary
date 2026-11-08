@@ -19,6 +19,23 @@ export type ReadingAction =
 export const currentReading = (readings: readonly ReadingDTO[]): ReadingDTO | undefined =>
   readings.findLast((r) => r.status === 'reading');
 
+/** The reading the panel edits: the latest one, unless "Not read yet" reset it (then there is nothing to show). */
+export function editableReading(readings: readonly ReadingDTO[]): ReadingDTO | undefined {
+  const latest = readings.at(-1);
+  return latest && latest.status !== 'pending' ? latest : undefined;
+}
+
+/**
+ * Earlier readings worth listing, newest first: every finished, abandoned or in-progress one, and the reset
+ * ones that still carry a rating or notes. A reset reading with nothing else would be an empty row.
+ */
+export function historyReadings(readings: readonly ReadingDTO[]): ReadingDTO[] {
+  const editable = editableReading(readings);
+  return readings
+    .filter((r) => r !== editable && (r.status !== 'pending' || r.rating != null || r.notes.trim() !== ''))
+    .reverse();
+}
+
 /**
  * What choosing `target` does: start (or read again), finish, mark as read, or reset the work to
  * "not read yet". Null when there is nothing to do: the status already is that one, or the change would

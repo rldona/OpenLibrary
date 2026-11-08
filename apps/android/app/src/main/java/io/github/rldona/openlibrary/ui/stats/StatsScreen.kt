@@ -29,12 +29,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.rldona.openlibrary.AppContainer
 import io.github.rldona.openlibrary.R
+import io.github.rldona.openlibrary.core.languageName
+import io.github.rldona.openlibrary.core.plural
 import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CountBy
 import io.github.rldona.openlibrary.data.Stats
@@ -43,7 +46,6 @@ import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.TabScaffold
 import java.text.NumberFormat
 import java.util.Currency
-import java.util.Locale
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.mapLatest
@@ -85,10 +87,10 @@ private fun Figures(s: Stats) {
         Tiles(c.works to stringResource(R.string.stats_works), c.editions to stringResource(R.string.stats_editions), c.copies to stringResource(R.string.stats_copies), c.retiredCopies to stringResource(R.string.stats_retired))
         Text(
             listOf(
-                str(R.string.stats_withoutLocation, "n" to c.copiesWithoutLocation),
-                str(R.string.stats_provisional, "n" to c.provisionalEditions),
-                str(R.string.stats_locations, "n" to c.locations),
-                str(R.string.stats_wishlistOpen, "n" to s.wishlistOpen),
+                plural(R.string.stats_withoutLocation_one, R.string.stats_withoutLocation_other, c.copiesWithoutLocation),
+                plural(R.string.stats_provisional_one, R.string.stats_provisional_other, c.provisionalEditions),
+                plural(R.string.stats_locations_one, R.string.stats_locations_other, c.locations),
+                plural(R.string.stats_wishlistOpen_one, R.string.stats_wishlistOpen_other, s.wishlistOpen),
             ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
         )
@@ -111,7 +113,7 @@ private fun Figures(s: Stats) {
     Section(null) { Bars(stringResource(R.string.stats_subjects), counts(s.subjects)) }
     val unknown = stringResource(R.string.stats_unknownLanguage)
     Section(null) {
-        Bars(stringResource(R.string.stats_languages), counts(s.languages) { k -> if (k.isEmpty()) unknown else Locale.forLanguageTag(k).displayLanguage.ifEmpty { k } })
+        Bars(stringResource(R.string.stats_languages), counts(s.languages) { k -> if (k.isEmpty()) unknown else languageName(k) })
     }
 }
 
@@ -159,7 +161,7 @@ private fun Bars(title: String, rows: List<Triple<String, Int, String?>>) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(label, Modifier.width(110.dp), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            Text(label, Modifier.width(140.dp), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Box(Modifier.weight(1f).height(10.dp)) {
                 Box(Modifier.fillMaxWidth(value.toFloat() / max).fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.primary))
             }

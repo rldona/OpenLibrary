@@ -7,9 +7,12 @@ import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.data.workReadingStatus
 import io.github.rldona.openlibrary.ui.detail.ReadingAction
 import io.github.rldona.openlibrary.ui.detail.currentReading
+import io.github.rldona.openlibrary.ui.detail.editableReading
+import io.github.rldona.openlibrary.ui.detail.historyReadings
 import io.github.rldona.openlibrary.ui.detail.statusChange
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The star rating and the reading-status row of the book detail. */
@@ -61,6 +64,21 @@ class ReadingUiTest {
         )
         // Nothing starts without a copy.
         assertNull(statusChange("pending", null, "reading", null, emptyList()))
+    }
+
+    @Test
+    fun aResetReadingIsNotEditedAndStaysInTheHistoryOnlyForItsRatingOrNotes() {
+        val rated = ReadingEntity("r3", 1, "c1", "pending", null, null, 4.0, "", T, T)
+        val noted = ReadingEntity("r4", 1, "c1", "pending", null, null, null, "Great", T, T)
+        val empty = ReadingEntity("r5", 1, "c1", "pending", null, null, null, "", T, T)
+        // The latest reading is edited unless it was reset: then the card shows no stars or notes.
+        assertEquals(finished, editableReading(listOf(rated, finished)))
+        assertNull(editableReading(listOf(finished, empty)))
+        assertNull(editableReading(emptyList()))
+        // History: newest first, without the edited one, and without reset readings that keep nothing.
+        assertEquals(listOf(noted, rated), historyReadings(listOf(empty, rated, noted, finished)))
+        assertEquals(listOf(finished, rated), historyReadings(listOf(rated, finished, empty)))
+        assertTrue(historyReadings(listOf(empty)).isEmpty())
     }
 
     @Test

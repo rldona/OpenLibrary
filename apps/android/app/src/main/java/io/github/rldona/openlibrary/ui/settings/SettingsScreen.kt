@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Sync
@@ -101,7 +102,6 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
                     Triple(Icons.Default.Dns, stringResource(R.string.settings_server), session?.serverUrl.orEmpty()),
                     Triple(Icons.Default.PhoneAndroid, stringResource(R.string.device_thisDevice), session?.deviceName.orEmpty()),
                     Triple(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.device_books), editions.toString()),
-                    Triple(Icons.Default.Tag, stringResource(R.string.settings_epoch), state?.epoch.orEmpty()),
                 ),
             )
             SectionHeader(stringResource(R.string.settings_sync))
@@ -124,6 +124,14 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             }
             SectionHeader(stringResource(R.string.security_title))
             LockSetting(vm)
+            SectionHeader(stringResource(R.string.settings_about))
+            Group(
+                listOf(
+                    Triple(Icons.Default.Info, stringResource(R.string.settings_appVersion), appVersion(context)),
+                    // Diagnostics: the first characters identify the server's data set, as the web shows it.
+                    Triple(Icons.Default.Tag, stringResource(R.string.settings_epoch), state?.epoch.orEmpty().take(8)),
+                ),
+            )
             Spacer(Modifier.height(Spacing.item))
             SegmentedListItem(
                 onClick = { confirm = true },
@@ -142,6 +150,9 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
         )
     }
 }
+
+private fun appVersion(context: android.content.Context): String =
+    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }.getOrDefault("")
 
 @Composable
 private fun SectionHeader(text: String) {

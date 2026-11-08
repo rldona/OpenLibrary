@@ -50,10 +50,12 @@ fun LocationPicker(
     onChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
     label: String = stringResource(R.string.copy_location),
+    /** What choosing nothing means here: no location for a copy, the top level for a new location. */
+    noneLabel: String = stringResource(R.string.copy_noLocation),
 ) {
     val byId = remember(locations) { locations.associateBy { it.id } }
     val options =
-        listOf<Pair<String?, String>>(null to stringResource(R.string.copy_noLocation)) +
+        listOf<Pair<String?, String>>(null to noneLabel) +
             locations.map { it.id to pathOf(byId, it.id).joinToString(" › ") }.sortedBy { it.second }
     Picker(label, value, options, onChange, modifier)
 }

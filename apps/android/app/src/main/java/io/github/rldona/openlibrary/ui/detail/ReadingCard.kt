@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.rldona.openlibrary.R
+import io.github.rldona.openlibrary.core.fmtDate
 import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
@@ -62,6 +63,18 @@ sealed interface ReadingAction {
  * rule that makes the work's status "reading", see [workReadingStatus]).
  */
 fun currentReading(readings: List<ReadingEntity>): ReadingEntity? = readings.lastOrNull { it.status == "reading" }
+
+/** The reading the card edits: the latest one, unless "Not read yet" reset it (then there is nothing to show). */
+fun editableReading(readings: List<ReadingEntity>): ReadingEntity? = readings.lastOrNull()?.takeIf { it.status != "pending" }
+
+/**
+ * Earlier readings worth listing, newest first: every finished, abandoned or in-progress one, and the reset
+ * ones that still carry a rating or notes. A reset reading with nothing else would be an empty row.
+ */
+fun historyReadings(readings: List<ReadingEntity>): List<ReadingEntity> {
+    val editable = editableReading(readings)
+    return readings.filter { it.id != editable?.id && (it.status != "pending" || it.rating != null || it.notes.isNotBlank()) }.reversed()
+}
 
 /** The statuses the card offers, in order; "abandoned" is a session outcome, shown in the history only. */
 private val STATUSES = listOf("pending", "reading", "read")
@@ -108,7 +121,7 @@ fun ReadingCard(
     busy: Boolean = false,
 ) {
     val status = workReadingStatus(readings)
-    val latest = readings.lastOrNull()
+    val latest = editableReading(readings)
     val current = currentReading(readings)
     var copyId by remember(copies) { mutableStateOf(copies.firstOrNull { it.status == "active" }?.id ?: copies.firstOrNull()?.id) }
     var editingNotes by remember { mutableStateOf(false) }
@@ -140,9 +153,10 @@ fun ReadingCard(
             latest?.let { r ->
                 Text(
                     listOfNotNull(
-                        stringResource(readingStatusLabel(r.status)) + " · " + codeOf(r.copyId),
-                        r.startedOn?.let { stringResource(R.string.reading_started) + " " + it },
-                        r.finishedOn?.let { stringResource(R.string.reading_finished) + " " + it },
+                        // The copy only matters when there is more than one.
+                        stringResource(readingStatusLabel(r.status)) + if (copies.size > 1) " · " + codeOf(r.copyId) else "",
+                        r.startedOn?.let { stringResource(R.string.reading_started) + " " + fmtDate(it) },
+                        r.finishedOn?.let { stringResource(R.string.reading_finished) + " " + fmtDate(it) },
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -165,20 +179,29 @@ fun ReadingCard(
                     if (it != r.notes) onAction(ReadingAction.Edit(r, mapOf("notes" to it)))
                 }
             }
-            val earlier = readings.dropLast(1).reversed()
+            val earlier = historyReadings(readings)
             if (earlier.isNotEmpty()) {
                 Text(str(R.string.reading_history, "n" to earlier.size), style = MaterialTheme.typography.labelMedium)
                 earlier.forEach { r ->
-                    Text(
-                        stringResource(readingStatusLabel(r.status)) + " · ${r.startedOn ?: "—"} → ${r.finishedOn ?: "—"}" +
-                            (r.rating?.let { " · " + stars(it) + " $it" } ?: ""),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(historyLine(r), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
+}
+
+/** "Read · 1 Nov 2026 → 2 Nov 2026 · ★★★★ 4.0"; a reset reading keeps only what it was kept for. */
+@Composable
+private fun historyLine(r: ReadingEntity): String {
+    val status = stringResource(if (r.status == "pending") R.string.reading_wasReset else readingStatusLabel(r.status))
+    val dates =
+        when {
+            r.startedOn != null && r.finishedOn != null -> fmtDate(r.startedOn) + " → " + fmtDate(r.finishedOn)
+            r.startedOn != null -> stringResource(R.string.reading_started) + " " + fmtDate(r.startedOn)
+            r.finishedOn != null -> stringResource(R.string.reading_finished) + " " + fmtDate(r.finishedOn)
+            else -> null
+        }
+    return listOfNotNull(status, dates, r.rating?.let { stars(it) + " $it" }).joinToString(" · ")
 }
 
 @Composable

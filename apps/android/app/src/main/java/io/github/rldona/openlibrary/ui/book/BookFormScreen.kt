@@ -66,6 +66,7 @@ import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.sync.BulkScan
 import io.github.rldona.openlibrary.core.IsbnResult
 import io.github.rldona.openlibrary.core.conditionLabel
+import io.github.rldona.openlibrary.core.languageName
 import io.github.rldona.openlibrary.core.normalizeIsbn
 import io.github.rldona.openlibrary.core.plural
 import io.github.rldona.openlibrary.core.str
@@ -600,7 +601,8 @@ fun BookFormScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Field(stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), number = true)
                 Field(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
-                Field(stringResource(R.string.book_language), vm.language, { vm.language = it.take(8) }, Modifier.weight(1f))
+                // The code is what is stored; its name under the field says the phone understood it.
+                Field(stringResource(R.string.book_language), vm.language, { vm.language = it.take(8) }, Modifier.weight(1f), hint = languageName(vm.language).takeIf { it != vm.language.trim() })
             }
             // The whole row is the checkbox, for touch and for TalkBack.
             Row(

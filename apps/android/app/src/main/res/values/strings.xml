@@ -184,7 +184,7 @@
     <string name="device_lastSync">Last sync</string>
     <string name="device_revoked">This phone no longer has access. Connect again with your password.</string>
     <string name="device_thisDevice">This phone</string>
-    <string name="drawer_addCopy">+ Copy</string>
+    <string name="drawer_addCopy">Add copy</string>
     <string name="drawer_addEdition">+ Another edition</string>
     <string name="drawer_complete">Complete</string>
     <string name="drawer_copiesOfEdition">Copies of this edition</string>
@@ -348,6 +348,7 @@
     <string name="locations_newRoot">New top-level location</string>
     <string name="locations_newTitle">New location</string>
     <string name="locations_noCopiesHere">No copies here yet.</string>
+    <string name="locations_none">None (top level)</string>
     <string name="locations_noParent">— None (top level) —</string>
     <string name="locations_subdivisions">{n} sub-locations</string>
     <string name="locations_subtitle">Model your home as it is: home › room › bookcase › shelf.</string>
@@ -404,6 +405,7 @@
     <string name="reading_status_reading">Reading</string>
     <string name="reading_statusLabel">Reading status</string>
     <string name="reading_title">Reading</string>
+    <string name="reading_wasReset">Reset</string>
     <string name="retire_damaged">Damaged</string>
     <string name="retire_gifted">Given away</string>
     <string name="retire_lost">Lost</string>
@@ -437,6 +439,8 @@
     <string name="search_results_one">{n} book found</string>
     <string name="search_results_other">{n} books found</string>
     <string name="security_title">Security</string>
+    <string name="settings_about">About</string>
+    <string name="settings_appVersion">App version</string>
     <string name="settings_browser">Browser</string>
     <string name="settings_changePassword">Change password</string>
     <string name="settings_created">created {date}</string>
@@ -484,10 +488,12 @@
     <string name="stats_copies">Copies</string>
     <string name="stats_editions">Editions</string>
     <string name="stats_languages">Languages</string>
-    <string name="stats_locations">{n} locations</string>
+    <string name="stats_locations_one">{n} location</string>
+    <string name="stats_locations_other">{n} locations</string>
     <string name="stats_none">Nothing yet.</string>
     <string name="stats_pages">{n} pages</string>
-    <string name="stats_provisional">{n} provisional</string>
+    <string name="stats_provisional_one">{n} provisional</string>
+    <string name="stats_provisional_other">{n} provisional</string>
     <string name="stats_readByYear">Books read per year</string>
     <string name="stats_reading">Reading</string>
     <string name="stats_retired">Retired</string>
@@ -496,8 +502,10 @@
     <string name="stats_subtitle">Works and copies are counted separately: two copies of one book are one work.</string>
     <string name="stats_unknownLanguage">Unknown</string>
     <string name="stats_value">Price paid</string>
-    <string name="stats_wishlistOpen">{n} wishes</string>
-    <string name="stats_withoutLocation">{n} copies without location</string>
+    <string name="stats_wishlistOpen_one">{n} wish</string>
+    <string name="stats_wishlistOpen_other">{n} wishes</string>
+    <string name="stats_withoutLocation_one">{n} copy without location</string>
+    <string name="stats_withoutLocation_other">{n} copies without location</string>
     <string name="stats_works">Works</string>
     <string name="subject_search">Search the library for “{subject}”</string>
     <string name="sync_downloadingLibrary">Downloading your library…</string>

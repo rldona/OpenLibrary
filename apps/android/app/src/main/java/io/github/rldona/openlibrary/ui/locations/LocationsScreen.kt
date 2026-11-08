@@ -122,8 +122,10 @@ fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit
 private fun NewLocationSheet(vm: LocationsViewModel, onDismiss: () -> Unit) {
     val all by vm.all.collectAsState(emptyList())
     var name by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf("shelf") }
     var parent by remember { mutableStateOf<String?>(null) }
+    // The kind follows the parent (a shelf inside a bookcase) until the user picks one.
+    var kind by remember { mutableStateOf(nextLocationKind(null)) }
+    var kindChosen by remember { mutableStateOf(false) }
     val sheet = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(
@@ -143,10 +145,20 @@ private fun NewLocationSheet(vm: LocationsViewModel, onDismiss: () -> Unit) {
                 stringResource(R.string.locations_kind),
                 kind,
                 listOf("home", "room", "bookcase", "shelf", "box", "other").map { it to stringResource(locationKindLabel(it)) },
-                { kind = it },
+                { kind = it; kindChosen = true },
                 Modifier.fillMaxWidth(),
             )
-            LocationPicker(all, parent, { parent = it }, Modifier.fillMaxWidth(), label = stringResource(R.string.locations_inside))
+            LocationPicker(
+                all,
+                parent,
+                { id ->
+                    parent = id
+                    if (!kindChosen) kind = nextLocationKind(all.firstOrNull { it.id == id }?.kind)
+                },
+                Modifier.fillMaxWidth(),
+                label = stringResource(R.string.locations_inside),
+                noneLabel = stringResource(R.string.locations_none),
+            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Button(onClick = { vm.create(parent, name, kind); onDismiss() }, enabled = name.isNotBlank()) {
@@ -156,6 +168,16 @@ private fun NewLocationSheet(vm: LocationsViewModel, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** The kind a new location most likely has: one level below its parent (home › room › bookcase › shelf › box). */
+fun nextLocationKind(parentKind: String?): String =
+    when (parentKind) {
+        null, "home" -> "room"
+        "room" -> "bookcase"
+        "bookcase" -> "shelf"
+        "shelf" -> "box"
+        else -> "other"
+    }
 
 @Composable
 private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onAdd: () -> Unit) {

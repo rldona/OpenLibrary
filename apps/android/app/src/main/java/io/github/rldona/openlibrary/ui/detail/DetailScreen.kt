@@ -46,6 +46,8 @@ import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.core.conditionLabel
 import io.github.rldona.openlibrary.core.plural
 import io.github.rldona.openlibrary.core.retireLabel
+import io.github.rldona.openlibrary.core.fmtDate
+import io.github.rldona.openlibrary.core.languageName
 import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.CopyEntity
 import io.github.rldona.openlibrary.data.EditionEntity
@@ -76,13 +78,12 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MediumFlexibleTopAppBar
+import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
-import java.util.Locale
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -278,13 +279,15 @@ fun DetailScreen(
     Scaffold(
         Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            MediumFlexibleTopAppBar(
-                title = {
+            TwoRowsTopAppBar(
+                title = { expanded ->
                     Text(
                         work?.title.orEmpty(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { if (it.hasVisualOverflow) titleCut = true },
+                        // Only the expanded row decides: the collapsed one cuts most titles, and it is laid
+                        // out from the start, so it would show the title twice.
+                        onTextLayout = { if (expanded) titleCut = it.hasVisualOverflow },
                         modifier = Modifier.semantics { heading() },
                     )
                 },
@@ -477,7 +480,7 @@ private fun EditionCard(
                     e.title,
                     e.publisher ?: stringResource(R.string.book_noPublisher),
                     e.publishedYear?.toString(),
-                    e.language?.let { Locale.forLanguageTag(it).displayLanguage.ifEmpty { it } },
+                    e.language?.let { languageName(it) },
                     e.pages?.let { "$it p." },
                     e.format,
                 ).joinToString(" · "),
@@ -525,7 +528,7 @@ private fun CopyLine(
             Text(
                 listOfNotNull(
                     stringResource(conditionLabel(c.condition)),
-                    c.acquiredOn?.let { stringResource(R.string.copy_acquired) + " " + it },
+                    c.acquiredOn?.let { stringResource(R.string.copy_acquired) + " " + fmtDate(it) },
                     if (retired) stringResource(R.string.detail_retired) + " (" + stringResource(retireLabel(c.retiredReason)) + ")" else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,

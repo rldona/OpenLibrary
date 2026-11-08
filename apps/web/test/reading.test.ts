@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ReadingDTO } from '@openlibrary/contracts/client';
 import { starFill, toggledRating } from '../src/lib/rating';
-import { currentReading, statusChange } from '../src/lib/reading';
+import { currentReading, editableReading, historyReadings, statusChange } from '../src/lib/reading';
 
 /** The same cases as the Android app's ReadingUiTest. */
 const T = '2026-11-01T10:00:00.000Z';
@@ -81,6 +81,19 @@ describe('reading status', () => {
     });
     // Nothing starts without a copy.
     expect(statusChange('pending', undefined, 'reading', null, [])).toBeNull();
+  });
+
+  it('edits the latest reading unless it was reset, and lists reset ones only for their rating or notes', () => {
+    const rated = { ...session('r3', 'pending'), startedOn: null, rating: 4 };
+    const noted = { ...session('r4', 'pending'), startedOn: null, notes: 'Great' };
+    const empty = { ...session('r5', 'pending'), startedOn: null };
+    expect(editableReading([rated, finished])).toBe(finished);
+    expect(editableReading([finished, empty])).toBeUndefined();
+    expect(editableReading([])).toBeUndefined();
+    // Newest first, without the edited one, and without reset readings that keep nothing.
+    expect(historyReadings([empty, rated, noted, finished])).toEqual([noted, rated]);
+    expect(historyReadings([rated, finished, empty])).toEqual([finished, rated]);
+    expect(historyReadings([empty])).toEqual([]);
   });
 
   it('keeps a reading in progress before an abandoned one as the current one', () => {

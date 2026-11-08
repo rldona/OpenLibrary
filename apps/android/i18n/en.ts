@@ -108,6 +108,7 @@ export const en = {
 
   'copy.pendingCode': 'not synced yet',
   'locations.add': 'New location',
+  'locations.none': 'None (top level)',
 
   'security.title': 'Security',
   'lock.title': 'OpenLibrary is locked',
@@ -154,6 +155,8 @@ export const en = {
 
   'locations.level': 'Level {n}',
   'settings.sync': 'Synchronisation',
+  'settings.about': 'About',
+  'settings.appVersion': 'App version',
   'copy.actions': 'Actions for {code}',
   'subject.search': 'Search the library for “{subject}”',
   'add.openSettings': 'Open settings',

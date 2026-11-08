@@ -85,6 +85,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -651,12 +652,13 @@ private fun Books(
     onOpen: (workId: String, editionId: String) -> Unit,
     onFavorite: (LibraryRow) -> Unit,
 ) {
-    val header: @Composable () -> Unit = {
+    // The grid already pads its content by 16 dp; the list does not.
+    val header: @Composable (inset: Dp) -> Unit = { inset ->
         Text(
             plural(R.string.library_editionsFound_one, R.string.library_editionsFound_other, items.size),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = inset, end = inset, top = 4.dp, bottom = 4.dp),
         )
     }
     if (grid) {
@@ -667,7 +669,7 @@ private fun Books(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { header() }
+            item(span = { GridItemSpan(maxLineSpan) }) { header(0.dp) }
             items(items, key = { it.row.editionId }) { item ->
                 val coverModifier = with(sharedTransitionScope) {
                     Modifier.sharedElement(
@@ -713,7 +715,7 @@ private fun Books(
         }
     } else {
         LazyColumn(Modifier.fillMaxSize().testTag("library"), contentPadding = PaddingValues(bottom = 96.dp)) {
-            item { header() }
+            item { header(16.dp) }
             items(items, key = { it.row.editionId }) { item ->
                 val coverModifier = with(sharedTransitionScope) {
                     Modifier.sharedElement(
