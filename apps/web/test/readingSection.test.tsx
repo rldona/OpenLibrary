@@ -164,7 +164,10 @@ describe('ReadingSection', () => {
     expect(calls[1]!.body).toEqual({ baseVersion: 1, fields: { notes: 'Fear is the mind-killer' } });
     release();
     await screen.findByText('Notes saved');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit notes' }));
+    // The focus returns in an effect after the editor closes, which may run after the snackbar shows.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit notes' })),
+    );
   });
 
   it('edits nothing for a reset reading and lists it only while it keeps a rating', () => {
