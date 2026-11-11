@@ -4,7 +4,7 @@
 
 # OpenLibrary
 
-A personal library for physical books: a self-hosted server on an Ubuntu PC (reachable through Tailscale), a web app to manage the catalog and a native Android app with ISBN scanning and offline mode. The app is available in **English and Spanish**.
+A personal library for physical books: a self-hosted server (one Docker container that keeps all its state in one folder), a web app to manage the catalog and a native Android app with ISBN scanning and offline mode. The app is available in **English and Spanish**.
 
 - **Analysis and technical design** → [docs/01-analysis-and-design.md](docs/01-analysis-and-design.md)
 - **Deployment on Ubuntu** → [docs/deployment-runbook.md](docs/deployment-runbook.md)

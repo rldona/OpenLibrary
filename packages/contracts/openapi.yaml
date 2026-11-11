@@ -10,7 +10,7 @@ info:
     Errors are RFC 9457 problems (`application/problem+json`) with a stable `code`; `detail` is
     translated according to `Accept-Language` (en, es).
 servers:
-  - url: https://openlibrary.example.ts.net/api/v1
+  - url: https://library.example.com/api/v1
 security:
   - deviceToken: []
 paths:

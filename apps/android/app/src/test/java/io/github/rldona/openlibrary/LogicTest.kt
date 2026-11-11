@@ -100,7 +100,7 @@ class LogicTest {
 
     @Test
     fun serverAddressesAreNormalised() {
-        assertEquals("https://openlibrary.tail.ts.net", normalizeServerUrl(" openlibrary.tail.ts.net/ "))
+        assertEquals("https://library.example.com", normalizeServerUrl(" library.example.com/ "))
         assertEquals("http://10.0.2.2:8080", normalizeServerUrl("http://10.0.2.2:8080/api/v1/"))
     }
 }

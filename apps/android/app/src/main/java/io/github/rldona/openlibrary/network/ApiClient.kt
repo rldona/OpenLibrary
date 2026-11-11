@@ -122,7 +122,7 @@ class ApiClient(
     }
 }
 
-/** Accepts "openlibrary.tailnet.ts.net" or a full URL; strips a trailing slash and an /api/v1 suffix. */
+/** Accepts "library.example.com" or a full URL; strips a trailing slash and an /api/v1 suffix. */
 fun normalizeServerUrl(input: String): String {
     var s = input.trim().trimEnd('/')
     if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"

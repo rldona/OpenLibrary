@@ -496,9 +496,9 @@
     <string name="setup_connecting">Conectando…</string>
     <string name="setup_deviceName">Nombre de este móvil</string>
     <string name="setup_hidePassword">Ocultar contraseña</string>
-    <string name="setup_invalidUrl">Indica una dirección válida, p. ej. https://openlibrary.tu-tailnet.ts.net</string>
+    <string name="setup_invalidUrl">Indica una dirección válida, p. ej. https://biblioteca.example.com</string>
     <string name="setup_server">Dirección del servidor</string>
-    <string name="setup_serverPlaceholder">https://openlibrary.tu-tailnet.ts.net</string>
+    <string name="setup_serverPlaceholder">https://biblioteca.example.com</string>
     <string name="setup_showPassword">Mostrar contraseña</string>
     <string name="setup_text">Indica la dirección de tu servidor y tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.</string>
     <string name="setup_title">Conecta con tu biblioteca</string>

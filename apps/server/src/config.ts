@@ -7,7 +7,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   /** Folder holding all state: library.db, assets/, backups/. */
   DATA_DIR: z.string().default('./.data'),
-  /** URL browsers use to reach the app (e.g. https://pc.tailnet.ts.net). Used for CSRF and cookies. */
+  /** URL browsers use to reach the app (e.g. https://library.example.com). Used for CSRF and cookies. */
   PUBLIC_URL: z.url().default('http://localhost:8080'),
   /** Extra origins allowed for cookie requests (e.g. the Vite dev server). */
   EXTRA_ORIGINS: z.string().default(''),
