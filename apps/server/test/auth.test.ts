@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig, parseTrustProxy } from '../src/config.js';
+import { openDb } from '../src/db/client.js';
+import { authFailures } from '../src/db/schema.js';
+import { AuthService, THROTTLE } from '../src/auth/service.js';
 import { cookieOf, makeApp, ORIGIN, PASSWORD } from './helpers.js';
 
 const login = (app: Awaited<ReturnType<typeof makeApp>>['app'], password: string, ip = '10.0.0.1') =>
@@ -120,6 +123,77 @@ describe('brute force', () => {
     expect((await login(app, PASSWORD)).statusCode).toBe(200);
     // Success resets the counter.
     expect((await login(app, 'mal')).statusCode).toBe(401);
+  });
+});
+
+describe('strangers cannot lock the owner out', () => {
+  const service = () => {
+    const db = openDb(':memory:');
+    const clock = { t: new Date('2026-11-04T10:00:00Z').getTime() };
+    const auth = new AuthService(db, 1000, () => new Date(clock.t));
+    return { db, auth, advance: (ms: number) => (clock.t += ms) };
+  };
+  const keys = (db: ReturnType<typeof openDb>) =>
+    db
+      .select({ key: authFailures.key })
+      .from(authFailures)
+      .all()
+      .map((r) => r.key)
+      .sort();
+
+  it('1,000 failures from many addresses do not lock another address', () => {
+    const { auth } = service();
+    for (let i = 0; i < 1000; i++) auth.recordFailure(`198.51.${i >> 8}.${i & 255}`);
+    expect(auth.retryAfter('192.0.2.10')).toBe(0);
+  });
+
+  it('over HTTP: during a burst from many addresses the owner still signs in, with a bounded delay', async () => {
+    const { app } = await makeApp();
+    expect((await login(app, PASSWORD, '192.0.2.10')).statusCode).toBe(200);
+    // More than the old global limit (100 per hour), all at the same time, plus the owner.
+    const burst = Array.from({ length: 150 }, (_, i) => login(app, 'mal', `198.51.100.${i}`));
+    const started = Date.now();
+    const owner = await login(app, PASSWORD, '192.0.2.10');
+    const ownerMs = Date.now() - started;
+    const statuses = (await Promise.all(burst)).map((r) => r.statusCode);
+    expect(owner.statusCode).toBe(200);
+    // Known address: admitted ahead of the queue, it waits at most for the checks already running.
+    expect(ownerMs).toBeLessThan(2000);
+    // Beyond the queue, strangers are turned away for a moment instead of piling up.
+    expect(new Set(statuses)).toEqual(new Set([401, 429]));
+    // After the burst nothing is locked: the owner signs in from a new address.
+    expect((await login(app, PASSWORD, '192.0.2.77')).statusCode).toBe(200);
+  });
+
+  it('forgets an address one day after its last failure, and known addresses after 30 days', () => {
+    const { db, auth, advance } = service();
+    auth.recordFailure('203.0.113.1');
+    auth.recordSuccess('192.0.2.10');
+    advance(THROTTLE.forgetAfterMs - 1000);
+    auth.recordFailure('203.0.113.2');
+    expect(keys(db)).toEqual(['ip:203.0.113.1', 'ip:203.0.113.2', 'ok:192.0.2.10']);
+    advance(2000);
+    auth.recordFailure('203.0.113.3');
+    expect(keys(db)).toEqual(['ip:203.0.113.2', 'ip:203.0.113.3', 'ok:192.0.2.10']);
+    expect(auth.isKnown('192.0.2.10')).toBe(true);
+    advance(THROTTLE.knownForMs);
+    auth.prune();
+    expect(keys(db)).toEqual([]);
+    expect(auth.isKnown('192.0.2.10')).toBe(false);
+  });
+
+  it('a persistent address keeps doubling its wait instead of starting over', () => {
+    const { auth, advance } = service();
+    const ip = '203.0.113.9';
+    for (let i = 0; i < 5; i++) auth.recordFailure(ip);
+    let wait = auth.retryAfter(ip);
+    expect(wait).toBe(60);
+    for (const expected of [120, 240, 480, 960, 1920, 3600, 3600]) {
+      advance(wait * 1000);
+      auth.recordFailure(ip);
+      wait = auth.retryAfter(ip);
+      expect(wait).toBe(expected);
+    }
   });
 });
 
