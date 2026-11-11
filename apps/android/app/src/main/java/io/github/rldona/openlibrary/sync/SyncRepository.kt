@@ -27,6 +27,7 @@ import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.data.ReadingEntity
 import io.github.rldona.openlibrary.network.SyncWork
 import java.io.IOException
+import kotlinx.serialization.SerializationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,6 +90,9 @@ class SyncRepository(
                 } catch (e: ApiException) {
                     if (e.status == 401) SyncStatus.Revoked else SyncStatus.Failed(e.message)
                 } catch (_: IOException) {
+                    SyncStatus.Offline
+                } catch (_: SerializationException) {
+                    // Something else answers at that address (the server moved): as good as unreachable.
                     SyncStatus.Offline
                 }
             _status.value = result

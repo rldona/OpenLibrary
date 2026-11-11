@@ -34,10 +34,26 @@ export const en = {
   'device.disconnect': 'Disconnect this phone',
   'device.disconnectConfirm':
     'The copy of the library on this phone will be deleted. You can connect again with your password.',
+  'device.disconnectPending_one':
+    '{n} change made on this phone has not reached the server yet and will be lost. Sync first if you can.',
+  'device.disconnectPending_other':
+    '{n} changes made on this phone have not reached the server yet and will be lost. Sync first if you can.',
   'device.revoked': 'This phone no longer has access. Connect again with your password.',
   'device.thisDevice': 'This phone',
   'device.lastSync': 'Last sync',
   'device.books': 'Editions on this phone',
+
+  'server.change': 'Change server address',
+  'server.changeText':
+    'Enter the new address of the same library. This phone keeps its data and its pending changes.',
+  'server.newAddress': 'New address',
+  'server.changeAction': 'Change',
+  'server.checking': 'Checking…',
+  'server.unreachable': 'No OpenLibrary server answers at that address.',
+  'server.differentLibrary':
+    'That server holds a different library. To use it, disconnect this phone and connect again: the copy on this phone will be replaced by that library.',
+  'server.notRecognised':
+    'That server does not recognise this phone. If it is another library, disconnect this phone and connect again.',
 
   'detail.back': 'Back',
   'detail.retired': 'Retired',

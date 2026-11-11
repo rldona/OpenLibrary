@@ -116,6 +116,13 @@ class SyncRepositoryTest {
     }
 
     @Test
+    fun somethingElseAnsweringAtTheAddressIsOfflineNotACrash() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(200).addHeader("content-type", "text/html").body("<!doctype html>").build())
+        assertEquals(SyncStatus.Offline, repo.sync())
+        assertNull(db.sync().state())
+    }
+
+    @Test
     fun searchIgnoresAccentsAndIncludesLocations() = runBlocking {
         firstSync()
         val search = suspend { q: String -> db.catalog().library(ftsQuery(q), true, emptyList()).first().map { it.editionId } }

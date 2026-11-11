@@ -181,6 +181,8 @@
     <string name="device_books">Editions on this phone</string>
     <string name="device_disconnect">Disconnect this phone</string>
     <string name="device_disconnectConfirm">The copy of the library on this phone will be deleted. You can connect again with your password.</string>
+    <string name="device_disconnectPending_one">{n} change made on this phone has not reached the server yet and will be lost. Sync first if you can.</string>
+    <string name="device_disconnectPending_other">{n} changes made on this phone have not reached the server yet and will be lost. Sync first if you can.</string>
     <string name="device_lastSync">Last sync</string>
     <string name="device_revoked">This phone no longer has access. Connect again with your password.</string>
     <string name="device_thisDevice">This phone</string>
@@ -448,6 +450,14 @@
     <string name="search_results_one">{n} book found</string>
     <string name="search_results_other">{n} books found</string>
     <string name="security_title">Security</string>
+    <string name="server_change">Change server address</string>
+    <string name="server_changeAction">Change</string>
+    <string name="server_changeText">Enter the new address of the same library. This phone keeps its data and its pending changes.</string>
+    <string name="server_checking">Checking…</string>
+    <string name="server_differentLibrary">That server holds a different library. To use it, disconnect this phone and connect again: the copy on this phone will be replaced by that library.</string>
+    <string name="server_newAddress">New address</string>
+    <string name="server_notRecognised">That server does not recognise this phone. If it is another library, disconnect this phone and connect again.</string>
+    <string name="server_unreachable">No OpenLibrary server answers at that address.</string>
     <string name="settings_about">About</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_appVersion">App version</string>
