@@ -7,5 +7,9 @@
 .claude
 prototypes
 docs
-deploy/.env
+# Local secrets (tokens): never in the build context or a `railway up` upload.
+.env
+**/.env
+**/.env.*
+!**/.env.example
 apps/android

@@ -2,8 +2,10 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { openDb } from './db/client.js';
 import { AuthService } from './auth/service.js';
+import { dropPrivileges } from './privileges.js';
 
 const config = loadConfig();
+dropPrivileges(config.dataDir);
 const db = openDb(config.dbPath);
 const app = await buildApp({ config, db });
 
