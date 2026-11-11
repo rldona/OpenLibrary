@@ -7,8 +7,6 @@
  *   status                  state summary
  *   demo-data [en|es]       loads sample locations and books (only on an empty library)
  */
-import fs from 'node:fs';
-import path from 'node:path';
 import readline from 'node:readline';
 import { pickLang } from '@openlibrary/contracts';
 import { loadConfig } from './config.js';
@@ -19,6 +17,7 @@ import { HttpError } from './errors.js';
 import { tr } from './i18n.js';
 import { loadDemo } from './demo.js';
 import { dropPrivileges } from './privileges.js';
+import { integrityOf, snapshot } from './backup.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -36,7 +35,7 @@ function askHidden(question: string): Promise<string> {
   });
 }
 
-const integrity = (db: Db) => String(db.$client.pragma('integrity_check', { simple: true }));
+const integrity = (db: Db) => integrityOf(db.$client);
 
 async function main(): Promise<number> {
   const [cmd, ...args] = process.argv.slice(2);
@@ -83,12 +82,8 @@ async function main(): Promise<number> {
         console.error('Usage: backup <target-file.db>');
         return 1;
       }
-      fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
-      const tmp = `${out}.tmp`;
-      fs.rmSync(tmp, { force: true });
-      await db.$client.backup(tmp);
-      fs.renameSync(tmp, out);
-      const size = (fs.statSync(out).size / 1024).toFixed(0);
+      const bytes = await snapshot(db, out);
+      const size = (bytes / 1024).toFixed(0);
       console.log(`Backup created: ${out} (${size} KB)`);
       return 0;
     }

@@ -100,6 +100,8 @@ systemctl list-timers openlibrary-backup.timer
 
 The backup runs every night at 03:30 and, if the PC was off, a few minutes after it is switched on.
 
+Keep `BACKUP_SCHEDULE` unset (or `off`) here: restic already takes care of it. Hosts without a scheduler of their own (Railway) set `BACKUP_SCHEDULE=daily`. The server then snapshots the database every night at 03:00 UTC, and at boot when the last success is more than a day old. It writes the snapshot to `backups/library.db`, checks its integrity, keeps the newest `BACKUP_KEEP` (default 7) dated copies `backups/library-YYYY-MM-DD.db` and writes `backups/last-success`. A snapshot that fails the integrity check is discarded and logged as an error; the previous one and `last-success` stay as they were. That layer only covers the database: covers in `assets/` rely on the host's volume backups.
+
 ## 6. Restore
 
 ```bash
