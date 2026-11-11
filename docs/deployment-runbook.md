@@ -1,141 +1,129 @@
-# Deployment on the Ubuntu PC
+# Deployment runbook (Railway)
 
-Result: `https://<your-pc>.<your-tailnet>.ts.net` reachable from your devices at home and away, **without opening ports** or exposing anything to the Internet. Cost: €0.
+OpenLibrary runs as **one Docker container on Railway** with a public HTTPS URL. All state (the SQLite database, the covers and the nightly snapshots) lives in one volume mounted at `/data`. Service notes, measurements and costs: [railway.md](railway.md). Running it on your own machine instead (Ubuntu + Tailscale): [self-hosting.md](self-hosting.md).
 
 ```
-Phone / laptop ──(Tailscale, encrypted)──▶ Ubuntu PC
-                                           tailscale serve :443 (HTTPS, automatic certificate)
-                                             └─▶ 127.0.0.1:8080 → openlibrary container (API + web)
-                                                                     └─ /srv/openlibrary/data (DB, covers, backups)
+Phone / laptop ──HTTPS──▶ Railway edge (TLS, X-Real-IP)
+                             └─▶ service "app" :8080 (API + web, one replica, europe-west4-drams3a)
+                                    └─ volume /data: library.db, assets/, backups/
+GitHub push to main ──CI──▶ deploy job ──railway up──▶ new image
 ```
 
-## 1. Prerequisites (once)
+## 1. Prerequisites
+
+- A Railway workspace on the **Hobby** plan (volumes up to 5 GB). Set a usage limit (§8).
+- The Railway CLI (`npm install -g @railway/cli`) and `jq`.
+- An **account token** (railway.com/account/tokens, workspace "No workspace") exported only in the shell that provisions: `export RAILWAY_API_TOKEN=…`. A workspace token is enough for the GraphQL API but not for `railway whoami`, `list` or `ssh`. Revoke it when the work is done.
+- `npm ci` at the repository root: it installs the `railway` SDK that `.railway/railway.ts` imports.
+
+## 2. Provision
+
+[`deploy/railway/provision.sh`](../deploy/railway/provision.sh) creates, or checks, the project, the `production` environment, the `app` service, the volume at `/data`, the generated domain and the service variables. It is idempotent: re-running it only reports what exists. It prints ids, never values.
 
 ```bash
-sudo apt update && sudo apt install -y git restic
-# Docker Engine + compose plugin (https://docs.docker.com/engine/install/ubuntu/)
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker "$USER"   # sign out and back in for it to take effect
+deploy/railway/provision.sh
+railway config plan     # service settings from .railway/railway.ts; nothing destructive is expected
+railway config apply
 ```
 
-## 2. Tailscale
+| Resource | Value |
+| --- | --- |
+| Workspace | Raúl López's Projects (`671263a0-aeb4-4e21-b6d4-3ac59e152749`) |
+| Project | `openlibrary` (`6cc1c276-f347-42c9-84fe-20c55d1feae2`) |
+| Environment | `production` (`a5a752ab-79c7-42ec-acdd-83b7d17600c5`) |
+| Service | `app` (`50614a83-7b9d-4b92-89aa-ee8c2c909749`) |
+| Volume | `app-volume` at `/data`, `europe-west4-drams3a` (`38064dd3-89d9-48c1-8faf-1efaa29e580f`) |
+| URL | https://app-production-10a9154b.up.railway.app (port 8080) |
 
-1. Create a free account at https://login.tailscale.com (Personal plan).
-2. On the PC:
-   ```bash
-   curl -fsSL https://tailscale.com/install.sh | sh
-   sudo tailscale up --hostname=openlibrary
-   ```
-   With `--hostname=openlibrary` the address will be `https://openlibrary.<your-tailnet>.ts.net`.
-3. In the admin console → **DNS**: enable **MagicDNS** and **HTTPS Certificates**.
-4. On your Android phone and laptop: install the Tailscale app and sign in with the same account.
+Service variables: `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/data`, `WEB_DIST=/app/web`, `PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}` (CSRF and cookies depend on it being exact), `TRUST_PROXY=x-real-ip`, `RAILWAY_RUN_UID=0` (the volume is owned by root; the server drops to `node` by itself), `BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`, `SESSION_TTL_DAYS=30`, `LOG_LEVEL=info`, `ANDROID_CERT_SHA256` (public fingerprint of the release signing certificate, §11) and `OL_VERSION` (set by the deploy job). `GOOGLE_BOOKS_API_KEY` is a secret: set it with `railway variable set GOOGLE_BOOKS_API_KEY --stdin --service app`. There is **no** `OL_PASSWORD`: the password hash lives in the database.
 
-## 3. Code and configuration
+Notes: `railway volume add` panics in CLI 5.71, so the script creates the volume through the GraphQL API. `requiredMountPath` from the old `railway.json` has no equivalent in `.railway/railway.ts`.
+
+## 3. Deploy
+
+- **First deploy**, from the repository root: `railway up --ci --service app`. Railway waits for `GET /api/v1/health` before routing traffic to it.
+- **Then every push to `main`** that changes the image (server, web, `packages/`, Dockerfile, lockfile) deploys by itself, after CI passes: the `deploy` job in `.github/workflows/ci.yml` with the `RAILWAY_TOKEN` project token (GitHub Actions secret). It sets `OL_VERSION` to the commit and fails unless `/api/v1/health` reports it. Android, docs, CI and `.railway/` changes do not deploy.
+- **Service settings** (`.railway/railway.ts`) are applied with `railway config plan` / `railway config apply`, not by a deploy.
+- **Deploy the server before distributing an APK** that needs it: merge the server change, wait for the `deploy` job, then build and install the APK.
+
+What a deploy looks like for clients: with a volume, the old container stops before the new one starts, so the service does not answer for about 4 seconds. The web shows a network error for a moment. The Android app treats it as being offline and syncs later; nothing is lost.
+
+## 4. First run: the owner's password
+
+The password is never set from the web (nobody can get there first) and never through variables:
 
 ```bash
-sudo mkdir -p /opt/openlibrary /srv/openlibrary/data
-sudo chown "$USER" /opt/openlibrary
-sudo chown 1000:1000 /srv/openlibrary/data      # the container runs as user 1000 (node)
-
-git clone <your-private-repository-url> /opt/openlibrary
-cd /opt/openlibrary/deploy
-cp .env.example .env
-nano .env        # PUBLIC_URL=https://openlibrary.<your-tailnet>.ts.net
+railway ssh --service app -- node dist/cli.js set-password   # prompts for it (at least 12 characters)
 ```
 
-> If you would rather not use GitHub, copy the project folder with `rsync -a --exclude node_modules OpenLibrary/ ubuntu-pc:/opt/openlibrary/`.
+Then sign in on the web, add a passkey (§11) and keep the recovery codes. Install the Android app (§10) and connect it with the passkey.
 
-## 4. Start
-
-```bash
-cd /opt/openlibrary/deploy
-docker compose up -d --build
-docker compose ps                         # should show "healthy" after a few seconds
-sudo ln -sf /opt/openlibrary/deploy/scripts/ol /usr/local/bin/ol
-ol set-password                           # prompts for the password (at least 12 characters)
-```
-
-Publish over HTTPS inside your tailnet (persists across reboots):
-
-```bash
-sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
-tailscale serve status
-```
-
-Checks:
-
-```bash
-curl -s http://127.0.0.1:8080/api/v1/health                      # on the PC
-curl -s https://openlibrary.<your-tailnet>.ts.net/api/v1/health   # from another device on Tailscale
-```
-
-Open the URL in the phone's browser (with Tailscale on): it should ask for the password. The interface follows the browser language (English or Spanish) and can be switched in Settings or on the login screen.
-
-## 5. Backups
-
-Recommended free destination: a **USB disk** or a second permanently mounted disk (e.g. `/mnt/backup`). If you later want an off-site copy, restic supports Backblaze B2 (10 GB free) without changing anything else.
-
-```bash
-sudo mkdir -p /etc/openlibrary
-sudo sh -c 'openssl rand -base64 32 > /etc/openlibrary/restic.pass && chmod 600 /etc/openlibrary/restic.pass'
-sudo tee /etc/openlibrary/backup.env >/dev/null <<'EOF'
-RESTIC_REPOSITORY=/mnt/backup/openlibrary-restic
-RESTIC_PASSWORD_FILE=/etc/openlibrary/restic.pass
-EOF
-sudo chmod 600 /etc/openlibrary/backup.env
-sudo env $(sudo cat /etc/openlibrary/backup.env | xargs) restic init
-```
-
-> **Keep a copy of `/etc/openlibrary/restic.pass` outside the PC** (password manager). Without it the backups cannot be opened.
-
-Test and schedule:
-
-```bash
-sudo /opt/openlibrary/deploy/scripts/backup.sh
-sudo cp /opt/openlibrary/deploy/systemd/openlibrary-backup.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now openlibrary-backup.timer
-systemctl list-timers openlibrary-backup.timer
-```
-
-The backup runs every night at 03:30 and, if the PC was off, a few minutes after it is switched on.
-
-Keep `BACKUP_SCHEDULE` unset (or `off`) here: restic already takes care of it. Hosts without a scheduler of their own (Railway) set `BACKUP_SCHEDULE=daily`. The server then snapshots the database every night at 03:00 UTC, and at boot when the last success is more than a day old. It writes the snapshot to `backups/library.db`, checks its integrity, keeps the newest `BACKUP_KEEP` (default 7) dated copies `backups/library-YYYY-MM-DD.db` and writes `backups/last-success`. A snapshot that fails the integrity check is discarded and logged as an error; the previous one and `last-success` stay as they were. That layer only covers the database: covers in `assets/` rely on the host's volume backups.
-
-## 6. Restore
-
-```bash
-sudo env $(sudo cat /etc/openlibrary/backup.env | xargs) restic snapshots   # list available backups
-sudo /opt/openlibrary/deploy/scripts/restore.sh            # the latest
-sudo /opt/openlibrary/deploy/scripts/restore.sh 4f2a9c1e   # a specific one
-```
-
-The current state is not deleted: it is set aside as `library.db.before-restore-<date>`. After restoring, the server bumps its *epoch* and phones will perform a full resync.
-
-**Recommended drill** after installing: take a backup, change the password, restore and check the previous one is back. The same steps run automatically in the server tests (`apps/server/test/restore-drill.test.ts`).
-
-The web's **Import and export** page shows when the last backup finished (from `backups/last-success`, written by `backup.sh`) and warns if it is older than 3 days. From there you can also download the full export (zip with every record and cover): keep one outside the PC from time to time. Importing it into a new installation is the logical restore (§ design 9).
-
-## 7. Day-to-day operation
+## 5. Day-to-day operation
 
 | Task | Command |
 |------|---------|
-| Try it with sample data (empty library) | `ol demo-data en` or `ol demo-data es` |
-| Status | `ol status` · `docker compose -f /opt/openlibrary/deploy/docker-compose.yml ps` |
-| Logs | `docker compose -f /opt/openlibrary/deploy/docker-compose.yml logs -f --tail=100` |
-| Change the password (if forgotten) | `ol set-password` (signs out every session) |
-| Update to the latest version (backup, pull, rebuild) | `sudo /opt/openlibrary/deploy/scripts/update.sh` |
+| Status (data folder, password, passkeys, epoch, integrity) | `railway ssh --service app -- node dist/cli.js status` |
+| Health and deployed version | `curl -s https://app-production-10a9154b.up.railway.app/api/v1/health` |
+| Logs | `railway logs --service app` · `railway logs --service app --deployment --lines 200` |
+| Metrics (CPU, RAM, volume, HTTP) | `railway metrics --service app --since 1h` |
+| Change the password (signs out every session) | `railway ssh --service app -- node dist/cli.js set-password` |
+| Locked out of passkeys | `railway ssh --service app -- node dist/cli.js passkeys-reset` (§11) |
+| Restart without rebuilding | `railway restart --service app --yes` |
 | Revoke a lost phone | Web → Settings → Sessions and devices → Revoke |
 
-## 8. Security: what protects the library
+## 6. Backups
 
-- The app only listens on `127.0.0.1`; it is invisible from the home network and from the Internet.
-- Only devices in **your** tailnet reach the URL; traffic is end-to-end encrypted.
-- Even so, the app behaves as if it were on the Internet: Argon2id password, progressive lockout after 5 failures, `Secure`/`HttpOnly`/`SameSite=Strict` cookies, CSRF protection and security headers. That is why publishing it one day would only change the deployment (see §9.1 of the design document).
-- Note: behind `tailscale serve` every request may arrive with the same internal IP; the failed-attempt lockout then behaves like a global lockout, which is acceptable for a single user.
-- `TRUST_PROXY` says where the client address comes from (it keys the lockout and the rate limit): `false` (no proxy), `true` (every `X-Forwarded-For` entry, today's setting behind `tailscale serve`), a hop count such as `1` (only the address the proxy in front appends; anything the client wrote is ignored) or a header name the proxy always overwrites. On Railway it is `TRUST_PROXY=x-real-ip`: its edge documents `X-Real-IP` as the client's address. To check a new host, set `LOG_LEVEL=debug` for a while: each failed login also logs the socket address and the raw `X-Forwarded-For` / `X-Real-IP`.
+On Hobby, Railway offers **no volume backups** (only on Pro), and the owner decided against an off-site copy: the library holds nothing sensitive and losing it is acceptable. What exists:
 
-## 9. Building the Android app for your server
+- **Nightly snapshot** inside the server (`BACKUP_SCHEDULE=daily`): at 03:00 UTC and at boot when the last one is more than a day old, it writes `backups/library.db`, checks its integrity, keeps the newest 7 dated copies `backups/library-YYYY-MM-DD.db` and writes `backups/last-success`. The web's Import and export page shows when it last ran and warns after 3 days. It protects against a bad release or a logical mistake, **not** against losing the volume or the project, and it does not include covers.
+- **Full export** from the web (Import and export → zip with every record and cover), whenever you want a copy elsewhere. Or by hand: `railway volume files --volume app-volume download /backups/library.db ./library.db`.
+
+## 7. Restore
+
+Every restore ends with `after-restore`: it checks integrity, rebuilds the search index and **bumps the data epoch**, so phones perform a full resync (pending changes are resent; clashes show up as conflicts, never lost). Do it at a quiet moment: changes made between the swap and the restart are discarded.
+
+**(a) A nightly snapshot** (the usual case: a bad release or a mistake in the last days)
+
+```bash
+railway ssh --service app -- ls -l /data/backups          # pick a dated copy
+railway ssh --service app -- sh -c '
+  cd /data && day=$(date +%Y%m%d-%H%M%S) &&
+  cp backups/library-YYYY-MM-DD.db restore.db && chown 1000:1000 restore.db &&
+  for f in library.db library.db-wal library.db-shm; do [ -f "$f" ] && mv "$f" "$f.before-restore-$day"; done;
+  mv restore.db library.db'
+railway restart --service app --yes                        # the server reopens the restored file
+railway ssh --service app -- node dist/cli.js after-restore
+```
+
+The current database is set aside as `library.db*.before-restore-<date>` (delete it once everything looks right). The running server keeps writing to the set-aside file until the restart, which is why the restart comes right after the swap. Covers are not part of the snapshot; covers added since then stay on the volume.
+
+**(b) A Railway volume backup** (only if the workspace moves to Pro and the schedule is enabled): service → Backups → Restore the chosen backup, wait for the redeploy, then `railway ssh --service app -- node dist/cli.js after-restore`. Restoring brings back the whole volume, covers included.
+
+**(c) Logical restore from a full export zip** (a new installation, another project, another host): provision and deploy (§2–§3), `set-password` (§4), web → Import and export → import the zip with a **dry run** first, then for real. Compare the totals with the export. Sessions, passkeys and devices are not part of the export: add a passkey again and reconnect the phones.
+
+## 8. Cost and usage limit
+
+Measured with 10,000 copies: about 210 MB of RAM and almost no CPU, roughly **$2/month of usage**, inside the $5 the Hobby subscription includes, so the bill is **$5/month**. The included usage is shared by every project in the workspace. Details and the measurements: [railway.md](railway.md).
+
+Set a hard limit so a surprise cannot bill beyond what you accept:
+
+```bash
+railway usage                                   # this billing period
+railway usage limit status
+railway usage limit set --target workspace --soft 8 --hard 15
+```
+
+App sleeping is off. If usage ever grows, turning it on (`sleepApplication` in `.railway/railway.ts`) is the first lever: the first request after an idle period wakes the service up.
+
+## 9. Security: what protects the library
+
+- The URL is public. Nothing in the library is readable without a session: covers and exports included.
+- **Passkeys** (§11): once one is registered, the password alone no longer signs in; it needs a single-use recovery code.
+- Login throttling that strangers cannot turn against the owner: a per-address progressive lockout keyed on the real client address (`TRUST_PROXY=x-real-ip`; Railway's edge overwrites `X-Real-IP` and `X-Forwarded-For`, so a client cannot forge them), and bounded admission of password checks (design document §9.1).
+- Argon2id passwords, `Secure`/`HttpOnly`/`SameSite=Strict` cookies, CSRF protection, CSP and HSTS; HTTP redirects to HTTPS at the edge.
+- Revocable device tokens and sessions (web → Settings → Sessions and devices); the Android database is encrypted and can be locked with the fingerprint or PIN.
+
+## 10. Building the Android app
 
 The setup screen can skip the server address: build the APK with your server as the default and the phone only asks for the device name and a passkey (or the password). A small "Use another server" link still shows the address field. The address is **never committed**. Pass it in one of these ways:
 
@@ -150,8 +138,9 @@ cd apps/android
 ./gradlew :app:assembleRelease -Popenlibrary.defaultServerUrl=https://library.example.com
 ```
 
-The release APK is written to `app/build/outputs/apk/release/`. It is unsigned until a release signing key is configured outside the repository (§10); passkeys need that stable key. Changing the server address of an already connected phone is done in its Settings ("Change server address"), and does not depend on this default.
-## 10. Passkeys
+The release APK is written to `app/build/outputs/apk/release/`. It is unsigned until a release signing key is configured outside the repository (§11); passkeys need that stable key. Changing the server address of an already connected phone is done in its Settings ("Change server address"), and does not depend on this default.
+
+## 11. Passkeys
 
 The library has a single owner. Instead of a password plus a second factor, sign-in can use **passkeys**: the fingerprint, face or screen lock of a phone or laptop, or a password manager that syncs them.
 
@@ -159,7 +148,7 @@ The library has a single owner. Instead of a password plus a second factor, sign
 - **Add one**: web → Settings → Passkeys → "Add a passkey" (it asks for the password). The first one also shows **ten recovery codes, only once**: keep them in your password manager.
 - **Once a passkey exists**, the password alone is refused on the web and when registering a phone. It still works **together with a recovery code**, and each code works once. Changing the password and adding or removing passkeys still need the password. Phones already connected keep working: their device tokens are not affected.
 - **New codes**: Settings → Passkeys → "New recovery codes". The old ones stop working.
-- **Locked out** (no passkey and no code left): run `node dist/cli.js passkeys-reset` on the server, through `railway ssh`, or `ol passkeys-reset` on the Ubuntu deployment. It removes every passkey and recovery code, and the password alone signs in again.
+- **Locked out** (no passkey and no code left): run `node dist/cli.js passkeys-reset` on the server, through `railway ssh`, or `ol passkeys-reset` when self-hosting. It removes every passkey and recovery code, and the password alone signs in again.
 - **Passkeys are bound to the hostname** of `PUBLIC_URL`. Moving to another domain means registering them again: sign in there with the password and a recovery code, then add new passkeys.
 
 ### Android
@@ -184,37 +173,3 @@ openlibrary.signing.keyPassword=…
 ```
 
 `./gradlew :app:assembleRelease` then signs the APK. Without these properties it stays unsigned. Forks and self-hosters use their own key and set their own `ANDROID_CERT_SHA256` (and `ANDROID_PACKAGE` if they change the application id).
-
-
-## 11. Railway
-
-The production service runs on Railway (design decisions in [railway.md](railway.md)). It is created by [`deploy/railway/provision.sh`](../deploy/railway/provision.sh), which is idempotent: re-running it only reports what exists.
-
-```bash
-export RAILWAY_API_TOKEN=…   # account token, only in this shell
-deploy/railway/provision.sh
-railway up --ci --service app  # first deploy; later deploys come from CI
-```
-
-| Resource | Value |
-| --- | --- |
-| Workspace | Raúl López's Projects (`671263a0-aeb4-4e21-b6d4-3ac59e152749`) |
-| Project | `openlibrary` (`6cc1c276-f347-42c9-84fe-20c55d1feae2`) |
-| Environment | `production` (`a5a752ab-79c7-42ec-acdd-83b7d17600c5`) |
-| Service | `app` (`50614a83-7b9d-4b92-89aa-ee8c2c909749`) |
-| Volume | `app-volume` at `/data`, `europe-west4-drams3a` (`38064dd3-89d9-48c1-8faf-1efaa29e580f`) |
-| URL | https://app-production-10a9154b.up.railway.app (port 8080) |
-
-Service variables: `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/data`, `WEB_DIST=/app/web`, `PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUST_PROXY=x-real-ip`, `RAILWAY_RUN_UID=0`, `BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`, `SESSION_TTL_DAYS=30`, `LOG_LEVEL=info`, `ANDROID_CERT_SHA256` (the release signing certificate's public fingerprint, see §10), plus `GOOGLE_BOOKS_API_KEY` (secret: set it with `GOOGLE_BOOKS_API_KEY=… deploy/railway/provision.sh` or `railway variable set GOOGLE_BOOKS_API_KEY --stdin`). There is **no** `OL_PASSWORD`: the password hash lives in the database.
-
-Admin CLI on Railway (it runs as root and drops to the `node` account by itself):
-
-```bash
-railway ssh --service app -- node dist/cli.js status
-railway ssh --service app -- node dist/cli.js set-password   # interactive
-```
-
-Notes:
-- `railway volume add` panics in CLI 5.71, so the script creates the volume through the GraphQL API (`railway api`).
-- A workspace token is enough for the GraphQL API but not for `railway whoami`, `list` or `ssh`: use an account token, and revoke it when the provisioning work is done.
-- Railway prints that Config as Code (`railway.json`) is deprecated in favour of `.railway/railway.ts` and keeps working until 2026-12-01.
