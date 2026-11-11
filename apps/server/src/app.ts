@@ -7,7 +7,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { API_PREFIX, pickLang, type HealthResponse, type Lang, type Problem } from '@openlibrary/contracts';
-import type { Config } from './config.js';
+import type { Config, TrustProxy } from './config.js';
 import { getMeta, type Db } from './db/client.js';
 import { forbidden, HttpError } from './errors.js';
 import { tr } from './i18n.js';
@@ -30,7 +30,21 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Language negotiated from Accept-Language (default English). */
     lang: Lang;
+    /** Client address according to TRUST_PROXY: the key for the login lockout and rate limits. */
+    clientIp: string;
   }
+}
+
+/** TRUST_PROXY as Fastify expects it. A hop count trusts that many proxies, closest first. */
+function fastifyTrustProxy(t: TrustProxy): boolean | ((address: string, hop: number) => boolean) {
+  if (typeof t === 'number') return (_address, hop) => hop < t;
+  return typeof t === 'boolean' ? t : false;
+}
+
+/** First address of a proxy header (one value, or a comma-separated list). */
+function headerIp(v: string | string[] | undefined): string | undefined {
+  const first = (Array.isArray(v) ? v[0] : v)?.split(',')[0]?.trim();
+  return first && first.length <= 64 ? first : undefined;
 }
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -97,7 +111,7 @@ export async function buildApp(deps: {
   const sync = new SyncService(db, catalog, deps.now);
 
   const app = Fastify({
-    trustProxy: config.trustProxy,
+    trustProxy: fastifyTrustProxy(config.trustProxy),
     bodyLimit: 1024 * 1024,
     logger:
       config.env === 'test'
@@ -109,7 +123,10 @@ export async function buildApp(deps: {
   });
 
   app.decorateRequest('lang', 'en');
+  app.decorateRequest('clientIp', '');
+  const ipHeader = typeof config.trustProxy === 'object' ? config.trustProxy.header : undefined;
   app.addHook('onRequest', async (req, reply) => {
+    req.clientIp = (ipHeader && headerIp(req.headers[ipHeader])) || req.ip;
     req.lang = pickLang(req.headers['accept-language']);
     reply.header('content-language', req.lang);
     reply.header('vary', 'Accept-Language');
@@ -143,7 +160,12 @@ export async function buildApp(deps: {
     hsts: config.secureCookies ? { maxAge: 31536000 } : false,
     crossOriginEmbedderPolicy: false,
   });
-  await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
+  await app.register(rateLimit, {
+    global: true,
+    max: 600,
+    timeWindow: '1 minute',
+    keyGenerator: (req) => req.clientIp,
+  });
 
   installSessionHook(app, auth);
   app.addHook('preHandler', async (req) => checkCsrf(req, config));

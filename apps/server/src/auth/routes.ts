@@ -52,16 +52,26 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
   /** Checks the password, applying the progressive per-IP lockout. */
   async function verifyWithThrottle(req: FastifyRequest, password: string) {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
-    const wait = auth.retryAfter(req.ip);
+    const ip = req.clientIp;
+    const wait = auth.retryAfter(ip);
     if (wait > 0) throw tooMany(wait);
     if (!(await auth.checkPassword(password))) {
-      auth.recordFailure(req.ip);
-      req.log.warn({ ip: req.ip }, 'failed login');
-      const after = auth.retryAfter(req.ip);
+      auth.recordFailure(ip);
+      req.log.warn({ ip }, 'failed login');
+      // At debug level, the raw forwarding headers: to check the TRUST_PROXY setting on a new host.
+      req.log.debug(
+        {
+          socket: req.socket.remoteAddress,
+          xForwardedFor: req.headers['x-forwarded-for'],
+          xRealIp: req.headers['x-real-ip'],
+        },
+        'failed login: proxy headers',
+      );
+      const after = auth.retryAfter(ip);
       if (after > 0) throw tooMany(after);
       throw unauthorized('errors.wrongPassword');
     }
-    auth.recordSuccess(req.ip);
+    auth.recordSuccess(ip);
   }
 
   const strict = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
