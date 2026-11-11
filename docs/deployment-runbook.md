@@ -205,7 +205,7 @@ railway up --ci --service app  # first deploy; later deploys come from CI
 | Volume | `app-volume` at `/data`, `europe-west4-drams3a` (`38064dd3-89d9-48c1-8faf-1efaa29e580f`) |
 | URL | https://app-production-10a9154b.up.railway.app (port 8080) |
 
-Service variables: `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/data`, `WEB_DIST=/app/web`, `PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUST_PROXY=x-real-ip`, `RAILWAY_RUN_UID=0`, `BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`, `SESSION_TTL_DAYS=30`, `LOG_LEVEL=info`, plus `GOOGLE_BOOKS_API_KEY` (secret: set it with `GOOGLE_BOOKS_API_KEY=… deploy/railway/provision.sh` or `railway variable set GOOGLE_BOOKS_API_KEY --stdin`). There is **no** `OL_PASSWORD`: the password hash lives in the database.
+Service variables: `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/data`, `WEB_DIST=/app/web`, `PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUST_PROXY=x-real-ip`, `RAILWAY_RUN_UID=0`, `BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`, `SESSION_TTL_DAYS=30`, `LOG_LEVEL=info`, `ANDROID_CERT_SHA256` (the release signing certificate's public fingerprint, see §10), plus `GOOGLE_BOOKS_API_KEY` (secret: set it with `GOOGLE_BOOKS_API_KEY=… deploy/railway/provision.sh` or `railway variable set GOOGLE_BOOKS_API_KEY --stdin`). There is **no** `OL_PASSWORD`: the password hash lives in the database.
 
 Admin CLI on Railway (it runs as root and drops to the `node` account by itself):
 

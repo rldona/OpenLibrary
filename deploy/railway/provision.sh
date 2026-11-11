@@ -9,6 +9,7 @@
 #   OL_RAILWAY_WORKSPACE  workspace id or name (default: the only workspace of the account)
 #   OL_RAILWAY_PROJECT    project name (default: openlibrary)
 #   OL_RAILWAY_REGION     region of the volume (default: europe-west4-drams3a, Amsterdam)
+#   OL_ANDROID_CERT_SHA256  fingerprint of the APK signing certificate (default: the owner's release key)
 #   GOOGLE_BOOKS_API_KEY  if set, stored as a service variable (read from the environment, not args)
 set -euo pipefail
 
@@ -32,6 +33,9 @@ VARIABLES=(
   BACKUP_KEEP=7
   SESSION_TTL_DAYS=30
   LOG_LEVEL=info
+  # SHA-256 of the certificate that signs the release APK (public): passkeys from the Android app
+  # and /.well-known/assetlinks.json. A fork or another signing key sets its own.
+  "ANDROID_CERT_SHA256=${OL_ANDROID_CERT_SHA256:-DE:2D:A0:52:A0:79:B9:76:C5:D6:06:F4:81:00:43:DB:F2:F7:03:7B:EE:FE:63:B8:69:BF:71:B4:AF:A8:87:0D}"
 )
 
 log() { printf '› %s\n' "$*"; }
