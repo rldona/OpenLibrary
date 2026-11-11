@@ -70,8 +70,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit tests (contract fixtures, sync, logic) and debug build
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
+      - name: Unit tests (contract fixtures, sync, logic), debug and release builds
+        # The release build is minified by R8 (unsigned here: the signing key never leaves the owner's PC).
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --console=plain
+      - name: Minified release keeps the constructors used by reflection
+        run: python3 scripts/check-release-reflection.py app/build/outputs/apk/release/app-release-unsigned.apk
 
   # Production deploy to Railway: only pushes to main, only after the checks and the image build
   # pass, only when something that goes into the image changed. Pull requests (forks included)
