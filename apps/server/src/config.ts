@@ -1,11 +1,6 @@
 import path from 'node:path';
 import { z } from 'zod';
 
-const bool = z
-  .enum(['true', 'false', '1', '0'])
-  .transform((v) => v === 'true' || v === '1')
-  .optional();
-
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().default('0.0.0.0'),
@@ -17,8 +12,23 @@ const EnvSchema = z.object({
   /** Extra origins allowed for cookie requests (e.g. the Vite dev server). */
   EXTRA_ORIGINS: z.string().default(''),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
-  /** true when a proxy in front (tailscale serve) sets X-Forwarded-For. */
-  TRUST_PROXY: bool,
+  /**
+   * How to find the client address behind a reverse proxy (it drives the login lockout and the
+   * rate limit, so it must not be spoofable):
+   *   false / 0 (default)  no proxy: the socket address.
+   *   true                 trust every X-Forwarded-For entry (left-most); only when every
+   *                        client's request goes through a proxy that strips it.
+   *   <n> (1, 2…)          trust the last n hops of X-Forwarded-For: the address added by the
+   *                        proxy in front; anything the client wrote before it is ignored.
+   *   <header name>        a header the proxy always overwrites with the client address, such
+   *                        as x-real-ip on Railway's edge.
+   */
+  TRUST_PROXY: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^(true|false|\d{1,2}|[a-z][a-z0-9-]*)$/, 'true, false, a hop count or a header name')
+    .optional(),
   /** Folder with the built web app. If missing, only the API is served. */
   WEB_DIST: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -28,6 +38,16 @@ const EnvSchema = z.object({
    */
   GOOGLE_BOOKS_API_KEY: z.string().trim().optional(),
 });
+
+/** Parsed TRUST_PROXY: Fastify's own setting, or a header the proxy sets with the client address. */
+export type TrustProxy = boolean | number | { header: string };
+
+export function parseTrustProxy(v: string | undefined): TrustProxy {
+  if (v === undefined || v === 'false' || v === '0') return false;
+  if (v === 'true') return true;
+  if (/^\d+$/.test(v)) return Number(v);
+  return { header: v };
+}
 
 export type Config = {
   env: 'development' | 'production' | 'test';
@@ -40,7 +60,7 @@ export type Config = {
   allowedOrigins: Set<string>;
   secureCookies: boolean;
   sessionTtlMs: number;
-  trustProxy: boolean;
+  trustProxy: TrustProxy;
   webDist: string | undefined;
   logLevel: string;
   googleBooksKey: string | undefined;
@@ -70,7 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     allowedOrigins: new Set([publicUrl.origin, ...extra]),
     secureCookies: publicUrl.protocol === 'https:',
     sessionTtlMs: e.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-    trustProxy: e.TRUST_PROXY ?? false,
+    trustProxy: parseTrustProxy(e.TRUST_PROXY),
     webDist: e.WEB_DIST ? path.resolve(e.WEB_DIST) : undefined,
     logLevel: e.LOG_LEVEL,
     googleBooksKey: e.GOOGLE_BOOKS_API_KEY || undefined,

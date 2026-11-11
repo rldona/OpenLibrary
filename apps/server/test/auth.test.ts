@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { loadConfig, parseTrustProxy } from '../src/config.js';
 import { cookieOf, makeApp, ORIGIN, PASSWORD } from './helpers.js';
 
 const login = (app: Awaited<ReturnType<typeof makeApp>>['app'], password: string, ip = '10.0.0.1') =>
@@ -119,6 +120,67 @@ describe('brute force', () => {
     expect((await login(app, PASSWORD)).statusCode).toBe(200);
     // Success resets the counter.
     expect((await login(app, 'mal')).statusCode).toBe(401);
+  });
+});
+
+describe('client address behind a proxy', () => {
+  type App = Awaited<ReturnType<typeof makeApp>>['app'];
+  /** A request as the proxy forwards it: the socket is always the proxy itself. */
+  const viaProxy = (app: App, password: string, headers: Record<string, string>) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { origin: ORIGIN, ...headers },
+      remoteAddress: '100.64.0.2',
+      payload: { password },
+    });
+  const lockOut = async (app: App, headers: (i: number) => Record<string, string>) => {
+    let last = 0;
+    for (let i = 0; i < 5; i++) last = (await viaProxy(app, 'mal', headers(i))).statusCode;
+    return last;
+  };
+
+  it('parses TRUST_PROXY', () => {
+    expect(parseTrustProxy(undefined)).toBe(false);
+    expect(parseTrustProxy('false')).toBe(false);
+    expect(parseTrustProxy('0')).toBe(false);
+    expect(parseTrustProxy('true')).toBe(true);
+    expect(parseTrustProxy('2')).toBe(2);
+    expect(parseTrustProxy('x-real-ip')).toEqual({ header: 'x-real-ip' });
+    expect(() => loadConfig({ TRUST_PROXY: 'x real ip' })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('header mode (Railway: x-real-ip): a forged X-Forwarded-For does not change the lockout key', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    const attacker = (i: number) => ({ 'x-real-ip': '203.0.113.7', 'x-forwarded-for': `198.51.100.${i}` });
+    expect(await lockOut(app, attacker)).toBe(429);
+    expect((await viaProxy(app, PASSWORD, attacker(99))).statusCode).toBe(429);
+    // Another real client is not affected.
+    expect((await viaProxy(app, PASSWORD, { 'x-real-ip': '192.0.2.10' })).statusCode).toBe(200);
+  });
+
+  it('header mode: two real clients get independent lockouts', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    expect(await lockOut(app, () => ({ 'x-real-ip': '203.0.113.7' }))).toBe(429);
+    expect(await lockOut(app, () => ({ 'x-real-ip': '203.0.113.8' }))).toBe(429);
+    expect((await viaProxy(app, PASSWORD, { 'x-real-ip': '192.0.2.10' })).statusCode).toBe(200);
+  });
+
+  it('hop mode: only the address added by the proxy counts', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: '1' } });
+    // The client writes its own X-Forwarded-For; the proxy appends the real address.
+    const attacker = (i: number) => ({ 'x-forwarded-for': `198.51.100.${i}, 203.0.113.7` });
+    expect(await lockOut(app, attacker)).toBe(429);
+    expect((await viaProxy(app, PASSWORD, attacker(42))).statusCode).toBe(429);
+    expect((await viaProxy(app, PASSWORD, { 'x-forwarded-for': '192.0.2.10' })).statusCode).toBe(200);
+  });
+
+  it('without TRUST_PROXY, forwarding headers are ignored', async () => {
+    const { app } = await makeApp();
+    expect(
+      await lockOut(app, (i) => ({ 'x-forwarded-for': `198.51.100.${i}`, 'x-real-ip': `198.51.100.${i}` })),
+    ).toBe(429);
+    expect((await viaProxy(app, PASSWORD, { 'x-real-ip': '192.0.2.10' })).statusCode).toBe(429);
   });
 });
 
