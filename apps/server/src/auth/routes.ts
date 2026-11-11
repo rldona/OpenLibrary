@@ -21,6 +21,7 @@ import type { Config } from '../config.js';
 import { PasswordGate } from './gate.js';
 import { forbidden, HttpError, notFound, parse, tooMany, unauthorized } from '../errors.js';
 import { PasskeyError, type PasskeyService } from './passkeys.js';
+import { throttleKey } from './throttleKey.js';
 import type { AuthService, SessionRow } from './service.js';
 
 export const SESSION_COOKIE = 'ol_session';
@@ -67,19 +68,20 @@ export async function authRoutes(
   const gate = new PasswordGate();
 
   /**
-   * Checks the password through the per-address lockout and the admission gate (bounded concurrency,
+   * Checks the password through the per-address lockout and the admission gate (keyed by
+   * `throttleKey`: an IPv6 client counts as its /64; bounded concurrency,
    * known addresses first). Returns whether it is right and records nothing: the caller decides what
    * counts as a success, so a right password never clears failures on its own.
    */
   async function checkThrottled(req: FastifyRequest, password: string): Promise<boolean> {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
-    const ip = req.clientIp;
-    const wait = auth.retryAfter(ip);
+    const who = throttleKey(req.clientIp);
+    const wait = auth.retryAfter(who);
     if (wait > 0) throw tooMany(wait);
-    const ok = await gate.run(ip, auth.isKnown(ip), () => auth.checkPassword(password));
+    const ok = await gate.run(who, auth.isKnown(who), () => auth.checkPassword(password));
     if (ok === 'busy-address') throw tooMany(1);
     if (ok === 'busy-queue') {
-      req.log.warn({ ip, waiting: gate.waiting }, 'password checks queue full');
+      req.log.warn({ ip: req.clientIp, waiting: gate.waiting }, 'password checks queue full');
       throw new HttpError(429, 'rate-limited', 'errors.rateLimited', {}, { retryAfterSeconds: 2 });
     }
     return ok;
@@ -88,7 +90,8 @@ export async function authRoutes(
   /** A failed sign-in: one more failure for the address, then 429 (locked) or 401 with `key`. */
   function failSignIn(req: FastifyRequest, key: string, reason: string): never {
     const ip = req.clientIp;
-    auth.recordFailure(ip);
+    const who = throttleKey(ip);
+    auth.recordFailure(who);
     req.log.warn({ ip, reason }, 'failed login');
     // At debug level, the raw forwarding headers: to check the TRUST_PROXY setting on a new host.
     req.log.debug(
@@ -99,7 +102,7 @@ export async function authRoutes(
       },
       'failed login: proxy headers',
     );
-    const after = auth.retryAfter(ip);
+    const after = auth.retryAfter(who);
     if (after > 0) throw tooMany(after);
     throw unauthorized(key);
   }
@@ -107,7 +110,7 @@ export async function authRoutes(
   /** Password only (no passkeys, or confirming a sensitive action): success clears the address. */
   async function verifyWithThrottle(req: FastifyRequest, password: string) {
     if (!(await checkThrottled(req, password))) failSignIn(req, 'errors.wrongPassword', 'password');
-    auth.recordSuccess(req.clientIp);
+    auth.recordSuccess(throttleKey(req.clientIp));
   }
 
   /**
@@ -126,7 +129,7 @@ export async function authRoutes(
     if (!(await checkThrottled(req, password)) || !passkeys.useCode(recoveryCode)) {
       failSignIn(req, 'errors.wrongPasswordOrCode', 'password or recovery code');
     }
-    auth.recordSuccess(req.clientIp);
+    auth.recordSuccess(throttleKey(req.clientIp));
     req.log.warn({ ip: req.clientIp, remaining: passkeys.remainingCodes() }, 'recovery code used');
   }
 
@@ -134,17 +137,18 @@ export async function authRoutes(
   async function passkeySignIn(req: FastifyRequest, ceremonyId: string, response: unknown) {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
     const ip = req.clientIp;
-    const wait = auth.retryAfter(ip);
+    const who = throttleKey(ip);
+    const wait = auth.retryAfter(who);
     if (wait > 0) throw tooMany(wait);
     try {
       const key = await passkeys.verifyAuthentication(ceremonyId, response);
-      auth.recordSuccess(ip);
+      auth.recordSuccess(who);
       return key;
     } catch (e) {
       if (!(e instanceof PasskeyError)) throw e;
-      auth.recordFailure(ip);
+      auth.recordFailure(who);
       req.log.warn({ ip, reason: e.message }, 'failed passkey sign-in');
-      const after = auth.retryAfter(ip);
+      const after = auth.retryAfter(who);
       if (after > 0) throw tooMany(after);
       throw unauthorized('errors.passkeyFailed');
     }

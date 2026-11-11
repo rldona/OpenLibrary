@@ -3,6 +3,7 @@ import { loadConfig, parseTrustProxy } from '../src/config.js';
 import { openDb } from '../src/db/client.js';
 import { authFailures } from '../src/db/schema.js';
 import { AuthService, THROTTLE } from '../src/auth/service.js';
+import { throttleKey } from '../src/auth/throttleKey.js';
 import { cookieOf, makeApp, ORIGIN, PASSWORD } from './helpers.js';
 
 const login = (app: Awaited<ReturnType<typeof makeApp>>['app'], password: string, ip = '10.0.0.1') =>
@@ -271,6 +272,51 @@ describe('client address behind a proxy', () => {
       await lockOut(app, (i) => ({ 'x-forwarded-for': `198.51.100.${i}`, 'x-real-ip': `198.51.100.${i}` })),
     ).toBe(429);
     expect((await viaProxy(app, PASSWORD, { 'x-real-ip': '192.0.2.10' })).statusCode).toBe(429);
+  });
+});
+
+describe('IPv6 clients count as their /64', () => {
+  type App = Awaited<ReturnType<typeof makeApp>>['app'];
+  const from = (app: App, ip: string, password: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { origin: ORIGIN, 'x-real-ip': ip },
+      remoteAddress: '100.64.0.2',
+      payload: { password },
+    });
+
+  it('addresses in the same /64 share one lockout; another /64 does not', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    const statuses: number[] = [];
+    // A new address of the same /64 for every attempt.
+    for (let i = 1; i <= 5; i++) statuses.push((await from(app, `2001:db8:1:2::${i}`, 'mal')).statusCode);
+    expect(statuses).toEqual([401, 401, 401, 401, 429]);
+    expect((await from(app, '2001:db8:1:2:ffff:ffff:ffff:ffff', PASSWORD)).statusCode).toBe(429);
+    expect((await from(app, '2001:db8:1:3::1', PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('IPv4 and IPv4-mapped IPv6 are the same client', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    for (let i = 0; i < 4; i++) expect((await from(app, '203.0.113.7', 'mal')).statusCode).toBe(401);
+    expect((await from(app, '::ffff:203.0.113.7', 'mal')).statusCode).toBe(429);
+  });
+
+  it('one password check in flight per /64', async () => {
+    const { app } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    const [a, b] = await Promise.all([
+      from(app, '2001:db8:1:2::1', 'mal'),
+      from(app, '2001:db8:1:2::2', 'mal'),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([401, 429]);
+  });
+
+  it('a success from one address makes its whole /64 known', async () => {
+    const { app, db, config } = await makeApp({ env: { TRUST_PROXY: 'x-real-ip' } });
+    expect((await from(app, '2001:db8:1:2::1', PASSWORD)).statusCode).toBe(200);
+    const auth = new AuthService(db, config.sessionTtlMs);
+    expect(auth.isKnown(throttleKey('2001:db8:1:2:abcd::9'))).toBe(true);
+    expect(auth.isKnown(throttleKey('2001:db8:1:3::1'))).toBe(false);
   });
 });
 
