@@ -22,6 +22,11 @@ describe('system', () => {
     expect(res.json()).toMatchObject({ status: 'ok', epoch: expect.any(String) });
   });
 
+  it('health reports OL_VERSION (the deployed commit) as the version', async () => {
+    const { app } = await makeApp({ env: { OL_VERSION: 'abc123def456' } });
+    expect((await app.inject('/api/v1/health')).json().version).toBe('abc123def456');
+  });
+
   it('unknown routes return problem+json', async () => {
     const { app } = await makeApp();
     const res = await app.inject('/api/v1/nada');

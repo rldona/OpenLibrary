@@ -130,7 +130,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       origins: [publicUrl.origin, ...extra, ...fingerprints.map(androidOrigin)],
     },
     android: { packageName: e.ANDROID_PACKAGE, certFingerprints: fingerprints },
-    version: process.env.npm_package_version ?? process.env.OL_VERSION ?? '0.1.0',
+    // OL_VERSION: the git commit, baked into the image by the deploy; npm's version in development.
+    version: env.OL_VERSION || process.env.npm_package_version || '0.1.0',
   };
 }
 

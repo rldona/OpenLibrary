@@ -72,3 +72,58 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests (contract fixtures, sync, logic) and debug build
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
+
+  # Production deploy to Railway: only pushes to main, only after the checks and the image build
+  # pass, only when something that goes into the image changed. Pull requests (forks included)
+  # never reach this job, so they never see the token.
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [checks, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      PUBLIC_URL: https://app-production-10a9154b.up.railway.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Did anything that goes into the image change?
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          if grep -qE '^(apps/server/|apps/web/|packages/|Dockerfile$|\.dockerignore$|\.railwayignore$|package(-lock)?\.json$|tsconfig\.base\.json$)' <<<"$files"; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing in the image changed (Android, docs, CI, .railway/…): no deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install the Railway CLI
+        if: steps.changes.outputs.deploy == 'true'
+        run: npm install -g @railway/cli@5.71.0
+      - name: Deploy
+        if: steps.changes.outputs.deploy == 'true'
+        run: |
+          version=${GITHUB_SHA::12}
+          # The commit becomes the build argument and runtime variable OL_VERSION.
+          railway variable set "OL_VERSION=$version" --service app --skip-deploys --json > /dev/null
+          railway up --ci --service app
+      - name: Wait until the new version answers
+        if: steps.changes.outputs.deploy == 'true'
+        run: |
+          version=${GITHUB_SHA::12}
+          for _ in $(seq 1 60); do
+            got=$(curl -fsS "$PUBLIC_URL/api/v1/health" | jq -r .version || true)
+            if [ "$got" = "$version" ]; then echo "Live: $version"; exit 0; fi
+            sleep 5
+          done
+          echo "::error::$PUBLIC_URL still reports version '$got', expected $version"
+          exit 1

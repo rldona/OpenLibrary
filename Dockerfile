@@ -28,7 +28,11 @@ RUN npm ci --omit=dev -w @openlibrary/server
 
 # ---------- Runtime ----------
 FROM ${NODE_IMAGE}
-ENV NODE_ENV=production \
+# The git commit being deployed (CI passes it; Railway hands service variables to the build as
+# build arguments). GET /api/v1/health reports it as `version`.
+ARG OL_VERSION=dev
+ENV OL_VERSION=${OL_VERSION} \
+    NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8080 \
     DATA_DIR=/data \

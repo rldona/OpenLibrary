@@ -70,3 +70,15 @@ Demo data plus 10,000 imported copies (and 3,811 reading sessions), service in `
 **Cost estimate**, Hobby prices (RAM $10/GB-month, CPU $20/vCPU-month, volume $0.15/GB-month, egress $0.05/GB): 0.2 GB × $10 ≈ $2.00 + CPU ≈ $0.10 + volume < $0.05 + egress ≈ $0 → **about $2.2/month of usage**. That is inside the $5 of usage the Hobby subscription includes, so the bill is the **$5/month subscription**. Two caveats: that $5 of included usage is per workspace, shared with the other projects in it, and covers (`assets/`) add volume storage at $0.15/GB-month.
 
 **Client address**: Railway's edge overwrites both `X-Real-IP` (the caller's address) and `X-Forwarded-For` (`<caller>, <edge>`); values sent by the client never reach the app. `TRUST_PROXY=x-real-ip` is therefore not spoofable.
+
+## Continuous deployment
+
+Every push to `main` runs CI. When the `checks` and `docker` jobs pass and the push changed something that goes into the image (server, web, `packages/`, Dockerfile, lockfile, ignore files), the `deploy` job:
+
+1. sets the service variable `OL_VERSION` to the first 12 characters of the commit (Railway passes it to the build as an argument and to the container as a variable),
+2. runs `railway up --ci --service app` with `RAILWAY_TOKEN`, a **project token** for the `production` environment stored as a GitHub Actions secret (create a new one with the GraphQL `projectTokenCreate` mutation, or in the dashboard under Project → Settings → Tokens, and store it with `gh secret set RAILWAY_TOKEN`),
+3. waits until `GET /api/v1/health` reports that version, and fails otherwise.
+
+Android-only, docs-only and CI-only pushes do not deploy, and neither do changes to `.railway/` (the service config is applied with `railway config apply`, not by building a new image). A failing test or image build blocks the deploy. Pushes deploy one at a time (`concurrency`). Pull requests, including those from forks, never reach the job or the secret.
+
+**Order of deploys:** deploy the server before distributing an APK that needs it (an older server rejects new API calls or sync operations). With continuous deployment that means merging the server change and waiting for the `deploy` job before building and installing the APK.
