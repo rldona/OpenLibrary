@@ -13,7 +13,7 @@ Living document. Confirmed decisions (2026-11-04): full-management web app, acce
 | A1 | **Role of the web app** | The conversation described the web as "catalog viewing", but the definition (§11) asks for manual entry, editing, copies, locations, import/export… | The web is the **full management station** (everything except scanning/photographing). Android is the **capture and browsing station**. Both edit; the web is online-only. **Decided:** full management. |
 | A2 | **Reading status: copy or work?** | §8 says "each copy can have a reading status", but reading is an experience of the work (owning two copies of *1984* does not mean reading it twice), and §15 asks to distinguish metrics per work and per copy. | Reading is recorded as a **`ReadingSession` linked to a copy** (the one you held), and the **work status is derived** (read if any session of any copy/edition is finished). The UI shows a single status and a "Re-read" button that starts another session. **Decided** (revisable). |
 | A3 | **Metadata with the PC off** | If ISBN lookup goes through the server, scanning with the PC off never retrieves data even if the phone has Internet. | Android queries the providers (Open Library, Google Books) **directly** when online; the web does it through the server (proxy). Same normalisation module in both. *As implemented (F3+), Android also uses the server proxy for ISBN and cover-text lookups; the OCR itself stays on the phone.* |
-| A4 | **Access from outside home** | Not specified whether Android syncs only on the home Wi-Fi. Exposing the PC to the Internet conflicts with §16 (privacy). | **Tailscale** (mesh VPN, no open ports): works at home and away, with no public exposure. **Decided:** access from outside. The architecture is ready to go public without code changes (§9.1). |
+| A4 | **Access from outside home** | Not specified whether Android syncs only on the home Wi-Fi. Exposing the PC to the Internet conflicts with §16 (privacy). | **Tailscale** (mesh VPN, no open ports): works at home and away, with no public exposure. **Decided:** access from outside. The architecture is ready to go public without code changes (§9.1). **Superseded 2026-11-11:** public HTTPS URL on Railway (§9); Tailscale remains an option for self-hosting. |
 | A5 | **"Server as central reference" vs offline edits** | If the server is authoritative and Android edits offline, we must define what happens when both touch the same data. | **Field-level** merge with a base version; conflict only if the *same field* changed on both sides → shown to the user (§6). |
 | A6 | **Provisional books** | Offline creation: does it complete itself later? | Marked `metadata_status = provisional`. When back online the lookup is **proposed** (not applied); the user reviews it. Manually edited data is never overwritten. |
 | A7 | **ISBN shared between works** | Some publishers reuse ISBNs, or one ISBN covers a multi-volume work. | ISBN is a **non-unique** index system-wide; the app warns about matches and lets you choose "same edition / a different one". |
@@ -326,42 +326,47 @@ Monorepo with **npm workspaces** for the TypeScript side; Android uses its own G
 
 ---
 
-## 9. Ubuntu deployment, backups and restore
+## 9. Deployment, backups and restore
+
+**Decided (2026-11-11): Railway** (owner decision, epic #1). The app no longer depends on the owner's Ubuntu PC being on, nor on Tailscale being installed on every device: it runs as the same single container on Railway with a public HTTPS URL. The PC + Tailscale setup of 2026-11-04 stays documented and supported for self-hosters ([self-hosting.md](self-hosting.md)). Why Railway rather than the options in §9.1:
+
+- **Railway volumes made SQLite viable.** The plan of 2026-11-04 assumed that moving to Railway meant Postgres plus S3 for covers. A volume mounted at `/data` keeps the database, the covers and the snapshots as "one folder": no rewrite of the catalog, sync or FTS5 code, and moving away again is copying that folder. Cost of the choice: one replica, and a few seconds without service on every deploy.
+- **The real library starts empty.** The owner decided not to migrate the data from the PC: the cutover begins with an empty volume, a new password and a new passkey, and the phone is set up again.
+- **No off-site copy, no volume backups.** The library holds nothing sensitive and losing it is acceptable. Railway only offers volume backups on Pro workspaces, and the service runs on Hobby. The only backup is the nightly in-process snapshot on the same volume.
+- **Passkeys** replace the planned TOTP second factor (§9.1).
+- **Configuration as code:** `.railway/railway.ts` (Railway's Infrastructure as Code, which replaced `railway.json` before 2026-12-01) and `deploy/railway/provision.sh`. Continuous deployment runs from GitHub Actions after CI.
 
 ### Deployment
-- `/srv/openlibrary/data/{library.db, assets/, backups/}`; configuration in `deploy/.env`.
-- `docker compose up -d` → `app` container (API + static web) published **only** on `127.0.0.1:8080`. `tailscale serve --bg --https=443 http://127.0.0.1:8080` exposes it over HTTPS to the tailnet only. Step-by-step guide: [deployment-runbook.md](deployment-runbook.md).
-- Starts with the system (`restart: unless-stopped`); since the PC gets switched off, there is nothing to "keep alive": the app starts in ~2 s.
-- First run: `ol set-password` sets the owner password (never from the web, so nobody can get there first).
+- One Railway service `app` (project `openlibrary`, environment `production`, `europe-west4-drams3a`) built from the root `Dockerfile`, with a volume at `/data`: `library.db`, `assets/`, `backups/`. Variables in the service (`PUBLIC_URL`, `TRUST_PROXY=x-real-ip`, `BACKUP_SCHEDULE=daily`, `ANDROID_CERT_SHA256`…), never in git. Step-by-step guide: [deployment-runbook.md](deployment-runbook.md); service notes and measurements: [railway.md](railway.md).
+- Railway starts the container as root because its volumes are owned by root. The server and the CLI hand `/data` to the `node` account and drop to it before opening anything.
+- Every push to `main` that changes the image deploys after CI. `/api/v1/health` reports the commit as `version`.
+- First run: `set-password` through `railway ssh` sets the owner password (never from the web, so nobody can get there first).
 
 ### Backups
-- **Nightly and at boot** (systemd timer with `Persistent=true`, so it runs even if the PC was off at the scheduled time):
-  1. `ol backup` → consistent hot copy of the database (SQLite online backup API).
-  2. **restic** of the snapshot + `assets/` (assets are immutable by hash → incremental) to an external disk/NAS and, optionally, encrypted cloud storage (B2 free tier). Retention: 7 daily, 4 weekly, 12 monthly.
-  3. Weekly `restic check` + warning if the last backup is older than 3 days (shown in the web's Import and export page).
-- The web lets you download the **full export** (zip) at any time: the "app-independent" copy.
-- Android is in practice a third copy of the data (not of the original covers).
+- **Nightly in-process snapshot** (`BACKUP_SCHEDULE=daily`), at 03:00 UTC and at boot when the last one is more than a day old: a consistent hot copy of the database, checked for integrity, plus 7 dated copies and `backups/last-success`. The web's Import and export page warns when it is older than 3 days.
+- It covers a bad release or a logical mistake, not losing the volume or the project. Covers are not in it.
+- The web lets you download the **full export** (zip with every record and cover) at any time: the copy that does not depend on the app.
+- Android is in practice another copy of the data (not of the original covers).
+- Self-hosted: restic to an external disk, as before ([self-hosting.md](self-hosting.md)).
 
 ### Restore
-```bash
-sudo deploy/scripts/restore.sh            # latest; or pass a snapshot id
-```
-- Stops the app, sets the current state aside (`*.before-restore-<date>`), restores database and covers, checks integrity, rebuilds the search index and **bumps the data epoch**: clients detect it and perform a **full resync** (their pending changes are resent and, if they clash, show up as conflicts — never lost).
-- Alternative logical restore: import `library.json` into a new installation.
-- **Restore drill** automated in CI (§12) and done manually every quarter.
+- **Nightly snapshot on Railway**: replace `library.db` with one of the dated snapshots while the server is stopped, then `after-restore`. Step by step in the runbook.
+- `after-restore` checks integrity, rebuilds the search index and **bumps the data epoch**: clients detect it and perform a **full resync** (their pending changes are resent and, if they clash, show up as conflicts, never lost).
+- Alternative logical restore: import the export zip into a new installation.
+- Self-hosted: `deploy/scripts/restore.sh` from restic. The restore drill is automated in CI (§12).
 
 ### 9.1 Internet-ready from day one
 
-The app is built as if it were on the Internet, even though it starts on the PC behind Tailscale. Publishing it later therefore **changes the deployment, not the code**.
+The app was built as if it were on the Internet while it ran on the PC behind Tailscale, so publishing it (2026-11, Railway) changed the deployment, not the code. Moving it found two gaps, both closed before going public: the global login lockout (a denial-of-service lever, replaced by the throttling below) and the second factor that was never implemented (replaced by passkeys).
 
 **Application requirements (since F0):**
 - Always HTTPS; the public URL is configured (`PUBLIC_URL`) and nothing assumes a "trusted" network.
 - Argon2id passwords, progressive per-address lockout after failed attempts, bounded admission of password checks (no global lockout, see below) and rate limiting on `/auth/*`.
 - `Secure`, `HttpOnly`, `SameSite=Strict` cookies, CSRF protection and security headers (CSP, HSTS).
-- Passkey sign-in (WebAuthn) instead of the planned TOTP second factor (owner decision, 2026-11-11): once a passkey is registered, the password alone no longer signs in; it is accepted only with a single-use recovery code (see the runbook, §10).
+- Passkey sign-in (WebAuthn) instead of the planned TOTP second factor (owner decision, 2026-11-11): once a passkey is registered, the password alone no longer signs in; it is accepted only with a single-use recovery code. A wrong password and a wrong code count the same for the lockout, so the lockout never reveals which one was right. Last resort: CLI `passkeys-reset`.
 - Revocable device tokens; access log visible in the web.
 - Covers served only with a session: nothing in the library is accessible unauthenticated.
-- All state lives in `/srv/openlibrary`, so moving the server means copying a folder or restoring a backup.
+- All state lives in one folder (`/data` on Railway, `/srv/openlibrary/data` self-hosted), so moving the server means copying a folder or restoring a backup.
 
 **Login throttling on a public URL (2026-11-11).** The first design had a global lockout (100 failures an hour from all addresses → every password check refused for 15 minutes). In a tailnet that was a safety net. On the Internet it is a lever against the owner: 100 wrong passwords an hour, from anywhere, would keep the web login, device registration and password change locked forever. Existing sessions and device tokens would keep working, but nobody could sign in again. It was replaced by limits that degrade instead of denying:
 
@@ -374,11 +379,11 @@ The app is built as if it were on the Internet, even though it starts on the PC 
 
 *What the owner sees during an attack.* From an address that signed in recently: at most the checks already running, a few hundred milliseconds. From a new address: at most a queue of 64 checks shared by 2 slots, about 2–4 seconds, or a "too many requests, retry in 2 s" while more than 64 strangers are waiting at that very moment. Never a lockout that outlasts the attack. A flood big enough to keep the queue full at all times is a denial of service of the whole server, which belongs to the edge (Railway's WAF / rate limits), not to the login.
 
-**Options to publish it later:**
+**Options considered to publish it (2026-11-04):**
 
 | Option | What changes | Cost | Pros | Cons |
 |--------|--------------|------|------|------|
-| **A. Tailscale (current)** | — | €0 | Private, no open ports, works away from home | Every device needs Tailscale; no web when the PC is off |
+| **A. Tailscale** | — | €0 | Private, no open ports, works away from home | Every device needs Tailscale; no web when the PC is off |
 | **B. Cloudflare Tunnel from the PC** | Add a `cloudflared` container + domain | ~€10/year (domain) | Web from any browser; no open ports; Cloudflare Access as an extra login layer | Still depends on the PC being on |
 | **C. VPS** (Hetzner, OVH…) | Same `docker compose` on another machine + restore a backup | €4–6/month | Web always available; the PC no longer matters | Data on a rented server (encrypted disk and backups) |
 
@@ -386,7 +391,7 @@ Going from A to B or C: roughly **an afternoon of deployment work**. The API, sy
 
 **Decided (2026-11-04): option A**, zero cost. Vercel (web) + Railway (API + Postgres) was also evaluated: viable, but it needs an own domain (cross-site cookies), private storage for covers and a monthly usage-based cost. Discarded for the MVP.
 
-**If published later:** buy a domain and choose B (stays on the PC) or C/Railway (always available; would mean moving from SQLite to Postgres, which Drizzle already supports, and storing covers in private S3 storage). The app is already hardened, so the business code does not change.
+**Superseded (2026-11-11): Railway**, see §9. The worry about cross-site cookies did not apply because the web is served by the same process (same origin, the generated `*.up.railway.app` domain is enough), and the move to Postgres + S3 was not needed thanks to volumes. The usage-based cost (about $2/month of usage, inside the Hobby plan's $5) is accepted by the owner.
 
 ---
 
@@ -413,14 +418,16 @@ Indicative total: **~11 weeks** part-time. Every phase ends with something usabl
 |----|------|:-----:|:------:|------------|
 | R1 | Poor metadata for Spanish / old books | High | Medium | Two providers + BNE later; fast manual entry; cover photos; never block creation |
 | R2 | Subtle sync bugs (loss/duplication) | Medium | High | Simple protocol (outbox + cursor), property-based and fault-injection tests, readable sync logs |
-| R3 | Loss of the PC's disk | Medium | High | restic to 2 destinations + zip export + implicit copy on Android; stale-backup warning |
-| R4 | The phone cannot reach the PC (network, Tailscale down) | Medium | Low | Offline is the normal mode; clear status; stable MagicDNS name |
+| R3 | Loss of the Railway volume or project (no volume backups on Hobby, no off-site copy) | Low | Medium (accepted by the owner) | Nightly snapshot for logical mistakes; the full export zip can be downloaded any time; Android holds a copy of the records |
+| R4 | The phone cannot reach the server (network, Railway outage, a deploy) | Medium | Low | Offline is the normal mode; clear status; automatic retries |
 | R5 | Restoring a backup "breaks" clients with newer data | Low | High | `epoch` + full resync that keeps pending ops as conflicts |
 | R6 | Scanning in low light / EAN-5 add-on | Medium | Low | Torch, manual ISBN entry, add-on ignored |
 | R7 | Scope too large for a personal project | High | Medium | Deliverable phases; non-MVP items in the backlog; web and Android share contracts |
 | R8 | Provider API changes/outages | Medium | Low | Adapter layer + lookup cache; stored data does not depend on them |
 | R9 | Private data leak (lost phone) | Low | Medium | SQLCipher, biometric lock, revoke the token from the web |
 | R10 | Translations drifting apart | Medium | Low | Spanish dictionaries type-checked against English; server catalog parity test |
+| R11 | Public exposure: brute force, abuse of the login, scanning | Medium | High | Passkeys (password alone refused once one exists), per-address lockout with the real client address from Railway's edge, bounded admission of password checks, rate limits, security headers; nothing readable without a session |
+| R12 | Provider lock-in or price change | Low | Low | Standard Docker image and one data folder; the self-hosting path stays supported; `provision.sh` and `.railway/railway.ts` document the whole setup |
 
 ---
 

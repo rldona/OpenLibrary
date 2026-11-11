@@ -4,10 +4,11 @@
 
 # OpenLibrary
 
-A personal library for physical books: a self-hosted server (one Docker container that keeps all its state in one folder), a web app to manage the catalog and a native Android app with ISBN scanning and offline mode. The app is available in **English and Spanish**.
+A personal library for physical books: a server (one Docker container that keeps all its state in one folder, running on Railway or on your own machine), a web app to manage the catalog and a native Android app with ISBN scanning and offline mode. The app is available in **English and Spanish**.
 
 - **Analysis and technical design** → [docs/01-analysis-and-design.md](docs/01-analysis-and-design.md)
-- **Deployment on Ubuntu** → [docs/deployment-runbook.md](docs/deployment-runbook.md)
+- **Deployment on Railway** → [docs/deployment-runbook.md](docs/deployment-runbook.md) · service notes → [docs/railway.md](docs/railway.md)
+- **Self-hosting** (Ubuntu + Tailscale) → [docs/self-hosting.md](docs/self-hosting.md)
 - **Clickable prototypes** (Spanish, design reference) → `prototypes/`
 
 ## Structure
@@ -16,7 +17,7 @@ A personal library for physical books: a self-hosted server (one Docker containe
 apps/server         API (Fastify + TypeScript + SQLite/Drizzle) and admin CLI
 apps/web            Web app (React + Vite), served by the server itself
 packages/contracts  Shared API schemas (zod), ISBN logic and i18n catalog
-deploy/             Docker Compose, backup/restore/update scripts, systemd timers
+deploy/             Railway provisioning script; Docker Compose, backup/restore/update scripts, systemd timers (self-hosting)
 prototypes/         HTML prototypes of the web and Android apps
 ```
 
