@@ -358,7 +358,7 @@ The app is built as if it were on the Internet, even though it starts on the PC 
 - Always HTTPS; the public URL is configured (`PUBLIC_URL`) and nothing assumes a "trusted" network.
 - Argon2id passwords, progressive per-address lockout after failed attempts, bounded admission of password checks (no global lockout, see below) and rate limiting on `/auth/*`.
 - `Secure`, `HttpOnly`, `SameSite=Strict` cookies, CSRF protection and security headers (CSP, HSTS).
-- Optional second factor (TOTP) prepared, to enable when going public.
+- Passkey sign-in (WebAuthn) instead of the planned TOTP second factor (owner decision, 2026-11-11): once a passkey is registered, the password alone no longer signs in; it is accepted only with a single-use recovery code (see the runbook, §10).
 - Revocable device tokens; access log visible in the web.
 - Covers served only with a session: nothing in the library is accessible unauthenticated.
 - All state lives in `/srv/openlibrary`, so moving the server means copying a folder or restoring a backup.

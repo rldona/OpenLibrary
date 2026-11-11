@@ -6,13 +6,20 @@ export const es: Record<keyof typeof en, string> = {
 
   'setup.title': 'Conecta con tu biblioteca',
   'setup.text':
-    'Indica la dirección de tu servidor y tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
+    'Indica la dirección de tu servidor y conecta con una llave de acceso o con tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
   'setup.textDefaultServer':
-    'Escribe tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
+    'Conecta con tu llave de acceso o con tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
   'setup.useAnotherServer': 'Usar otro servidor',
   'setup.server': 'Dirección del servidor',
   'setup.serverPlaceholder': 'https://biblioteca.example.com',
   'setup.deviceName': 'Nombre de este móvil',
+  'setup.withPasskey': 'Conectar con una llave de acceso',
+  'setup.orPassword': 'O con tu contraseña',
+  'setup.recoveryHint':
+    'Esta biblioteca está protegida con una llave de acceso. Usa la llave de acceso o tu contraseña junto con uno de tus códigos de recuperación.',
+  'setup.noPasskey':
+    'Este móvil no tiene ninguna llave de acceso para esta biblioteca. Añade una desde la web o usa tu contraseña y un código de recuperación.',
+  'setup.passkeyFailed': 'No se ha podido usar la llave de acceso en este móvil.',
   'setup.connect': 'Conectar',
   'setup.connecting': 'Conectando…',
   'setup.invalidUrl': 'Indica una dirección válida, p. ej. https://biblioteca.example.com',

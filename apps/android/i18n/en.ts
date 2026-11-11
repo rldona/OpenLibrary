@@ -8,13 +8,20 @@ export const en = {
 
   'setup.title': 'Connect to your library',
   'setup.text':
-    'Enter your server address and password. This phone gets its own access, which you can revoke from the web.',
+    'Enter your server address, then connect with a passkey or your password. This phone gets its own access, which you can revoke from the web.',
   'setup.textDefaultServer':
-    'Enter your password. This phone gets its own access, which you can revoke from the web.',
+    'Connect with your passkey or your password. This phone gets its own access, which you can revoke from the web.',
   'setup.useAnotherServer': 'Use another server',
   'setup.server': 'Server address',
   'setup.serverPlaceholder': 'https://library.example.com',
   'setup.deviceName': 'Name of this phone',
+  'setup.withPasskey': 'Connect with a passkey',
+  'setup.orPassword': 'Or with your password',
+  'setup.recoveryHint':
+    'This library is protected with a passkey. Use the passkey, or your password together with one of your recovery codes.',
+  'setup.noPasskey':
+    'This phone has no passkey for this library. Add one from the web, or use your password and a recovery code.',
+  'setup.passkeyFailed': 'The passkey could not be used on this phone.',
   'setup.connect': 'Connect',
   'setup.connecting': 'Connecting…',
   'setup.invalidUrl': 'Enter a valid address, e.g. https://library.example.com',
