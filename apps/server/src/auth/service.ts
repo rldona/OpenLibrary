@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { and, eq, isNull, like, lt, ne, not, or } from 'drizzle-orm';
 import { PASSWORD_MIN_LENGTH } from '@openlibrary/contracts';
 import type { Db } from '../db/client.js';
 import { authFailures, owner, sessions } from '../db/schema.js';
@@ -9,18 +9,21 @@ import { hashPassword, newToken, sha256, verifyPassword } from './crypto.js';
 export type Clock = () => Date;
 export type SessionRow = typeof sessions.$inferSelect;
 
-/** Brute-force lockout policy. */
+/**
+ * Brute-force policy (reasoning in the design document, §9.1). There is no global lockout: on a
+ * public URL it would let anyone keep the owner out. Distributed attacks are slowed down by the
+ * per-address budget and by the admission gate for password checks (`gate.ts`).
+ */
 export const THROTTLE = {
-  /** Lockout starts once an IP reaches this many consecutive failures. */
+  /** Lockout starts once an address reaches this many failures. */
   freeFailures: 5,
   /** First lockout; doubles with every further failure. */
   baseLockMs: 60_000,
   maxLockMs: 60 * 60_000,
-  /** Window after which an IP's failures are forgotten. */
-  windowMs: 15 * 60_000,
-  /** Global limit (all IPs) per hour: slows down distributed attacks. */
-  globalMaxPerHour: 100,
-  globalLockMs: 15 * 60_000,
+  /** An address's failures are forgotten this long after its last failure. */
+  forgetAfterMs: 24 * 60 * 60_000,
+  /** An address with a successful sign-in this recent is "known": the gate admits it first. */
+  knownForMs: 30 * 24 * 60 * 60_000,
 } as const;
 
 /** How often last_seen / sliding expiry are updated (avoids one write per request). */
@@ -64,23 +67,26 @@ export class AuthService {
   }
 
   // ---------- Brute force ----------
-  /** Seconds until the next attempt is allowed, or 0 if allowed now. */
+  /** Seconds until the next attempt from this address is allowed, or 0 if allowed now. */
   retryAfter(ip: string): number {
-    const t = this.now().getTime();
-    const wait = [this.failureRow(`ip:${ip}`), this.failureRow('global')]
-      .map((r) => (r?.lockedUntil ? new Date(r.lockedUntil).getTime() - t : 0))
-      .reduce((a, b) => Math.max(a, b), 0);
+    const lockedUntil = this.failureRow(`ip:${ip}`)?.lockedUntil;
+    const wait = lockedUntil ? new Date(lockedUntil).getTime() - this.now().getTime() : 0;
     return wait > 0 ? Math.ceil(wait / 1000) : 0;
   }
 
   recordFailure(ip: string): void {
     const t = this.now().getTime();
-    this.bump(`ip:${ip}`, t, THROTTLE.windowMs, (n) =>
-      n >= THROTTLE.freeFailures
-        ? Math.min(THROTTLE.baseLockMs * 2 ** (n - THROTTLE.freeFailures), THROTTLE.maxLockMs)
-        : 0,
-    );
-    this.bump('global', t, 60 * 60_000, (n) => (n >= THROTTLE.globalMaxPerHour ? THROTTLE.globalLockMs : 0));
+    const key = `ip:${ip}`;
+    const row = this.failureRow(key);
+    const fresh = !row || t - new Date(row.windowStart).getTime() > THROTTLE.forgetAfterMs;
+    const failures = fresh ? 1 : row.failures + 1;
+    const lock =
+      failures >= THROTTLE.freeFailures
+        ? Math.min(THROTTLE.baseLockMs * 2 ** (failures - THROTTLE.freeFailures), THROTTLE.maxLockMs)
+        : 0;
+    // window_start holds the time of the last failure: the count decays from there.
+    this.upsert(key, failures, new Date(t).toISOString(), lock ? new Date(t + lock).toISOString() : null);
+    this.prune();
   }
 
   recordSuccess(ip: string): void {
@@ -88,19 +94,41 @@ export class AuthService {
       .delete(authFailures)
       .where(eq(authFailures.key, `ip:${ip}`))
       .run();
+    this.upsert(`ok:${ip}`, 0, this.now().toISOString(), null);
+  }
+
+  /** Whether this address signed in successfully not long ago. */
+  isKnown(ip: string): boolean {
+    const row = this.failureRow(`ok:${ip}`);
+    return !!row && this.now().getTime() - new Date(row.windowStart).getTime() <= THROTTLE.knownForMs;
+  }
+
+  /** Forgets addresses that stopped failing (or signed in long ago): one-off IPs do not pile up. */
+  prune(): void {
+    const t = this.now().getTime();
+    const failedBefore = new Date(t - THROTTLE.forgetAfterMs).toISOString();
+    const knownBefore = new Date(t - THROTTLE.knownForMs).toISOString();
+    const nowIso = new Date(t).toISOString();
+    this.db
+      .delete(authFailures)
+      .where(
+        or(
+          and(
+            not(like(authFailures.key, 'ok:%')),
+            lt(authFailures.windowStart, failedBefore),
+            or(isNull(authFailures.lockedUntil), lt(authFailures.lockedUntil, nowIso)),
+          ),
+          and(like(authFailures.key, 'ok:%'), lt(authFailures.windowStart, knownBefore)),
+        ),
+      )
+      .run();
   }
 
   private failureRow(key: string) {
     return this.db.select().from(authFailures).where(eq(authFailures.key, key)).get();
   }
 
-  private bump(key: string, t: number, windowMs: number, lockFor: (failures: number) => number): void {
-    const row = this.failureRow(key);
-    const fresh = !row || t - new Date(row.windowStart).getTime() > windowMs;
-    const failures = fresh ? 1 : row.failures + 1;
-    const windowStart = fresh ? new Date(t).toISOString() : row.windowStart;
-    const lock = lockFor(failures);
-    const lockedUntil = lock ? new Date(t + lock).toISOString() : null;
+  private upsert(key: string, failures: number, windowStart: string, lockedUntil: string | null): void {
     this.db
       .insert(authFailures)
       .values({ key, failures, windowStart, lockedUntil })

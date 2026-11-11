@@ -356,12 +356,23 @@ The app is built as if it were on the Internet, even though it starts on the PC 
 
 **Application requirements (since F0):**
 - Always HTTPS; the public URL is configured (`PUBLIC_URL`) and nothing assumes a "trusted" network.
-- Argon2id passwords, progressive lockout after failed attempts and rate limiting on `/auth/*`.
+- Argon2id passwords, progressive per-address lockout after failed attempts, bounded admission of password checks (no global lockout, see below) and rate limiting on `/auth/*`.
 - `Secure`, `HttpOnly`, `SameSite=Strict` cookies, CSRF protection and security headers (CSP, HSTS).
 - Optional second factor (TOTP) prepared, to enable when going public.
 - Revocable device tokens; access log visible in the web.
 - Covers served only with a session: nothing in the library is accessible unauthenticated.
 - All state lives in `/srv/openlibrary`, so moving the server means copying a folder or restoring a backup.
+
+**Login throttling on a public URL (2026-11-11).** The first design had a global lockout (100 failures an hour from all addresses → every password check refused for 15 minutes). In a tailnet that was a safety net. On the Internet it is a lever against the owner: 100 wrong passwords an hour, from anywhere, would keep the web login, device registration and password change locked forever. Existing sessions and device tokens would keep working, but nobody could sign in again. It was replaced by limits that degrade instead of denying:
+
+- **Per address, progressive and persistent.** 5 free failures, then a lockout of 1 minute that doubles with every further failure up to 1 hour. The count is forgotten 24 hours after the address's *last* failure, not 15 minutes after its first, so a persistent address does not start over. After the ramp it gets about one guess an hour: roughly 30 the first day and 24 a day after that.
+- **Admission gate for password checks** (`auth/gate.ts`). At most 2 Argon2id verifications run at once and the rest wait in a FIFO queue. One check in flight per address, at most 64 waiting from unknown addresses; beyond that the answer is `429` with `Retry-After: 2`. Addresses that signed in successfully in the last 30 days skip ahead of unknown ones.
+- **The real client address** comes from `TRUST_PROXY` (on Railway, the `X-Real-IP` header set by its edge), so a client cannot choose its own lockout key.
+- Failure rows of addresses that stopped failing are pruned, so one-off addresses do not pile up.
+
+*Attack rates against cost.* An Argon2id verification (19 MiB, t=2) costs about 50–100 ms of one core, so the gate caps the server at about 20–40 checks a second: at most ~3 million a day, whatever the attacker owns. The per-address budget is what actually limits them. A botnet of 10,000 addresses gets ~250,000 guesses a day. Against a password of at least 12 characters that is not a dictionary word, that is still decades for any password worth the name. A weak password remains the weak point; passkeys (which turn password-only sign-in off once one is registered) close it.
+
+*What the owner sees during an attack.* From an address that signed in recently: at most the checks already running, a few hundred milliseconds. From a new address: at most a queue of 64 checks shared by 2 slots, about 2–4 seconds, or a "too many requests, retry in 2 s" while more than 64 strangers are waiting at that very moment. Never a lockout that outlasts the attack. A flood big enough to keep the queue full at all times is a denial of service of the whole server, which belongs to the edge (Railway's WAF / rate limits), not to the login.
 
 **Options to publish it later:**
 

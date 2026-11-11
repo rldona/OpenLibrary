@@ -8,6 +8,7 @@ import {
   type SessionInfo,
 } from '@openlibrary/contracts';
 import type { Config } from '../config.js';
+import { PasswordGate } from './gate.js';
 import { HttpError, notFound, parse, tooMany, unauthorized } from '../errors.js';
 import type { AuthService, SessionRow } from './service.js';
 
@@ -49,13 +50,24 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
     sameSite: 'strict' as const,
   };
 
-  /** Checks the password, applying the progressive per-IP lockout. */
+  const gate = new PasswordGate();
+
+  /**
+   * Checks the password: progressive per-address lockout, then the admission gate (bounded
+   * concurrency, known addresses first) so a flood of wrong passwords only delays the owner.
+   */
   async function verifyWithThrottle(req: FastifyRequest, password: string) {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
     const ip = req.clientIp;
     const wait = auth.retryAfter(ip);
     if (wait > 0) throw tooMany(wait);
-    if (!(await auth.checkPassword(password))) {
+    const ok = await gate.run(ip, auth.isKnown(ip), () => auth.checkPassword(password));
+    if (ok === 'busy-address') throw tooMany(1);
+    if (ok === 'busy-queue') {
+      req.log.warn({ ip, waiting: gate.waiting }, 'password checks queue full');
+      throw new HttpError(429, 'rate-limited', 'errors.rateLimited', {}, { retryAfterSeconds: 2 });
+    }
+    if (!ok) {
       auth.recordFailure(ip);
       req.log.warn({ ip }, 'failed login');
       // At debug level, the raw forwarding headers: to check the TRUST_PROXY setting on a new host.
