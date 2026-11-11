@@ -501,7 +501,9 @@
     <string name="setup_serverPlaceholder">https://openlibrary.tu-tailnet.ts.net</string>
     <string name="setup_showPassword">Mostrar contraseña</string>
     <string name="setup_text">Indica la dirección de tu servidor y tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.</string>
+    <string name="setup_textDefaultServer">Escribe tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.</string>
     <string name="setup_title">Conecta con tu biblioteca</string>
+    <string name="setup_useAnotherServer">Usar otro servidor</string>
     <string name="state_errorTitle">Algo ha fallado</string>
     <string name="stats_acquiredByYear">Ejemplares adquiridos por año</string>
     <string name="stats_acquiredIncludesRetired_one">Incluye {n} ejemplar retirado</string>

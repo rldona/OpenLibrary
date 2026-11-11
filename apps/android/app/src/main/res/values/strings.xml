@@ -501,7 +501,9 @@
     <string name="setup_serverPlaceholder">https://openlibrary.your-tailnet.ts.net</string>
     <string name="setup_showPassword">Show password</string>
     <string name="setup_text">Enter your server address and password. This phone gets its own access, which you can revoke from the web.</string>
+    <string name="setup_textDefaultServer">Enter your password. This phone gets its own access, which you can revoke from the web.</string>
     <string name="setup_title">Connect to your library</string>
+    <string name="setup_useAnotherServer">Use another server</string>
     <string name="state_errorTitle">Something went wrong</string>
     <string name="stats_acquiredByYear">Copies acquired per year</string>
     <string name="stats_acquiredIncludesRetired_one">Includes {n} retired copy</string>

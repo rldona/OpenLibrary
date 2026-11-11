@@ -9,6 +9,9 @@ export const en = {
   'setup.title': 'Connect to your library',
   'setup.text':
     'Enter your server address and password. This phone gets its own access, which you can revoke from the web.',
+  'setup.textDefaultServer':
+    'Enter your password. This phone gets its own access, which you can revoke from the web.',
+  'setup.useAnotherServer': 'Use another server',
   'setup.server': 'Server address',
   'setup.serverPlaceholder': 'https://openlibrary.your-tailnet.ts.net',
   'setup.deviceName': 'Name of this phone',

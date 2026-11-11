@@ -132,3 +132,20 @@ The web's **Import and export** page shows when the last backup finished (from `
 - Even so, the app behaves as if it were on the Internet: Argon2id password, progressive lockout after 5 failures, `Secure`/`HttpOnly`/`SameSite=Strict` cookies, CSRF protection and security headers. That is why publishing it one day would only change the deployment (see §9.1 of the design document).
 - Note: behind `tailscale serve` every request may arrive with the same internal IP; the failed-attempt lockout then behaves like a global lockout, which is acceptable for a single user.
 - `TRUST_PROXY` says where the client address comes from (it keys the lockout and the rate limit): `false` (no proxy), `true` (every `X-Forwarded-For` entry, today's setting behind `tailscale serve`), a hop count such as `1` (only the address the proxy in front appends; anything the client wrote is ignored) or a header name the proxy always overwrites. On Railway it is `TRUST_PROXY=x-real-ip`: its edge documents `X-Real-IP` as the client's address. To check a new host, set `LOG_LEVEL=debug` for a while: each failed login also logs the socket address and the raw `X-Forwarded-For` / `X-Real-IP`.
+
+## 9. Building the Android app for your server
+
+The setup screen can skip the server address: build the APK with your server as the default and the phone only asks for the device name and the password. A small "Use another server" link still shows the address field. The address is **never committed**. Pass it in one of these ways:
+
+- in `apps/android/local.properties` (not in git): `openlibrary.defaultServerUrl=https://library.example.com`;
+- on the command line: `-Popenlibrary.defaultServerUrl=https://library.example.com`;
+- in CI: the `OPENLIBRARY_DEFAULT_SERVER_URL` environment variable, from a repository secret.
+
+It must be an `https://` address without a path. Anything else fails the build, not the app. Without the property the setup asks for the address as before.
+
+```bash
+cd apps/android
+./gradlew :app:assembleRelease -Popenlibrary.defaultServerUrl=https://library.example.com
+```
+
+The release APK is written to `app/build/outputs/apk/release/`. It is unsigned until a release signing key is configured (outside the repository); passkeys need that stable key. Changing the server address of an already connected phone is done in its Settings ("Change server address"), and does not depend on this default.
