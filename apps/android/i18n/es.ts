@@ -8,11 +8,11 @@ export const es: Record<keyof typeof en, string> = {
   'setup.text':
     'Indica la dirección de tu servidor y tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
   'setup.server': 'Dirección del servidor',
-  'setup.serverPlaceholder': 'https://openlibrary.tu-tailnet.ts.net',
+  'setup.serverPlaceholder': 'https://biblioteca.example.com',
   'setup.deviceName': 'Nombre de este móvil',
   'setup.connect': 'Conectar',
   'setup.connecting': 'Conectando…',
-  'setup.invalidUrl': 'Indica una dirección válida, p. ej. https://openlibrary.tu-tailnet.ts.net',
+  'setup.invalidUrl': 'Indica una dirección válida, p. ej. https://biblioteca.example.com',
 
   'sync.never': 'Aún sin sincronizar',
   'sync.syncing': 'Sincronizando…',

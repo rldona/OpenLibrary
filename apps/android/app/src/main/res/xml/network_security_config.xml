@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Release: HTTPS only (tailscale serve provides the certificate). -->
+<!-- Release: HTTPS only, with a certificate from a public CA (the host or proxy in front provides it). -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>
