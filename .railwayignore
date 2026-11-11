@@ -1,0 +1,14 @@
+# Kept out of `railway up` uploads (on top of .gitignore). The Docker build itself uses .dockerignore.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+**/.data
+**/*.db*
+**/node_modules
+**/dist
+.claude
+.flupcode
+apps/android
+docs
+prototypes
