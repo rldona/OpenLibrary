@@ -64,6 +64,45 @@ export const es: Record<keyof typeof en, string> = {
   'login.password': 'Contraseña',
   'login.signIn': 'Entrar',
   'login.signingIn': 'Entrando…',
+  'login.subtitlePasskey': 'Biblioteca privada. Entra con tu llave de acceso para continuar.',
+  'login.withPasskey': 'Entrar con una llave de acceso',
+  'login.usePassword': 'Usar la contraseña y un código de recuperación',
+  'login.recoveryHint':
+    'Esta biblioteca está protegida con una llave de acceso. Sin ella, usa tu contraseña junto con uno de tus códigos de recuperación.',
+  'login.recoveryCode': 'Código de recuperación',
+
+  'passkeys.title': 'Llaves de acceso',
+  'passkeys.hint':
+    'Entra con tu huella, tu cara o el bloqueo de pantalla en vez de con la contraseña. En cuanto añadas una, la contraseña sola ya no basta: necesitará un código de recuperación.',
+  'passkeys.none': 'Todavía no hay llaves de acceso.',
+  'passkeys.add': 'Añadir una llave de acceso',
+  'passkeys.addText':
+    'Confirma con tu contraseña. Después tu navegador o tu gestor de contraseñas creará la llave de acceso para esta biblioteca.',
+  'passkeys.name': 'Nombre',
+  'passkeys.namePlaceholder': 'p. ej. Móvil, Portátil',
+  'passkeys.defaultName': 'Llave de acceso',
+  'passkeys.password': 'Tu contraseña',
+  'passkeys.synced': 'Sincronizada',
+  'passkeys.rename': 'Cambiar nombre',
+  'passkeys.remove': 'Quitar',
+  'passkeys.removeTitle': '¿Quitar la llave de acceso «{name}»?',
+  'passkeys.removeText': 'Ya no servirá para entrar. Confirma con tu contraseña.',
+  'passkeys.removeLastText':
+    'Es la última: la contraseña sola volverá a bastar para entrar y los códigos de recuperación dejarán de valer. Confirma con tu contraseña.',
+  'passkeys.newCodes': 'Nuevos códigos de recuperación',
+  'passkeys.newCodesText':
+    'Los códigos de recuperación actuales dejarán de valer. Confirma con tu contraseña.',
+  'passkeys.codesTitle': 'Tus códigos de recuperación',
+  'passkeys.codesText':
+    'Guárdalos en un sitio seguro, como un gestor de contraseñas: solo se muestran ahora. Si pierdes tus llaves de acceso, cada código sirve una vez junto con tu contraseña.',
+  'passkeys.copy': 'Copiar',
+  'passkeys.copied': 'Copiados',
+  'passkeys.codesSaved': 'Ya los he guardado',
+  'passkeys.added': 'Llave de acceso añadida.',
+  'passkeys.removed': 'Llave de acceso quitada.',
+  'passkeys.cancelled': 'No se ha usado ninguna llave de acceso.',
+  'passkeys.failed': 'El navegador no ha podido crear la llave de acceso.',
+  'passkeys.unsupported': 'Este navegador no puede usar llaves de acceso.',
 
   'cover.alt': 'Portada de {title}',
   'cover.generated': 'Portada generada: {title}',

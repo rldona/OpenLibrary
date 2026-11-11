@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CopyDTO, EditionDTO, WorkDTO } from '@openlibrary/contracts/client';
 import { api, ApiError, errorText } from './api';
-import { Icon, Logo } from './components/ui';
+import { Icon } from './components/ui';
 import { MainNav, type View } from './components/nav';
 import { SearchBox } from './components/search';
 import { useNavMode } from './lib/media';
@@ -10,10 +10,11 @@ import { SIGN_OUT_FLUSH_MS, useSnackbar } from './components/snackbar';
 import { useDocumentTitle } from './lib/title';
 import { navigate, setParams, useLocation } from './lib/router';
 import { useLocations, useWishlist } from './lib/queries';
-import { LanguageSwitch, useI18n } from './i18n';
+import { useI18n } from './i18n';
 import { Library } from './pages/Library';
 import { Locations } from './pages/Locations';
 import { Settings } from './pages/Settings';
+import { Login } from './pages/Login';
 import { Wishlist } from './pages/Wishlist';
 import { Stats } from './pages/Stats';
 import { Data } from './pages/Data';
@@ -237,63 +238,6 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         />
       )}
       {dialog?.kind === 'copy' && <CopyForm mode={dialog.mode} onClose={() => setDialog(null)} />}
-    </div>
-  );
-}
-
-function Login({ onDone }: { onDone: () => void }) {
-  const { t } = useI18n();
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api.login({ password });
-      onDone();
-    } catch (err) {
-      setError(errorText(err, t));
-      setPassword('');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="center-card">
-      <form className="panel narrow" onSubmit={submit}>
-        <div className="row-between">
-          <div className="brand">
-            <Logo className="logo" />
-            OpenLibrary
-          </div>
-          <LanguageSwitch />
-        </div>
-        <h1>{t('login.title')}</h1>
-        <p className="muted">{t('login.subtitle')}</p>
-        <label>
-          {t('login.password')}
-          <input
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        {error && (
-          <p className="err" role="alert">
-            {error}
-          </p>
-        )}
-        <button className="btn primary block" disabled={busy || !password}>
-          {busy ? t('login.signingIn') : t('login.signIn')}
-        </button>
-      </form>
     </div>
   );
 }
