@@ -53,6 +53,27 @@ export const authFailures = sqliteTable('auth_failures', {
   lockedUntil: text('locked_until'),
 });
 
+/** The owner's passkeys (WebAuthn credentials). The id is the credential id (base64url). */
+export const passkeys = sqliteTable('passkeys', {
+  id: text('id').primaryKey(),
+  /** COSE public key, base64url. */
+  publicKey: text('public_key').notNull(),
+  counter: integer('counter').notNull(),
+  /** JSON array of transports reported at registration. */
+  transports: text('transports'),
+  name: text('name').notNull(),
+  backedUp: integer('backed_up', { mode: 'boolean' }).notNull(),
+  createdAt: text('created_at').notNull(),
+  lastUsedAt: text('last_used_at'),
+});
+
+/** Single-use recovery codes (password + code while passkeys exist). Only hashes are stored. */
+export const recoveryCodes = sqliteTable('recovery_codes', {
+  codeHash: text('code_hash').primaryKey(),
+  createdAt: text('created_at').notNull(),
+  usedAt: text('used_at'),
+});
+
 // ============================================================================
 // Catalog (F1). Every syncable entity shares:
 //   id (client UUIDv7), version (bumped by the server), created_at, updated_at, deleted_at (tombstone).

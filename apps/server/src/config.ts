@@ -44,6 +44,13 @@ const EnvSchema = z.object({
   BACKUP_SCHEDULE: z.enum(['off', 'daily']).default('off'),
   /** Dated snapshots kept by the in-process backup. */
   BACKUP_KEEP: z.coerce.number().int().min(1).max(90).default(7),
+  /**
+   * SHA-256 fingerprints of the certificates that sign the Android app (as `keytool` prints them,
+   * comma-separated). They go to /.well-known/assetlinks.json and make the app's origin acceptable
+   * for passkeys. Each fork or self-hoster sets its own; without it, passkeys work on the web only.
+   */
+  ANDROID_CERT_SHA256: z.string().default(''),
+  ANDROID_PACKAGE: z.string().default('io.github.rldona.openlibrary'),
 });
 
 /** Parsed TRUST_PROXY: Fastify's own setting, or a header the proxy sets with the client address. */
@@ -73,6 +80,9 @@ export type Config = {
   googleBooksKey: string | undefined;
   backupSchedule: 'off' | 'daily';
   backupKeep: number;
+  /** WebAuthn relying-party id (hostname of PUBLIC_URL) and the origins passkeys may come from. */
+  passkeys: { rpId: string; origins: string[] };
+  android: { packageName: string; certFingerprints: string[] };
   version: string;
 };
 
@@ -88,6 +98,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => new URL(s).origin);
+  const fingerprints = e.ANDROID_CERT_SHA256.split(',')
+    .map((f) => f.trim().toUpperCase())
+    .filter(Boolean);
+  for (const f of fingerprints) {
+    if (!/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(f)) {
+      throw new Error(
+        `Invalid configuration:\nANDROID_CERT_SHA256: "${f}" is not a SHA-256 fingerprint (AA:BB:…)`,
+      );
+    }
+  }
   return {
     env: e.NODE_ENV,
     host: e.HOST,
@@ -105,6 +125,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     googleBooksKey: e.GOOGLE_BOOKS_API_KEY || undefined,
     backupSchedule: e.BACKUP_SCHEDULE,
     backupKeep: e.BACKUP_KEEP,
+    passkeys: {
+      rpId: publicUrl.hostname,
+      origins: [publicUrl.origin, ...extra, ...fingerprints.map(androidOrigin)],
+    },
+    android: { packageName: e.ANDROID_PACKAGE, certFingerprints: fingerprints },
     version: process.env.npm_package_version ?? process.env.OL_VERSION ?? '0.1.0',
   };
+}
+
+/** The origin Android's Credential Manager reports for an app signed with that certificate. */
+export function androidOrigin(fingerprint: string): string {
+  const bytes = Buffer.from(fingerprint.replace(/:/g, ''), 'hex');
+  return `android:apk-key-hash:${bytes.toString('base64url')}`;
 }

@@ -6,12 +6,14 @@
  *   after-restore           after restoring a backup: verifies it and bumps the epoch (clients resync)
  *   status                  state summary
  *   demo-data [en|es]       loads sample locations and books (only on an empty library)
+ *   passkeys-reset          removes every passkey and recovery code: password-only sign-in again
  */
 import readline from 'node:readline';
 import { pickLang } from '@openlibrary/contracts';
 import { loadConfig } from './config.js';
 import { bumpEpoch, getMeta, openDb, type Db } from './db/client.js';
 import { AuthService } from './auth/service.js';
+import { PasskeyService } from './auth/passkeys.js';
 import { CatalogService } from './catalog/service.js';
 import { HttpError } from './errors.js';
 import { tr } from './i18n.js';
@@ -110,6 +112,7 @@ async function main(): Promise<number> {
             dataDir: config.dataDir,
             publicUrl: config.publicUrl.href,
             passwordConfigured: auth.isConfigured(),
+            passkeys: new PasskeyService(db, config.passkeys).list().length,
             epoch: getMeta(db, 'epoch'),
             activeSessions: auth.listActive().length,
             integrity: integrity(db),
@@ -117,6 +120,13 @@ async function main(): Promise<number> {
           null,
           2,
         ),
+      );
+      return 0;
+    }
+    case 'passkeys-reset': {
+      const r = new PasskeyService(db, config.passkeys).reset();
+      console.log(
+        `Passkeys removed: ${r.passkeys}. Recovery codes removed: ${r.codes}. The password alone signs in again; register a new passkey from the web.`,
       );
       return 0;
     }
@@ -133,7 +143,7 @@ async function main(): Promise<number> {
     }
     default:
       console.log(
-        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es]',
+        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es] | passkeys-reset',
       );
       return cmd ? 1 : 0;
   }

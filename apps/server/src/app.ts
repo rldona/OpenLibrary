@@ -11,6 +11,7 @@ import type { Config, TrustProxy } from './config.js';
 import { getMeta, type Db } from './db/client.js';
 import { forbidden, HttpError } from './errors.js';
 import { tr } from './i18n.js';
+import { PasskeyService } from './auth/passkeys.js';
 import { authRoutes, installSessionHook, requireAuth, SESSION_COOKIE } from './auth/routes.js';
 import { AuthService, type Clock } from './auth/service.js';
 import { CatalogService } from './catalog/service.js';
@@ -100,6 +101,7 @@ export async function buildApp(deps: {
 }): Promise<FastifyInstance> {
   const { config, db } = deps;
   const auth = new AuthService(db, config.sessionTtlMs, deps.now);
+  const passkeys = new PasskeyService(db, config.passkeys, deps.now);
   const catalog = new CatalogService(db, deps.now);
   const assets = new AssetService(db, config.assetsDir, deps.fetch);
   const lookup = new LookupService(
@@ -205,7 +207,7 @@ export async function buildApp(deps: {
         };
         return body;
       });
-      await api.register(authRoutes, { auth, config });
+      await api.register(authRoutes, { auth, passkeys, config });
       await api.register(catalogRoutes, { catalog });
       await api.register(assetAndLookupRoutes, { assets, lookup });
       await api.register(syncRoutes, { sync });
@@ -223,6 +225,26 @@ export async function buildApp(deps: {
     },
     { prefix: API_PREFIX },
   );
+
+  // Digital Asset Links: lets the Android app use the passkeys of this site (Credential Manager).
+  if (config.android.certFingerprints.length > 0) {
+    const links = [
+      {
+        relation: [
+          'delegate_permission/common.handle_all_urls',
+          'delegate_permission/common.get_login_creds',
+        ],
+        target: {
+          namespace: 'android_app',
+          package_name: config.android.packageName,
+          sha256_cert_fingerprints: config.android.certFingerprints,
+        },
+      },
+    ];
+    app.get('/.well-known/assetlinks.json', async (_req, reply) =>
+      reply.header('cache-control', 'public, max-age=3600').send(links),
+    );
+  }
 
   // Built web app (SPA): static files plus index.html fallback for client-side routes.
   const webDist = config.webDist;

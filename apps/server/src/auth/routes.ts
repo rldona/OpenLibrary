@@ -3,13 +3,24 @@ import {
   ChangePasswordRequest,
   DeviceRegisterRequest,
   LoginRequest,
+  PasskeyDeviceVerify,
+  PasskeyLoginVerify,
+  PasskeyRegisterVerify,
+  PasskeyRename,
+  PasswordConfirm,
+  type AuthMethods,
+  type CeremonyOptions,
   type Device,
   type DeviceRegisterResponse,
+  type PasskeyList,
+  type PasskeyRegistered,
+  type RecoveryCodes,
   type SessionInfo,
 } from '@openlibrary/contracts';
 import type { Config } from '../config.js';
 import { PasswordGate } from './gate.js';
-import { HttpError, notFound, parse, tooMany, unauthorized } from '../errors.js';
+import { forbidden, HttpError, notFound, parse, tooMany, unauthorized } from '../errors.js';
+import { PasskeyError, type PasskeyService } from './passkeys.js';
 import type { AuthService, SessionRow } from './service.js';
 
 export const SESSION_COOKIE = 'ol_session';
@@ -40,8 +51,11 @@ export function installSessionHook(app: FastifyInstance, auth: AuthService): voi
   });
 }
 
-export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService; config: Config }) {
-  const { auth, config } = opts;
+export async function authRoutes(
+  app: FastifyInstance,
+  opts: { auth: AuthService; passkeys: PasskeyService; config: Config },
+) {
+  const { auth, passkeys, config } = opts;
 
   const cookieOpts = {
     path: '/',
@@ -86,11 +100,57 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
     auth.recordSuccess(ip);
   }
 
+  /**
+   * Password sign-in (web login, device registration). With no passkey, the password is enough.
+   * Once a passkey exists it is refused on its own (`passkey-required`, before the password is even
+   * checked, so it reveals nothing) and accepted only with an unused recovery code, which it consumes.
+   */
+  async function passwordSignIn(req: FastifyRequest, password: string, recoveryCode: string | undefined) {
+    if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
+    if (!passkeys.hasAny()) return verifyWithThrottle(req, password);
+    if (!recoveryCode) throw new HttpError(403, 'passkey-required', 'errors.passkeyRequired');
+    const ip = req.clientIp;
+    try {
+      await verifyWithThrottle(req, password);
+    } catch (e) {
+      // Same answer for a wrong password or a wrong code: neither is confirmed on its own.
+      if (e instanceof HttpError && e.status === 401) throw unauthorized('errors.wrongPasswordOrCode');
+      throw e;
+    }
+    if (!passkeys.useCode(recoveryCode)) {
+      auth.recordFailure(ip);
+      req.log.warn({ ip }, 'failed login: recovery code');
+      const after = auth.retryAfter(ip);
+      if (after > 0) throw tooMany(after);
+      throw unauthorized('errors.wrongPasswordOrCode');
+    }
+    req.log.warn({ ip, remaining: passkeys.remainingCodes() }, 'recovery code used');
+  }
+
+  /** Checks a passkey sign-in; a failed one counts for the per-address lockout like a wrong password. */
+  async function passkeySignIn(req: FastifyRequest, ceremonyId: string, response: unknown) {
+    if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
+    const ip = req.clientIp;
+    const wait = auth.retryAfter(ip);
+    if (wait > 0) throw tooMany(wait);
+    try {
+      const key = await passkeys.verifyAuthentication(ceremonyId, response);
+      auth.recordSuccess(ip);
+      return key;
+    } catch (e) {
+      if (!(e instanceof PasskeyError)) throw e;
+      auth.recordFailure(ip);
+      req.log.warn({ ip, reason: e.message }, 'failed passkey sign-in');
+      const after = auth.retryAfter(ip);
+      if (after > 0) throw tooMany(after);
+      throw unauthorized('errors.passkeyFailed');
+    }
+  }
+
   const strict = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
-  app.post('/auth/login', strict, async (req, reply: FastifyReply) => {
-    const body = parse(LoginRequest, req.body, req.lang);
-    await verifyWithThrottle(req, body.password);
+  /** Opens a web session (cookie) after a successful sign-in. */
+  function webSession(req: FastifyRequest, reply: FastifyReply, via: string): SessionInfo {
     // The name is a neutral identifier: clients render "Browser"/"Navegador" for web sessions.
     const s = auth.createSession({
       kind: 'web',
@@ -99,13 +159,105 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
       userAgent: req.headers['user-agent'],
     });
     reply.setCookie(SESSION_COOKIE, s.token, { ...cookieOpts, expires: new Date(s.expiresAt!) });
-    req.log.info({ session: s.id }, 'login ok');
-    return {
-      authenticated: true,
-      kind: 'web',
-      sessionId: s.id,
-      expiresAt: s.expiresAt,
-    } satisfies SessionInfo;
+    req.log.info({ session: s.id, via }, 'login ok');
+    return { authenticated: true, kind: 'web', sessionId: s.id, expiresAt: s.expiresAt };
+  }
+
+  /** Registers a device (long-lived token shown only once). */
+  function deviceSession(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    name: string,
+    platform: string,
+    via: string,
+  ): DeviceRegisterResponse {
+    const s = auth.createSession({ kind: 'device', name, platform, userAgent: req.headers['user-agent'] });
+    req.log.info({ session: s.id, name, via }, 'device registered');
+    reply.code(201);
+    return { deviceId: s.id, token: s.token };
+  }
+
+  app.get('/auth/methods', async (): Promise<AuthMethods> => ({
+    passwordConfigured: auth.isConfigured(),
+    passkeys: passkeys.hasAny(),
+  }));
+
+  app.post('/auth/login', strict, async (req, reply: FastifyReply) => {
+    const body = parse(LoginRequest, req.body, req.lang);
+    await passwordSignIn(req, body.password, body.recoveryCode);
+    return webSession(req, reply, 'password');
+  });
+
+  // ---------- Passkey sign-in (web session or device token) ----------
+  app.post('/auth/login/passkey/options', strict, async (): Promise<CeremonyOptions> => {
+    if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
+    return passkeys.authenticationOptions();
+  });
+
+  app.post('/auth/login/passkey/verify', strict, async (req, reply) => {
+    const body = parse(PasskeyLoginVerify, req.body, req.lang);
+    await passkeySignIn(req, body.ceremonyId, body.response);
+    return webSession(req, reply, 'passkey');
+  });
+
+  /** Android setup with a passkey: same options endpoint as the web sign-in. */
+  app.post('/auth/devices/passkey', strict, async (req, reply) => {
+    const body = parse(PasskeyDeviceVerify, req.body, req.lang);
+    await passkeySignIn(req, body.ceremonyId, body.response);
+    return deviceSession(req, reply, body.name, body.platform, 'passkey');
+  });
+
+  // ---------- Passkey management (session; adding or removing also needs the password) ----------
+  app.get('/auth/passkeys', async (req): Promise<PasskeyList> => {
+    requireAuth(req);
+    return { items: passkeys.list() };
+  });
+
+  app.post('/auth/passkeys/options', strict, async (req): Promise<CeremonyOptions> => {
+    const me = requireAuth(req);
+    const body = parse(PasswordConfirm, req.body, req.lang);
+    await verifyWithThrottle(req, body.password);
+    return passkeys.registrationOptions(me.id);
+  });
+
+  app.post('/auth/passkeys/verify', strict, async (req, reply): Promise<PasskeyRegistered> => {
+    const me = requireAuth(req);
+    const body = parse(PasskeyRegisterVerify, req.body, req.lang);
+    try {
+      const r = await passkeys.verifyRegistration(body.ceremonyId, me.id, body.response, body.name);
+      req.log.info({ passkey: r.passkey.id, first: !!r.recoveryCodes }, 'passkey registered');
+      reply.code(201);
+      return r;
+    } catch (e) {
+      if (!(e instanceof PasskeyError)) throw e;
+      req.log.warn({ reason: e.message }, 'passkey registration failed');
+      throw forbidden('errors.passkeyFailed');
+    }
+  });
+
+  app.patch<{ Params: { id: string } }>('/auth/passkeys/:id', async (req, reply) => {
+    requireAuth(req);
+    const body = parse(PasskeyRename, req.body, req.lang);
+    if (!passkeys.rename(req.params.id, body.name)) throw notFound('errors.passkeyNotFound');
+    return reply.code(204).send();
+  });
+
+  app.delete<{ Params: { id: string } }>('/auth/passkeys/:id', strict, async (req, reply) => {
+    requireAuth(req);
+    const body = parse(PasswordConfirm, req.body, req.lang);
+    await verifyWithThrottle(req, body.password);
+    if (!passkeys.remove(req.params.id)) throw notFound('errors.passkeyNotFound');
+    req.log.info({ passkey: req.params.id, left: passkeys.list().length }, 'passkey removed');
+    return reply.code(204).send();
+  });
+
+  app.post('/auth/recovery-codes', strict, async (req): Promise<RecoveryCodes> => {
+    requireAuth(req);
+    const body = parse(PasswordConfirm, req.body, req.lang);
+    await verifyWithThrottle(req, body.password);
+    if (!passkeys.hasAny()) throw new HttpError(409, 'no-passkeys', 'errors.passkeyNotFound');
+    req.log.info('recovery codes regenerated');
+    return { codes: passkeys.regenerateCodes() };
   });
 
   app.post('/auth/logout', async (req, reply) => {
@@ -124,19 +276,11 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
     } satisfies SessionInfo;
   });
 
-  /** Device registration (Android): password → long-lived token shown only once. */
+  /** Device registration (Android): password (+ recovery code once passkeys exist) → long-lived token. */
   app.post('/auth/devices', strict, async (req, reply) => {
     const body = parse(DeviceRegisterRequest, req.body, req.lang);
-    await verifyWithThrottle(req, body.password);
-    const s = auth.createSession({
-      kind: 'device',
-      name: body.name,
-      platform: body.platform,
-      userAgent: req.headers['user-agent'],
-    });
-    req.log.info({ session: s.id, name: body.name }, 'device registered');
-    reply.code(201);
-    return { deviceId: s.id, token: s.token } satisfies DeviceRegisterResponse;
+    await passwordSignIn(req, body.password, body.recoveryCode);
+    return deviceSession(req, reply, body.name, body.platform, 'password');
   });
 
   app.get('/auth/devices', async (req) => {
