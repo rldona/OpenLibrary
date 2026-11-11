@@ -18,6 +18,7 @@ import { CatalogService } from './catalog/service.js';
 import { HttpError } from './errors.js';
 import { tr } from './i18n.js';
 import { loadDemo } from './demo.js';
+import { dropPrivileges } from './privileges.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -40,6 +41,7 @@ const integrity = (db: Db) => String(db.$client.pragma('integrity_check', { simp
 async function main(): Promise<number> {
   const [cmd, ...args] = process.argv.slice(2);
   const config = loadConfig();
+  dropPrivileges(config.dataDir);
   const db = openDb(config.dbPath);
   const auth = new AuthService(db, config.sessionTtlMs);
 

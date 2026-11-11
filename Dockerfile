@@ -38,10 +38,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/server/dist ./dist
 COPY --from=build /app/apps/server/drizzle ./drizzle
 COPY --from=build /app/apps/web/dist ./web
+# No VOLUME instruction: Railway rejects it, and compose bind-mounts /data anyway.
 RUN mkdir -p /data && chown node:node /data
+# Runs as "node". Started as root instead (Railway: RAILWAY_RUN_UID=0, because its volumes are
+# owned by root; `railway ssh`), the server and the CLI hand DATA_DIR to "node" and drop to it
+# before opening anything (src/privileges.ts).
 USER node
-VOLUME ["/data"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD node -e "fetch('http://127.0.0.1:8080/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/server.js"]

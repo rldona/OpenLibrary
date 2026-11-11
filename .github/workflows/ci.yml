@@ -43,6 +43,20 @@ jobs:
           curl -fs localhost:8080/ | grep -q '<div id="root">'
           docker exec ol node dist/cli.js backup /data/backups/library.db
           docker exec ol node dist/cli.js check
+      - name: Started as root on a root-owned volume (like Railway)
+        run: |
+          mkdir -p rootdata && sudo chown 0:0 rootdata
+          docker run -d --name olroot --user 0 -p 3000:3000 -e PORT=3000 -v "$PWD/rootdata:/data" \
+            -e PUBLIC_URL=http://localhost:3000 openlibrary:ci
+          for i in $(seq 1 30); do curl -fs localhost:3000/api/v1/health && break; sleep 1; done
+          curl -fs localhost:3000/api/v1/health
+          # `railway ssh` runs commands as root.
+          docker exec -u 0 -e OL_PASSWORD='ci test password 123' olroot node dist/cli.js set-password
+          docker exec -u 0 olroot node dist/cli.js backup /data/backups/library.db
+          docker exec -u 0 olroot node dist/cli.js check
+          test "$(docker inspect -f '{{.State.Health.Status}}' olroot)" != unhealthy
+          ls -lnR rootdata
+          if sudo find rootdata ! -uid 1000 | grep .; then echo "files not owned by uid 1000"; exit 1; fi
 
   android:
     runs-on: ubuntu-latest
