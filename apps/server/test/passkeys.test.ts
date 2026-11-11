@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { androidOrigin } from '../src/config.js';
 import { CEREMONY_TTL_MS } from '../src/auth/passkeys.js';
+import { AuthService } from '../src/auth/service.js';
 import { cookieOf, makeApp, ORIGIN, PASSWORD } from './helpers.js';
 import { VirtualAuthenticator } from './webauthn.js';
 
@@ -255,6 +256,47 @@ describe('passkeys', () => {
       (await call(app, 'POST', '/auth/devices', { password: PASSWORD, recoveryCode: codes[1], name: 'P' }))
         .status,
     ).toBe(201);
+  });
+
+  describe('recovery codes and the lockout', () => {
+    const login = (app: App, password: string, recoveryCode: string, ip: string) =>
+      call(app, 'POST', '/auth/login', { password, recoveryCode }, undefined, ip);
+    const known = (db: Awaited<ReturnType<typeof makeApp>>['db'], ip: string) =>
+      new AuthService(db, 1000).isKnown(ip);
+
+    it('a right password with wrong codes is locked after as many attempts as a wrong password', async () => {
+      const { app, codes } = await withPasskey();
+      const statuses = async (password: string, code: string, ip: string) => {
+        const out: number[] = [];
+        for (let i = 0; i < 5; i++) out.push((await login(app, password, code, ip)).status);
+        return out;
+      };
+      const rightPassword = await statuses(PASSWORD, 'zzzz-zzzz-zzzz', '10.1.0.1');
+      const wrongPassword = await statuses('wrong password', codes[0]!, '10.1.0.2');
+      expect(rightPassword).toEqual([401, 401, 401, 401, 429]);
+      // Same answers whether the password was right or not: the lockout reveals nothing.
+      expect(rightPassword).toEqual(wrongPassword);
+      // Locked: even the right code does not get through now.
+      expect((await login(app, PASSWORD, codes[1]!, '10.1.0.1')).status).toBe(429);
+      // The wrong-password attempts did not use up the code they carried.
+      expect((await login(app, PASSWORD, codes[0]!, '10.1.0.3')).status).toBe(200);
+    });
+
+    it('a right password with a wrong code does not make the address known', async () => {
+      const { app, db } = await withPasskey();
+      expect((await login(app, PASSWORD, 'zzzz-zzzz-zzzz', '10.2.0.1')).status).toBe(401);
+      expect(known(db, '10.2.0.1')).toBe(false);
+    });
+
+    it('password and code both right sign in, clear the failures and make the address known', async () => {
+      const { app, db, codes } = await withPasskey();
+      const ip = '10.3.0.1';
+      for (let i = 0; i < 3; i++) expect((await login(app, PASSWORD, 'zzzz-zzzz-zzzz', ip)).status).toBe(401);
+      expect((await login(app, PASSWORD, codes[0]!, ip)).status).toBe(200);
+      expect(known(db, ip)).toBe(true);
+      // The counter started over: four more failures stay below the lockout.
+      for (let i = 0; i < 4; i++) expect((await login(app, PASSWORD, 'zzzz-zzzz-zzzz', ip)).status).toBe(401);
+    });
   });
 
   it('the password is still needed to remove a passkey; removing the last one brings password-only back', async () => {

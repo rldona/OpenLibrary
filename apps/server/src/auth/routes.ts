@@ -67,10 +67,11 @@ export async function authRoutes(
   const gate = new PasswordGate();
 
   /**
-   * Checks the password: progressive per-address lockout, then the admission gate (bounded
-   * concurrency, known addresses first) so a flood of wrong passwords only delays the owner.
+   * Checks the password through the per-address lockout and the admission gate (bounded concurrency,
+   * known addresses first). Returns whether it is right and records nothing: the caller decides what
+   * counts as a success, so a right password never clears failures on its own.
    */
-  async function verifyWithThrottle(req: FastifyRequest, password: string) {
+  async function checkThrottled(req: FastifyRequest, password: string): Promise<boolean> {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
     const ip = req.clientIp;
     const wait = auth.retryAfter(ip);
@@ -81,50 +82,52 @@ export async function authRoutes(
       req.log.warn({ ip, waiting: gate.waiting }, 'password checks queue full');
       throw new HttpError(429, 'rate-limited', 'errors.rateLimited', {}, { retryAfterSeconds: 2 });
     }
-    if (!ok) {
-      auth.recordFailure(ip);
-      req.log.warn({ ip }, 'failed login');
-      // At debug level, the raw forwarding headers: to check the TRUST_PROXY setting on a new host.
-      req.log.debug(
-        {
-          socket: req.socket.remoteAddress,
-          xForwardedFor: req.headers['x-forwarded-for'],
-          xRealIp: req.headers['x-real-ip'],
-        },
-        'failed login: proxy headers',
-      );
-      const after = auth.retryAfter(ip);
-      if (after > 0) throw tooMany(after);
-      throw unauthorized('errors.wrongPassword');
-    }
-    auth.recordSuccess(ip);
+    return ok;
+  }
+
+  /** A failed sign-in: one more failure for the address, then 429 (locked) or 401 with `key`. */
+  function failSignIn(req: FastifyRequest, key: string, reason: string): never {
+    const ip = req.clientIp;
+    auth.recordFailure(ip);
+    req.log.warn({ ip, reason }, 'failed login');
+    // At debug level, the raw forwarding headers: to check the TRUST_PROXY setting on a new host.
+    req.log.debug(
+      {
+        socket: req.socket.remoteAddress,
+        xForwardedFor: req.headers['x-forwarded-for'],
+        xRealIp: req.headers['x-real-ip'],
+      },
+      'failed login: proxy headers',
+    );
+    const after = auth.retryAfter(ip);
+    if (after > 0) throw tooMany(after);
+    throw unauthorized(key);
+  }
+
+  /** Password only (no passkeys, or confirming a sensitive action): success clears the address. */
+  async function verifyWithThrottle(req: FastifyRequest, password: string) {
+    if (!(await checkThrottled(req, password))) failSignIn(req, 'errors.wrongPassword', 'password');
+    auth.recordSuccess(req.clientIp);
   }
 
   /**
    * Password sign-in (web login, device registration). With no passkey, the password is enough.
    * Once a passkey exists it is refused on its own (`passkey-required`, before the password is even
    * checked, so it reveals nothing) and accepted only with an unused recovery code, which it consumes.
+   * A wrong password and a wrong code are one failure each, with the same answer; only both right
+   * count as a success (clearing the address's failures and making it known). Otherwise a right
+   * password would reset the counter and reveal itself through the lockout.
    */
   async function passwordSignIn(req: FastifyRequest, password: string, recoveryCode: string | undefined) {
     if (!auth.isConfigured()) throw new HttpError(503, 'not-configured', 'errors.notConfigured');
     if (!passkeys.hasAny()) return verifyWithThrottle(req, password);
     if (!recoveryCode) throw new HttpError(403, 'passkey-required', 'errors.passkeyRequired');
-    const ip = req.clientIp;
-    try {
-      await verifyWithThrottle(req, password);
-    } catch (e) {
-      // Same answer for a wrong password or a wrong code: neither is confirmed on its own.
-      if (e instanceof HttpError && e.status === 401) throw unauthorized('errors.wrongPasswordOrCode');
-      throw e;
+    // The code is consumed only when the password is right.
+    if (!(await checkThrottled(req, password)) || !passkeys.useCode(recoveryCode)) {
+      failSignIn(req, 'errors.wrongPasswordOrCode', 'password or recovery code');
     }
-    if (!passkeys.useCode(recoveryCode)) {
-      auth.recordFailure(ip);
-      req.log.warn({ ip }, 'failed login: recovery code');
-      const after = auth.retryAfter(ip);
-      if (after > 0) throw tooMany(after);
-      throw unauthorized('errors.wrongPasswordOrCode');
-    }
-    req.log.warn({ ip, remaining: passkeys.remainingCodes() }, 'recovery code used');
+    auth.recordSuccess(req.clientIp);
+    req.log.warn({ ip: req.clientIp, remaining: passkeys.remainingCodes() }, 'recovery code used');
   }
 
   /** Checks a passkey sign-in; a failed one counts for the per-address lockout like a wrong password. */
