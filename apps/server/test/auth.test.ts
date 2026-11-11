@@ -147,18 +147,29 @@ describe('strangers cannot lock the owner out', () => {
     expect(auth.retryAfter('192.0.2.10')).toBe(0);
   });
 
-  it('over HTTP: during a burst from many addresses the owner still signs in, with a bounded delay', async () => {
+  it('over HTTP: during a burst from many addresses the owner still signs in, ahead of the queue', async () => {
     const { app } = await makeApp();
     expect((await login(app, PASSWORD, '192.0.2.10')).statusCode).toBe(200);
-    // More than the old global limit (100 per hour), all at the same time, plus the owner.
-    const burst = Array.from({ length: 150 }, (_, i) => login(app, 'mal', `198.51.100.${i}`));
-    const started = Date.now();
-    const owner = await login(app, PASSWORD, '192.0.2.10');
-    const ownerMs = Date.now() - started;
+    // More than the old global limit (100 per hour), all at the same time, plus the owner. The order
+    // in which they finish is checked, not the wall clock (slow or busy CI machines).
+    const finished: string[] = [];
+    const burst = Array.from({ length: 150 }, (_, i) =>
+      login(app, 'mal', `198.51.100.${i}`).then((r) => {
+        finished.push(String(r.statusCode));
+        return r;
+      }),
+    );
+    const owner = await login(app, PASSWORD, '192.0.2.10').then((r) => {
+      finished.push('owner');
+      return r;
+    });
     const statuses = (await Promise.all(burst)).map((r) => r.statusCode);
     expect(owner.statusCode).toBe(200);
-    // Known address: admitted ahead of the queue, it waits at most for the checks already running.
-    expect(ownerMs).toBeLessThan(2000);
+    // Known address: admitted ahead of the up to 64 waiting checks. Only the checks already running
+    // (and a few that started before the owner's request reached the gate) finish before it.
+    const checkedBefore = finished.slice(0, finished.indexOf('owner')).filter((s) => s === '401').length;
+    expect(checkedBefore).toBeLessThan(16);
+    expect(statuses.filter((s) => s === 401).length).toBeGreaterThan(checkedBefore + 16);
     // Beyond the queue, strangers are turned away for a moment instead of piling up.
     expect(new Set(statuses)).toEqual(new Set([401, 429]));
     // After the burst nothing is locked: the owner signs in from a new address.
