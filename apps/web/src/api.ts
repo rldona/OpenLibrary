@@ -1,4 +1,9 @@
 import type {
+  AuthMethods,
+  CeremonyOptions,
+  PasskeyList,
+  PasskeyRegistered,
+  RecoveryCodes,
   AssetDTO,
   BackupStatus,
   ImportReport,
@@ -95,6 +100,22 @@ export const api = {
   devices: () => request<DeviceList>('GET', '/auth/devices'),
   revoke: (id: string) => request<void>('DELETE', `/auth/devices/${encodeURIComponent(id)}`),
   changePassword: (b: ChangePasswordRequest) => request<void>('POST', '/auth/password', b),
+
+  // passkeys
+  authMethods: () => request<AuthMethods>('GET', '/auth/methods'),
+  passkeyLoginOptions: () => request<CeremonyOptions>('POST', '/auth/login/passkey/options', {}),
+  passkeyLogin: (ceremonyId: string, response: Record<string, unknown>) =>
+    request<SessionInfo>('POST', '/auth/login/passkey/verify', { ceremonyId, response }),
+  passkeys: () => request<PasskeyList>('GET', '/auth/passkeys'),
+  passkeyRegisterOptions: (password: string) =>
+    request<CeremonyOptions>('POST', '/auth/passkeys/options', { password }),
+  passkeyRegister: (ceremonyId: string, response: Record<string, unknown>, name: string) =>
+    request<PasskeyRegistered>('POST', '/auth/passkeys/verify', { ceremonyId, response, name }),
+  renamePasskey: (id: string, name: string) =>
+    request<void>('PATCH', `/auth/passkeys/${encodeURIComponent(id)}`, { name }),
+  removePasskey: (id: string, password: string) =>
+    request<void>('DELETE', `/auth/passkeys/${encodeURIComponent(id)}`, { password }),
+  regenerateCodes: (password: string) => request<RecoveryCodes>('POST', '/auth/recovery-codes', { password }),
 
   // catalog
   library: (q: LibraryQuery) => request<LibraryPage>('GET', `/library?${qs(q)}`),

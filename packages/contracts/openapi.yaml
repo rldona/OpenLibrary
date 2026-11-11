@@ -28,7 +28,10 @@ paths:
     post:
       operationId: registerDevice
       security: []
-      description: Registers this device with the owner's password. The token is shown only once.
+      description: >-
+        Registers this device with the owner's password. The token is shown only once. Once a passkey
+        exists, the password alone is refused (403 `passkey-required`): it must come with an unused
+        recovery code, or the device registers with a passkey instead (`/auth/devices/passkey`).
       requestBody:
         required: true
         content:
@@ -40,6 +43,53 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DeviceRegisterResponse' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /auth/methods:
+    get:
+      operationId: getAuthMethods
+      security: []
+      responses:
+        '200':
+          description: Whether a password and passkeys are set up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthMethods' }
+  /auth/login/passkey/options:
+    post:
+      operationId: passkeySignInOptions
+      security: []
+      description: >-
+        WebAuthn request options for a passkey sign-in (discoverable credential, user verification
+        required). `options` goes to Credential Manager as its request JSON; `ceremonyId` comes back
+        with the answer. Single use, valid for 5 minutes.
+      responses:
+        '200':
+          description: Options.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CeremonyOptions' }
+        '429': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /auth/devices/passkey:
+    post:
+      operationId: registerDeviceWithPasskey
+      security: []
+      description: Registers this device with a passkey sign-in. The token is shown only once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasskeyDeviceVerify' }
+      responses:
+        '201':
+          description: Registered.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRegisterResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
         '401': { $ref: '#/components/responses/Problem' }
         '429': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
@@ -252,6 +302,37 @@ components:
       required: [password, name]
       properties:
         password: { type: string, minLength: 1, maxLength: 256 }
+        recoveryCode:
+          { type: string, minLength: 1, maxLength: 64, description: Required once a passkey exists. }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        platform: { type: string, enum: [android, web, other], default: android }
+    AuthMethods:
+      type: object
+      additionalProperties: false
+      required: [passwordConfigured, passkeys]
+      properties:
+        passwordConfigured: { type: boolean }
+        passkeys: { type: boolean, description: At least one passkey; password-only sign-in is refused. }
+    CeremonyOptions:
+      type: object
+      additionalProperties: false
+      required: [ceremonyId, options]
+      properties:
+        ceremonyId: { type: string }
+        options:
+          type: object
+          description: PublicKeyCredentialRequestOptionsJSON (WebAuthn), passed through as is.
+          required: [challenge]
+          properties:
+            challenge: { type: string }
+    PasskeyDeviceVerify:
+      type: object
+      required: [ceremonyId, response, name]
+      properties:
+        ceremonyId: { type: string, minLength: 1, maxLength: 100 }
+        response:
+          type: object
+          description: The authenticator's answer (AuthenticationResponseJSON) as Credential Manager returns it.
         name: { type: string, minLength: 1, maxLength: 80 }
         platform: { type: string, enum: [android, web, other], default: android }
     DeviceRegisterResponse:

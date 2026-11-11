@@ -1,0 +1,10 @@
+{
+  "ceremonyId": "c8232bb4-2d52-415c-8445-cc4ff60bf602",
+  "options": {
+    "rpId": "biblioteca.test",
+    "challenge": "vPX05WYYpUOTTOKfPeLudavTKR0UCNkvaEoJvtsDxu0",
+    "allowCredentials": [],
+    "timeout": 300000,
+    "userVerification": "required"
+  }
+}

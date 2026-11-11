@@ -43,6 +43,14 @@ class SyncContractTest {
     }
 
     @Test
+    fun passkeyFixturesDecode() {
+        assertTrue(strict.decodeFromString<io.github.rldona.openlibrary.network.AuthMethods>(fixture("auth-methods.json")).passwordConfigured)
+        val o = strict.decodeFromString<io.github.rldona.openlibrary.network.CeremonyOptions>(fixture("passkey-options.json"))
+        assertTrue(o.ceremonyId.isNotEmpty())
+        assertTrue("challenge" in o.options)
+    }
+
+    @Test
     fun captureFixturesDecode() {
         val l = strict.decodeFromString<LookupResult>(fixture("lookup.json"))
         assertTrue(l.found && l.proposal!!.authors.isNotEmpty())

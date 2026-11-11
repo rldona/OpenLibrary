@@ -48,8 +48,23 @@ android {
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"${defaultServerUrl()}\"")
     }
 
+    // Stable release key (passkeys are bound to its certificate, published in assetlinks.json). It lives
+    // outside the repository: ~/.gradle/gradle.properties holds openlibrary.signing.* (see the runbook).
+    // Without those properties the release APK is unsigned, as before.
+    val signing = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        .associateWith { findProperty("openlibrary.signing.$it") as String? }
+    if (signing.values.all { it != null }) {
+        signingConfigs.create("release") {
+            storeFile = file(signing.getValue("storeFile")!!)
+            storePassword = signing.getValue("storePassword")
+            keyAlias = signing.getValue("keyAlias")
+            keyPassword = signing.getValue("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -106,6 +121,9 @@ dependencies {
     // Local database encrypted at rest (design A10); the key lives in the Android Keystore.
     implementation(libs.sqlcipher)
     implementation(libs.biometric)
+    // Passkey sign-in at setup (Credential Manager).
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

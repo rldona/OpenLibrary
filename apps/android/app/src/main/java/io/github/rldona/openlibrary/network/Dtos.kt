@@ -2,6 +2,7 @@ package io.github.rldona.openlibrary.network
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 /*
  * Wire format of the sync API. Mirrors packages/contracts/openapi.yaml; SyncContractTest decodes the
@@ -12,7 +13,28 @@ import kotlinx.serialization.json.JsonElement
 data class HealthResponse(val status: String, val version: String, val epoch: String, val time: String)
 
 @Serializable
-data class DeviceRegisterRequest(val password: String, val name: String, val platform: String = "android")
+data class DeviceRegisterRequest(
+    val password: String,
+    val name: String,
+    val platform: String = "android",
+    /** Required once the library has a passkey; left out of the JSON when null (a default). */
+    val recoveryCode: String? = null,
+)
+
+@Serializable
+data class AuthMethods(val passwordConfigured: Boolean, val passkeys: Boolean)
+
+/** WebAuthn options for one ceremony: `options` is handed to Credential Manager as is. */
+@Serializable
+data class CeremonyOptions(val ceremonyId: String, val options: JsonObject)
+
+@Serializable
+data class PasskeyDeviceVerify(
+    val ceremonyId: String,
+    val response: JsonObject,
+    val name: String,
+    val platform: String = "android",
+)
 
 @Serializable
 data class DeviceRegisterResponse(val deviceId: String, val token: String)

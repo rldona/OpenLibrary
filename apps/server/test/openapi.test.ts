@@ -15,7 +15,8 @@ import { parse as parseYaml } from 'yaml';
 import { uuidv7, withCheckDigit } from '@openlibrary/contracts';
 import type { Fetch } from '../src/lookup/providers.js';
 import { bumpEpoch } from '../src/db/client.js';
-import { makeApp, PASSWORD, webClient } from './helpers.js';
+import { makeApp, ORIGIN, PASSWORD, webClient } from './helpers.js';
+import { VirtualAuthenticator } from './webauthn.js';
 
 const SPEC_FILE = fileURLToPath(new URL('../../../packages/contracts/openapi.yaml', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../../../packages/contracts/fixtures/', import.meta.url));
@@ -27,6 +28,8 @@ const FIXTURE_SCHEMAS = {
   'search.json': 'MetadataSearchResult',
   'asset.json': 'Asset',
   'stats.json': 'Stats',
+  'auth-methods.json': 'AuthMethods',
+  'passkey-options.json': 'CeremonyOptions',
 } as const;
 
 const writeFixtures = (files: Record<string, unknown>) => {
@@ -50,6 +53,38 @@ function expectSchema(name: string, body: unknown) {
   const ok = validate(body);
   expect(ok, `${name}: ${ajv.errorsText(validate.errors)}`).toBe(true);
 }
+
+describe('openapi.yaml: passkeys', () => {
+  it('device registration with a passkey and the passkey-required problem match the spec', async () => {
+    const { app } = await makeApp();
+    const web = await webClient(app);
+    const key = new VirtualAuthenticator(ORIGIN, new URL(ORIGIN).hostname);
+    const reg = await web.post('/auth/passkeys/options', { password: PASSWORD });
+    await web.post('/auth/passkeys/verify', {
+      ceremonyId: reg.body.ceremonyId,
+      response: key.register(reg.body.options),
+    });
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/devices',
+      payload: { password: PASSWORD, name: 'Pixel 8' },
+    });
+    expect(refused.statusCode).toBe(403);
+    expectSchema('Problem', refused.json());
+    expect(refused.json().code).toBe('passkey-required');
+
+    const o = await app.inject({ method: 'POST', url: '/api/v1/auth/login/passkey/options' });
+    expectSchema('CeremonyOptions', o.json());
+    const device = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/devices/passkey',
+      payload: { ceremonyId: o.json().ceremonyId, response: key.login(o.json().options), name: 'Pixel 8' },
+    });
+    expect(device.statusCode).toBe(201);
+    expectSchema('DeviceRegisterResponse', device.json());
+  });
+});
 
 describe('openapi.yaml', () => {
   it('responses of every Android endpoint match the spec', async () => {
@@ -115,6 +150,11 @@ describe('openapi.yaml', () => {
     const unwanted = await web.post('/wishlist', { title: 'Amor y pedagogía' });
 
     expectSchema('HealthResponse', (await call('/health')).body);
+    const methods = (await call('/auth/methods')).body;
+    expectSchema('AuthMethods', methods);
+    const passkeyOptions = await call('/auth/login/passkey/options', { method: 'POST' });
+    expectSchema('CeremonyOptions', passkeyOptions.body);
+    writeFixtures({ 'auth-methods.json': methods, 'passkey-options.json': passkeyOptions.body });
 
     const reg = await call('/auth/devices', {
       method: 'POST',

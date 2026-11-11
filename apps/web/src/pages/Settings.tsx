@@ -9,6 +9,7 @@ import { navigate } from '../lib/router';
 import { BusyLabel, ErrorState, LoadingState } from '../components/states';
 import { fmtDateTime } from '../lib/format';
 import { LANG_NAMES, useI18n } from '../i18n';
+import { PasskeysSection } from './Passkeys';
 
 export function Settings({
   onLogout,
@@ -119,6 +120,8 @@ export function Settings({
             ))}
           </ul>
         </section>
+
+        <PasskeysSection />
 
         <ChangePassword />
 

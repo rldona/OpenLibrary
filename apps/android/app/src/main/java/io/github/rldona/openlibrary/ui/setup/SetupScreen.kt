@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import io.github.rldona.openlibrary.ui.components.BusyLabel
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -42,10 +43,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.rldona.openlibrary.auth.CredentialManagerPasskeys
+import io.github.rldona.openlibrary.auth.DeviceSetup
+import io.github.rldona.openlibrary.auth.PasskeyProvider
+import io.github.rldona.openlibrary.auth.PasskeyUnavailable
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.runtime.remember
 import io.github.rldona.openlibrary.AppContainer
 import io.github.rldona.openlibrary.BuildConfig
 import io.github.rldona.openlibrary.R
-import io.github.rldona.openlibrary.data.DeviceSession
 import io.github.rldona.openlibrary.network.ApiException
 import io.github.rldona.openlibrary.network.normalizeServerUrl
 import io.github.rldona.openlibrary.sync.SyncStatus
@@ -67,6 +76,11 @@ sealed interface SetupError {
     data object InvalidUrl : SetupError
     data object Network : SetupError
     data class Server(val message: String) : SetupError
+    /** The library has passkeys: the password needs a recovery code (or use the passkey). */
+    data object RecoveryCodeNeeded : SetupError
+    data object PasskeyCancelled : SetupError
+    data object NoPasskey : SetupError
+    data object PasskeyFailed : SetupError
 }
 
 class SetupViewModel(
@@ -86,6 +100,7 @@ class SetupViewModel(
         choice = choice.copy(useOther = true)
         error = null
     }
+
     // The name the owner gave the phone ("Raúl's Galaxy"), which the web's device list shows; the model as a fallback.
     var deviceName by mutableStateOf(
         Settings.Global.getString(c.app.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL ?: "Android",
@@ -98,25 +113,60 @@ class SetupViewModel(
     var error by mutableStateOf<SetupError?>(null)
         private set
 
-    fun connect() {
+    var recoveryCode by mutableStateOf("")
+    /** Shown once the server says the library has passkeys. */
+    var needsCode by mutableStateOf(false)
+        private set
+
+    private val setup = DeviceSetup(c.api, c.sessions)
+
+    /** The build-time default, or the typed address once "Use another server" shows the field. */
+    private fun address(): String? {
         val address = choice.address
         val url = runCatching { normalizeServerUrl(address) }.getOrNull()
         if (url == null || address.isBlank()) {
             error = SetupError.InvalidUrl
-            return
+            return null
         }
+        return url
+    }
+
+    private fun name() = deviceName.trim().ifEmpty { "Android" }
+
+    fun connect() {
+        val url = address() ?: return
+        register { setup.withPassword(url, name(), password, recoveryCode.takeIf { needsCode }) }
+    }
+
+    fun connectWithPasskey(provider: PasskeyProvider) {
+        val url = address() ?: return
+        register { setup.withPasskey(url, name(), provider) }
+    }
+
+    private fun register(block: suspend () -> Unit) {
         busy = true
         error = null
         viewModelScope.launch {
             try {
-                val reg = c.api(url, null).registerDevice(password, deviceName.trim().ifEmpty { "Android" })
+                block()
                 password = ""
-                c.sessions.save(DeviceSession(url, reg.deviceId, deviceName.trim(), reg.token))
+                recoveryCode = ""
                 downloading = true
                 // An unreachable server right after registering is unusual; the next sync will retry.
                 if (c.sync.sync() !is SyncStatus.Revoked) onConnected()
             } catch (e: ApiException) {
-                error = SetupError.Server(e.message)
+                if (e.code == DeviceSetup.PASSKEY_REQUIRED) {
+                    needsCode = true
+                    error = SetupError.RecoveryCodeNeeded
+                } else {
+                    error = SetupError.Server(e.message)
+                }
+            } catch (_: PasskeyUnavailable.Cancelled) {
+                error = SetupError.PasskeyCancelled
+            } catch (_: PasskeyUnavailable.NoCredential) {
+                error = SetupError.NoPasskey
+            } catch (_: PasskeyUnavailable) {
+                error = SetupError.PasskeyFailed
             } catch (_: IOException) {
                 error = SetupError.Network
             } finally {
@@ -130,7 +180,7 @@ class SetupViewModel(
 @Composable
 fun SetupScreen(vm: SetupViewModel) {
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    val canConnect = !vm.busy && vm.password.isNotEmpty()
+    val canConnect = !vm.busy && vm.password.isNotEmpty() && (!vm.needsCode || vm.recoveryCode.isNotBlank())
     Column(
         Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).readableWidth().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -160,6 +210,22 @@ fun SetupScreen(vm: SetupViewModel) {
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth().testTag("deviceName"),
         )
+        // A passkey first (Credential Manager); the password stays for bootstrap and recovery.
+        val activity = LocalActivity.current
+        if (activity != null) {
+            val provider = remember(activity) { CredentialManagerPasskeys(activity) }
+            Button(
+                onClick = { vm.connectWithPasskey(provider) },
+                shapes = ButtonDefaults.shapes(),
+                enabled = !vm.busy,
+                modifier = Modifier.fillMaxWidth().testTag("connectPasskey"),
+            ) {
+                Icon(Icons.Default.Key, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.setup_withPasskey))
+            }
+            Text(stringResource(R.string.setup_orPassword), style = MaterialTheme.typography.labelLarge)
+        }
         OutlinedTextField(
             value = vm.password,
             onValueChange = { vm.password = it },
@@ -179,16 +245,31 @@ fun SetupScreen(vm: SetupViewModel) {
             keyboardActions = KeyboardActions(onDone = { if (canConnect) vm.connect() }),
             modifier = Modifier.fillMaxWidth().testTag("password"),
         )
+        if (vm.needsCode) {
+            OutlinedTextField(
+                value = vm.recoveryCode,
+                onValueChange = { vm.recoveryCode = it },
+                label = { Text(stringResource(R.string.login_recoveryCode)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (canConnect) vm.connect() }),
+                modifier = Modifier.fillMaxWidth().testTag("recoveryCode"),
+            )
+        }
         vm.error?.let {
             val text =
                 when (it) {
                     SetupError.InvalidUrl -> stringResource(R.string.setup_invalidUrl)
                     SetupError.Network -> stringResource(R.string.errors_network)
                     is SetupError.Server -> it.message
+                    SetupError.RecoveryCodeNeeded -> stringResource(R.string.setup_recoveryHint)
+                    SetupError.PasskeyCancelled -> stringResource(R.string.passkeys_cancelled)
+                    SetupError.NoPasskey -> stringResource(R.string.setup_noPasskey)
+                    SetupError.PasskeyFailed -> stringResource(R.string.setup_passkeyFailed)
                 }
             Text(text, color = MaterialTheme.colorScheme.error)
         }
-        Button(
+        OutlinedButton(
             onClick = vm::connect,
             shapes = ButtonDefaults.shapes(),
             enabled = canConnect,

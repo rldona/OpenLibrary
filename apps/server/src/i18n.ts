@@ -29,6 +29,11 @@ const SERVER: Record<Lang, Dict> = {
     // auth
     'errors.unauthorized': 'You need to sign in.',
     'errors.wrongPassword': 'Wrong password.',
+    'errors.passkeyRequired':
+      'This library is protected with a passkey. Sign in with your passkey, or use your password together with a recovery code.',
+    'errors.wrongPasswordOrCode': 'Wrong password or recovery code.',
+    'errors.passkeyFailed': 'The passkey could not be verified. Try again.',
+    'errors.passkeyNotFound': 'Passkey not found.',
     'errors.notConfigured': 'The library has no password yet. Run "ol set-password" on the server.',
     'errors.tooManyAttempts': 'Too many attempts. Wait before trying again.',
     'errors.passwordTooShort': 'The password must be at least {min} characters long.',
@@ -139,6 +144,11 @@ const SERVER: Record<Lang, Dict> = {
       'El cursor de sincronización va por delante del servidor. Hace falta una sincronización completa.',
     'errors.unauthorized': 'Necesitas iniciar sesión.',
     'errors.wrongPassword': 'Contraseña incorrecta.',
+    'errors.passkeyRequired':
+      'Esta biblioteca está protegida con una llave de acceso. Entra con tu llave de acceso o usa tu contraseña junto con un código de recuperación.',
+    'errors.wrongPasswordOrCode': 'Contraseña o código de recuperación incorrectos.',
+    'errors.passkeyFailed': 'No se ha podido verificar la llave de acceso. Vuelve a intentarlo.',
+    'errors.passkeyNotFound': 'No se ha encontrado la llave de acceso.',
     'errors.notConfigured':
       'La biblioteca aún no tiene contraseña. Ejecuta «ol set-password» en el servidor.',
     'errors.tooManyAttempts': 'Demasiados intentos. Espera antes de volver a probar.',

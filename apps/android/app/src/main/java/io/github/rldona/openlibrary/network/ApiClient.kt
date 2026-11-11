@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -33,8 +34,16 @@ class ApiClient(
 
     suspend fun health(): HealthResponse = get("health")
 
-    suspend fun registerDevice(password: String, name: String): DeviceRegisterResponse =
-        post("auth/devices", ApiJson.encodeToString(DeviceRegisterRequest(password, name)))
+    suspend fun registerDevice(password: String, name: String, recoveryCode: String? = null): DeviceRegisterResponse =
+        post("auth/devices", ApiJson.encodeToString(DeviceRegisterRequest(password, name, recoveryCode = recoveryCode)))
+
+    suspend fun authMethods(): AuthMethods = get("auth/methods")
+
+    /** Options for a passkey sign-in (the same for the web and for device registration). */
+    suspend fun passkeyOptions(): CeremonyOptions = post("auth/login/passkey/options", "{}")
+
+    suspend fun registerDeviceWithPasskey(ceremonyId: String, response: JsonObject, name: String): DeviceRegisterResponse =
+        post("auth/devices/passkey", ApiJson.encodeToString(PasskeyDeviceVerify(ceremonyId, response, name)))
 
     suspend fun me(): SessionInfo = get("auth/me")
 
