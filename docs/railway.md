@@ -1,12 +1,20 @@
 # Running on Railway
 
-The service definition lives in [`railway.json`](../railway.json) (config as code); the dashboard
-only holds what cannot be in git: the volume, the variables and the domain.
+The service definition lives in [`.railway/railway.ts`](../.railway/railway.ts) (Railway's Infrastructure as Code, which replaced `railway.json` before Config as Code stopped working on 2026-12-01). It declares the build, the deploy settings, the region and the volume mount. It does **not** manage the service variables (`variables: { managed: false }`): they are set by `deploy/railway/provision.sh` and the CD job, and no value ever lives in the repository. The dashboard only holds what cannot be in git: the variables and the domain.
+
+Changing it, with an account token in the shell (`npm ci` installs the `railway` SDK it imports):
+
+```bash
+railway config plan     # what would change; nothing destructive is expected
+railway config apply    # applies it to the production environment
+```
+
+Railway stores default values as null, so the file leaves out the defaults it relies on (`restartPolicyType: ON_FAILURE`, `sleepApplication: false`); otherwise the plan would show them as a change forever. `requiredMountPath` (it was in `railway.json`) has no equivalent in the service settings; the volume is mounted at `/data` by `volumeMounts`.
 
 ## Service
 
 - **Build**: the root `Dockerfile`. Only changes to the server, the web app, the contracts, the
-  Dockerfile, the lockfile or `railway.json` start a build (`watchPatterns`): Android-only and
+  Dockerfile or the lockfile start a build (`watchPatterns`): Android-only and
   docs-only commits do not redeploy. `.railwayignore` keeps `apps/android`, `.data`, `docs`,
   `prototypes` and every `.env` out of `railway up` uploads, and `.dockerignore` out of the build
   context.
