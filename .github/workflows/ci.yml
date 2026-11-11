@@ -23,7 +23,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Shellcheck the deployment scripts
-        run: shellcheck -x deploy/scripts/*.sh deploy/scripts/ol
+        run: shellcheck -x deploy/scripts/*.sh deploy/scripts/ol deploy/railway/*.sh
 
   docker:
     runs-on: ubuntu-latest

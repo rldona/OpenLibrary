@@ -185,3 +185,36 @@ openlibrary.signing.keyPassword=…
 
 `./gradlew :app:assembleRelease` then signs the APK. Without these properties it stays unsigned. Forks and self-hosters use their own key and set their own `ANDROID_CERT_SHA256` (and `ANDROID_PACKAGE` if they change the application id).
 
+
+## 11. Railway
+
+The production service runs on Railway (design decisions in [railway.md](railway.md)). It is created by [`deploy/railway/provision.sh`](../deploy/railway/provision.sh), which is idempotent: re-running it only reports what exists.
+
+```bash
+export RAILWAY_API_TOKEN=…   # account token, only in this shell
+deploy/railway/provision.sh
+railway up --ci --service app  # first deploy; later deploys come from CI
+```
+
+| Resource | Value |
+| --- | --- |
+| Workspace | Raúl López's Projects (`671263a0-aeb4-4e21-b6d4-3ac59e152749`) |
+| Project | `openlibrary` (`6cc1c276-f347-42c9-84fe-20c55d1feae2`) |
+| Environment | `production` (`a5a752ab-79c7-42ec-acdd-83b7d17600c5`) |
+| Service | `app` (`50614a83-7b9d-4b92-89aa-ee8c2c909749`) |
+| Volume | `app-volume` at `/data`, `europe-west4-drams3a` (`38064dd3-89d9-48c1-8faf-1efaa29e580f`) |
+| URL | https://app-production-10a9154b.up.railway.app (port 8080) |
+
+Service variables: `NODE_ENV=production`, `HOST=0.0.0.0`, `PORT=8080`, `DATA_DIR=/data`, `WEB_DIST=/app/web`, `PUBLIC_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}`, `TRUST_PROXY=x-real-ip`, `RAILWAY_RUN_UID=0`, `BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`, `SESSION_TTL_DAYS=30`, `LOG_LEVEL=info`, plus `GOOGLE_BOOKS_API_KEY` (secret: set it with `GOOGLE_BOOKS_API_KEY=… deploy/railway/provision.sh` or `railway variable set GOOGLE_BOOKS_API_KEY --stdin`). There is **no** `OL_PASSWORD`: the password hash lives in the database.
+
+Admin CLI on Railway (it runs as root and drops to the `node` account by itself):
+
+```bash
+railway ssh --service app -- node dist/cli.js status
+railway ssh --service app -- node dist/cli.js set-password   # interactive
+```
+
+Notes:
+- `railway volume add` panics in CLI 5.71, so the script creates the volume through the GraphQL API (`railway api`).
+- A workspace token is enough for the GraphQL API but not for `railway whoami`, `list` or `ssh`: use an account token, and revoke it when the provisioning work is done.
+- Railway prints that Config as Code (`railway.json`) is deprecated in favour of `.railway/railway.ts` and keeps working until 2026-12-01.
