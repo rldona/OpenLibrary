@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { openDb } from './db/client.js';
 import { AuthService } from './auth/service.js';
 import { dropPrivileges } from './privileges.js';
+import { BackupScheduler } from './backup.js';
 
 const config = loadConfig();
 dropPrivileges(config.dataDir);
@@ -15,9 +16,12 @@ if (!new AuthService(db, config.sessionTtlMs).isConfigured()) {
   );
 }
 
+let backups: BackupScheduler | undefined;
+
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
   await app.close();
+  await backups?.stop();
   db.$client.close();
   process.exit(0);
 };
@@ -29,3 +33,13 @@ app.log.info(
   { data: config.dataDir, publicUrl: config.publicUrl.href, web: !!config.webDist },
   'OpenLibrary ready',
 );
+
+if (config.backupSchedule === 'daily') {
+  backups = new BackupScheduler({
+    db,
+    dataDir: config.dataDir,
+    keep: config.backupKeep,
+    log: app.log,
+  }).start();
+  app.log.info({ next: backups.nextRunAt().toISOString(), keep: config.backupKeep }, 'in-process backups on');
+}

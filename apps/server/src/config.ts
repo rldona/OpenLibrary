@@ -37,6 +37,13 @@ const EnvSchema = z.object({
    * which is often exhausted (HTTP 429) and leaves only Open Library.
    */
   GOOGLE_BOOKS_API_KEY: z.string().trim().optional(),
+  /**
+   * Nightly database snapshot inside the server process (`daily`), for hosts without a scheduler
+   * (Railway). `off` where the host runs its own backups (the Ubuntu deployment: systemd + restic).
+   */
+  BACKUP_SCHEDULE: z.enum(['off', 'daily']).default('off'),
+  /** Dated snapshots kept by the in-process backup. */
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(90).default(7),
 });
 
 /** Parsed TRUST_PROXY: Fastify's own setting, or a header the proxy sets with the client address. */
@@ -64,6 +71,8 @@ export type Config = {
   webDist: string | undefined;
   logLevel: string;
   googleBooksKey: string | undefined;
+  backupSchedule: 'off' | 'daily';
+  backupKeep: number;
   version: string;
 };
 
@@ -94,6 +103,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDist: e.WEB_DIST ? path.resolve(e.WEB_DIST) : undefined,
     logLevel: e.LOG_LEVEL,
     googleBooksKey: e.GOOGLE_BOOKS_API_KEY || undefined,
+    backupSchedule: e.BACKUP_SCHEDULE,
+    backupKeep: e.BACKUP_KEEP,
     version: process.env.npm_package_version ?? process.env.OL_VERSION ?? '0.1.0',
   };
 }
