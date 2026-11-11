@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.rldona.openlibrary.AppContainer
+import io.github.rldona.openlibrary.BuildConfig
 import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.data.DeviceSession
 import io.github.rldona.openlibrary.network.ApiException
@@ -50,14 +52,40 @@ import io.github.rldona.openlibrary.sync.SyncStatus
 import java.io.IOException
 import kotlinx.coroutines.launch
 
+/**
+ * Which server the setup connects to. With a build-time default (the owner's own server) the
+ * address field stays hidden until "Use another server"; without one it is shown, as always.
+ */
+data class ServerChoice(val default: String?, val useOther: Boolean = false, val typed: String = "") {
+    val showField: Boolean get() = default == null || useOther
+
+    /** The address to connect to: the typed one when the field is shown, else the default. */
+    val address: String get() = if (showField) typed else default.orEmpty()
+}
+
 sealed interface SetupError {
     data object InvalidUrl : SetupError
     data object Network : SetupError
     data class Server(val message: String) : SetupError
 }
 
-class SetupViewModel(private val c: AppContainer, private val onConnected: () -> Unit) : ViewModel() {
-    var server by mutableStateOf("")
+class SetupViewModel(
+    private val c: AppContainer,
+    defaultServer: String? = BuildConfig.DEFAULT_SERVER_URL.ifBlank { null },
+    private val onConnected: () -> Unit,
+) : ViewModel() {
+    var choice by mutableStateOf(ServerChoice(defaultServer))
+        private set
+    var server: String
+        get() = choice.typed
+        set(v) {
+            choice = choice.copy(typed = v)
+        }
+
+    fun useAnotherServer() {
+        choice = choice.copy(useOther = true)
+        error = null
+    }
     // The name the owner gave the phone ("Raúl's Galaxy"), which the web's device list shows; the model as a fallback.
     var deviceName by mutableStateOf(
         Settings.Global.getString(c.app.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL ?: "Android",
@@ -71,8 +99,9 @@ class SetupViewModel(private val c: AppContainer, private val onConnected: () ->
         private set
 
     fun connect() {
-        val url = runCatching { normalizeServerUrl(server) }.getOrNull()
-        if (url == null || server.isBlank()) {
+        val address = choice.address
+        val url = runCatching { normalizeServerUrl(address) }.getOrNull()
+        if (url == null || address.isBlank()) {
             error = SetupError.InvalidUrl
             return
         }
@@ -107,16 +136,22 @@ fun SetupScreen(vm: SetupViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-        Text(stringResource(R.string.setup_text), style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(
-            value = vm.server,
-            onValueChange = { vm.server = it },
-            label = { Text(stringResource(R.string.setup_server)) },
-            placeholder = { Text(stringResource(R.string.setup_serverPlaceholder)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth().testTag("server"),
+        val choice = vm.choice
+        Text(
+            stringResource(if (choice.showField) R.string.setup_text else R.string.setup_textDefaultServer),
+            style = MaterialTheme.typography.bodyMedium,
         )
+        if (choice.showField) {
+            OutlinedTextField(
+                value = vm.server,
+                onValueChange = { vm.server = it },
+                label = { Text(stringResource(R.string.setup_server)) },
+                placeholder = { Text(stringResource(R.string.setup_serverPlaceholder)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth().testTag("server"),
+            )
+        }
         OutlinedTextField(
             value = vm.deviceName,
             onValueChange = { vm.deviceName = it },
@@ -169,6 +204,14 @@ fun SetupScreen(vm: SetupViewModel) {
                     },
                 ),
             )
+        }
+        // Self-hosters and forks: the default is only a suggestion.
+        if (!choice.showField) {
+            TextButton(
+                onClick = vm::useAnotherServer,
+                enabled = !vm.busy,
+                modifier = Modifier.fillMaxWidth().testTag("useAnotherServer"),
+            ) { Text(stringResource(R.string.setup_useAnotherServer)) }
         }
     }
 }

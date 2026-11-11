@@ -7,6 +7,9 @@ export const es: Record<keyof typeof en, string> = {
   'setup.title': 'Conecta con tu biblioteca',
   'setup.text':
     'Indica la dirección de tu servidor y tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
+  'setup.textDefaultServer':
+    'Escribe tu contraseña. Este móvil tendrá su propio acceso, que puedes revocar desde la web.',
+  'setup.useAnotherServer': 'Usar otro servidor',
   'setup.server': 'Dirección del servidor',
   'setup.serverPlaceholder': 'https://biblioteca.example.com',
   'setup.deviceName': 'Nombre de este móvil',

@@ -1,8 +1,38 @@
+import java.net.URI
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+}
+
+/**
+ * Server address the setup screen uses without asking (the owner's own server). Not committed:
+ * `-Popenlibrary.defaultServerUrl=…`, `openlibrary.defaultServerUrl=…` in local.properties, or the
+ * OPENLIBRARY_DEFAULT_SERVER_URL environment variable (CI secret). Without it the setup asks, as before.
+ * An invalid value fails the build, never the app.
+ */
+fun defaultServerUrl(): String {
+    val local = Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    val raw =
+        (findProperty("openlibrary.defaultServerUrl") as String?)
+            ?: local.getProperty("openlibrary.defaultServerUrl")
+            ?: System.getenv("OPENLIBRARY_DEFAULT_SERVER_URL")
+            ?: ""
+    val value = raw.trim().trimEnd('/')
+    if (value.isEmpty()) return ""
+    val uri = runCatching { URI(value) }.getOrNull()
+    val valid =
+        uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+            uri.userInfo == null && uri.query == null && uri.fragment == null && uri.path.isNullOrEmpty()
+    if (!valid) {
+        throw GradleException("openlibrary.defaultServerUrl must be an https:// address with no path, e.g. https://library.example.com (got \"$raw\")")
+    }
+    return value
 }
 
 android {
@@ -15,6 +45,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.2.0"
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"${defaultServerUrl()}\"")
     }
 
     buildTypes {
@@ -23,7 +54,10 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
         // Robolectric reaches into FileDescriptor internals, closed by default on recent JDKs.
