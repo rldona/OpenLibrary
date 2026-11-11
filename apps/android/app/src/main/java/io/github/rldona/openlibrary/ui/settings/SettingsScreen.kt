@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +60,18 @@ import io.github.rldona.openlibrary.ui.lock.canLock
 import io.github.rldona.openlibrary.sync.SyncWorker
 import io.github.rldona.openlibrary.ui.components.SyncBar
 import io.github.rldona.openlibrary.ui.components.TabScaffold
+import io.github.rldona.openlibrary.core.plural
+import io.github.rldona.openlibrary.sync.MoveResult
+import io.github.rldona.openlibrary.sync.ServerMove
+import io.github.rldona.openlibrary.ui.components.BusyLabel
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val c: AppContainer, private val onDisconnected: () -> Unit) : ViewModel() {
@@ -81,6 +94,30 @@ class SettingsViewModel(private val c: AppContainer, private val onDisconnected:
 
     fun resync() = viewModelScope.launch { c.sync.sync(full = true) }
 
+    private val mover =
+        ServerMove(c.sessions, { c.db.sync().state()?.epoch }, c.api) {
+            // The dialog closes at once; the sync (pushing the pending changes) runs on its own.
+            c.appScope.launch { if (c.sync.sync() == SyncStatus.Offline) SyncWorker.whenOnline(c.app) }
+        }
+
+    var moving by mutableStateOf(false)
+        private set
+    var moveResult by mutableStateOf<MoveResult?>(null)
+        private set
+
+    fun moveServer(address: String, onMoved: () -> Unit) =
+        viewModelScope.launch {
+            moving = true
+            moveResult = null
+            val r = mover.moveTo(address)
+            moving = false
+            if (r == MoveResult.Moved) onMoved() else moveResult = r
+        }
+
+    fun clearMoveResult() {
+        moveResult = null
+    }
+
     fun disconnect(context: android.content.Context) =
         viewModelScope.launch {
             c.sessions.current()?.let { s -> runCatching { c.api(s.serverUrl, s.token).revokeDevice(s.deviceId) } }
@@ -102,6 +139,7 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
     val pending by vm.pending.collectAsStateWithLifecycle(0)
     val problems by vm.problems.collectAsStateWithLifecycle(0)
     var confirm by remember { mutableStateOf(false) }
+    var changeServer by remember { mutableStateOf(false) }
 
     TabScaffold(stringResource(R.string.nav_settings)) { inner ->
         Column(
@@ -109,9 +147,16 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             verticalArrangement = Arrangement.spacedBy(Spacing.item),
         ) {
             SectionHeader(stringResource(R.string.settings_server))
+            SegmentedListItem(
+                onClick = { vm.clearMoveResult(); changeServer = true },
+                shapes = ListItemDefaults.segmentedShapes(0, 1),
+                leadingContent = { Icon(Icons.Default.Dns, contentDescription = null) },
+                trailingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
+                supportingContent = { Text(session?.serverUrl.orEmpty().ifEmpty { "—" }) },
+                modifier = Modifier.testTag("changeServer"),
+            ) { Text(stringResource(R.string.server_change)) }
             Group(
                 listOf(
-                    Triple(Icons.Default.Dns, stringResource(R.string.settings_server), session?.serverUrl.orEmpty()),
                     Triple(Icons.Default.PhoneAndroid, stringResource(R.string.device_thisDevice), session?.deviceName.orEmpty()),
                     Triple(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.device_books), editions.toString()),
                 ),
@@ -164,10 +209,19 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             ) { Text(stringResource(R.string.device_disconnect), color = MaterialTheme.colorScheme.error) }
         }
     }
+    if (changeServer) {
+        ChangeServerDialog(
+            vm,
+            current = session?.serverUrl.orEmpty(),
+            onDismiss = { changeServer = false },
+            onDisconnect = { changeServer = false; confirm = true },
+        )
+    }
     if (confirm) {
+        val lost = if (pending > 0) "\n\n" + plural(R.string.device_disconnectPending_one, R.string.device_disconnectPending_other, pending) else ""
         DestructiveDialog(
             title = stringResource(R.string.device_disconnect),
-            text = stringResource(R.string.device_disconnectConfirm),
+            text = stringResource(R.string.device_disconnectConfirm) + lost,
             confirm = stringResource(R.string.device_disconnect),
             onConfirm = { confirm = false; vm.disconnect(context) },
             onDismiss = { confirm = false },
@@ -242,3 +296,59 @@ private fun LockSetting(vm: SettingsViewModel) {
         },
     ) { Text(stringResource(R.string.lock_setting)) }
 }
+
+/**
+ * Same library, new address: checked against the server before anything changes. A different
+ * library (or a server that does not know this phone) is explained, with Disconnect as the way out.
+ */
+@Composable
+private fun ChangeServerDialog(vm: SettingsViewModel, current: String, onDismiss: () -> Unit, onDisconnect: () -> Unit) {
+    var address by rememberSaveable { mutableStateOf(current) }
+    val result = vm.moveResult
+    val otherLibrary = result == MoveResult.DifferentLibrary || result == MoveResult.NotRecognised
+    val submit = { if (!vm.moving && address.isNotBlank()) vm.moveServer(address, onDismiss) }
+    AlertDialog(
+        onDismissRequest = { if (!vm.moving) onDismiss() },
+        title = { Text(stringResource(R.string.server_change)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.item)) {
+                Text(stringResource(R.string.server_changeText))
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it; vm.clearMoveResult() },
+                    label = { Text(stringResource(R.string.server_newAddress)) },
+                    placeholder = { Text(stringResource(R.string.setup_serverPlaceholder)) },
+                    singleLine = true,
+                    isError = result != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier.fillMaxWidth().testTag("newServer"),
+                )
+                result?.let { Text(moveMessage(it), color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            if (otherLibrary) {
+                TextButton(onClick = onDisconnect) {
+                    Text(stringResource(R.string.device_disconnect), color = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                TextButton(onClick = submit, enabled = !vm.moving && address.isNotBlank()) {
+                    BusyLabel(vm.moving, stringResource(if (vm.moving) R.string.server_checking else R.string.server_changeAction))
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !vm.moving) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+@Composable
+private fun moveMessage(r: MoveResult): String =
+    when (r) {
+        MoveResult.InvalidAddress -> stringResource(R.string.setup_invalidUrl)
+        MoveResult.Unreachable -> stringResource(R.string.server_unreachable)
+        MoveResult.DifferentLibrary -> stringResource(R.string.server_differentLibrary)
+        MoveResult.NotRecognised -> stringResource(R.string.server_notRecognised)
+        MoveResult.NotConnected, MoveResult.Moved -> stringResource(R.string.errors_network)
+        is MoveResult.Failed -> r.message
+    }

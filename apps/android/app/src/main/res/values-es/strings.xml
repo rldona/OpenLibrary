@@ -181,6 +181,8 @@
     <string name="device_books">Ediciones en este móvil</string>
     <string name="device_disconnect">Desconectar este móvil</string>
     <string name="device_disconnectConfirm">Se borrará la copia de la biblioteca de este móvil. Podrás volver a conectarlo con tu contraseña.</string>
+    <string name="device_disconnectPending_one">Hay {n} cambio hecho en este móvil que aún no ha llegado al servidor y se perderá. Sincroniza antes si puedes.</string>
+    <string name="device_disconnectPending_other">Hay {n} cambios hechos en este móvil que aún no han llegado al servidor y se perderán. Sincroniza antes si puedes.</string>
     <string name="device_lastSync">Última sincronización</string>
     <string name="device_revoked">Este móvil ya no tiene acceso. Vuelve a conectarlo con tu contraseña.</string>
     <string name="device_thisDevice">Este móvil</string>
@@ -448,6 +450,14 @@
     <string name="search_results_one">{n} libro encontrado</string>
     <string name="search_results_other">{n} libros encontrados</string>
     <string name="security_title">Seguridad</string>
+    <string name="server_change">Cambiar la dirección del servidor</string>
+    <string name="server_changeAction">Cambiar</string>
+    <string name="server_changeText">Indica la nueva dirección de la misma biblioteca. Este móvil conserva sus datos y sus cambios pendientes.</string>
+    <string name="server_checking">Comprobando…</string>
+    <string name="server_differentLibrary">Ese servidor tiene otra biblioteca. Para usarla, desconecta este móvil y vuelve a conectarlo: la copia de este móvil se sustituirá por esa biblioteca.</string>
+    <string name="server_newAddress">Nueva dirección</string>
+    <string name="server_notRecognised">Ese servidor no reconoce este móvil. Si es otra biblioteca, desconecta este móvil y vuelve a conectarlo.</string>
+    <string name="server_unreachable">En esa dirección no responde ningún servidor de OpenLibrary.</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="settings_appVersion">Versión de la app</string>

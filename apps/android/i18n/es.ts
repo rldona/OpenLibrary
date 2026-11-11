@@ -32,10 +32,26 @@ export const es: Record<keyof typeof en, string> = {
   'device.disconnect': 'Desconectar este móvil',
   'device.disconnectConfirm':
     'Se borrará la copia de la biblioteca de este móvil. Podrás volver a conectarlo con tu contraseña.',
+  'device.disconnectPending_one':
+    'Hay {n} cambio hecho en este móvil que aún no ha llegado al servidor y se perderá. Sincroniza antes si puedes.',
+  'device.disconnectPending_other':
+    'Hay {n} cambios hechos en este móvil que aún no han llegado al servidor y se perderán. Sincroniza antes si puedes.',
   'device.revoked': 'Este móvil ya no tiene acceso. Vuelve a conectarlo con tu contraseña.',
   'device.thisDevice': 'Este móvil',
   'device.lastSync': 'Última sincronización',
   'device.books': 'Ediciones en este móvil',
+
+  'server.change': 'Cambiar la dirección del servidor',
+  'server.changeText':
+    'Indica la nueva dirección de la misma biblioteca. Este móvil conserva sus datos y sus cambios pendientes.',
+  'server.newAddress': 'Nueva dirección',
+  'server.changeAction': 'Cambiar',
+  'server.checking': 'Comprobando…',
+  'server.unreachable': 'En esa dirección no responde ningún servidor de OpenLibrary.',
+  'server.differentLibrary':
+    'Ese servidor tiene otra biblioteca. Para usarla, desconecta este móvil y vuelve a conectarlo: la copia de este móvil se sustituirá por esa biblioteca.',
+  'server.notRecognised':
+    'Ese servidor no reconoce este móvil. Si es otra biblioteca, desconecta este móvil y vuelve a conectarlo.',
 
   'detail.back': 'Volver',
   'detail.retired': 'Retirado',
