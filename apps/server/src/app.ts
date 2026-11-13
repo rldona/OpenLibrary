@@ -26,8 +26,14 @@ import { ExportService } from './portability/export.js';
 import { ImportService } from './portability/import.js';
 import { portabilityRoutes } from './portability/routes.js';
 import { withGoogleBooksKey, type Fetch } from './lookup/providers.js';
+import { DriveBackupService } from './drive/service.js';
+import { driveBackupRoutes } from './drive/routes.js';
 
 declare module 'fastify' {
+  interface FastifyInstance {
+    /** Backups to Google Drive; server.ts starts its scheduler. */
+    drive: DriveBackupService;
+  }
   interface FastifyRequest {
     /** Language negotiated from Accept-Language (default English). */
     lang: Lang;
@@ -124,6 +130,17 @@ export async function buildApp(deps: {
           },
   });
 
+  const drive = new DriveBackupService(
+    db,
+    config,
+    (id, size) => assets.pathOf(id, size),
+    deps.fetch,
+    deps.now,
+    { info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m) },
+  );
+  app.decorate('drive', drive);
+  app.addHook('onClose', async () => drive.stopScheduler());
+
   app.decorateRequest('lang', 'en');
   app.decorateRequest('clientIp', '');
   const ipHeader = typeof config.trustProxy === 'object' ? config.trustProxy.header : undefined;
@@ -211,6 +228,7 @@ export async function buildApp(deps: {
       await api.register(catalogRoutes, { catalog });
       await api.register(assetAndLookupRoutes, { assets, lookup });
       await api.register(syncRoutes, { sync });
+      await api.register(driveBackupRoutes, { drive });
       await api.register(portabilityRoutes, {
         exporter: new ExportService(db, assets, config.version, deps.now),
         importer: new ImportService(db, catalog, assets, deps.now),

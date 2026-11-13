@@ -73,10 +73,35 @@ Then sign in on the web, add a passkey (§11) and keep the recovery codes. Insta
 
 ## 6. Backups
 
-On Hobby, Railway offers **no volume backups** (only on Pro), and the owner decided against an off-site copy: the library holds nothing sensitive and losing it is acceptable. What exists:
+On Hobby, Railway offers **no volume backups** (only on Pro). What exists:
 
 - **Nightly snapshot** inside the server (`BACKUP_SCHEDULE=daily`): at 03:00 UTC and at boot when the last one is more than a day old, it writes `backups/library.db`, checks its integrity, keeps the newest 7 dated copies `backups/library-YYYY-MM-DD.db` and writes `backups/last-success`. The web's Import and export page shows when it last ran and warns after 3 days. It protects against a bad release or a logical mistake, **not** against losing the volume or the project, and it does not include covers.
+- **Google Drive** (optional, the only copy outside Railway): set up once as in §6.1, then the web's Import and export page backs up the database and the covers to your Drive, manually or every 1, 5, 10 or 15 minutes (only when something changed).
 - **Full export** from the web (Import and export → zip with every record and cover), whenever you want a copy elsewhere. Or by hand: `railway volume files --volume app-volume download /backups/library.db ./library.db`.
+
+### 6.1 Google Drive
+
+What ends up in your Drive, in a folder called `OpenLibrary backups`: `library-<date>.db.gz` (a consistent copy of the database; the newest 24 plus the newest of each of the last 30 days are kept) and `covers/` (each cover uploaded once). The app asks for the `drive.file` permission: it only sees the files it created, never the rest of your Drive. The copies are **not encrypted**, so protect the Google account with two-step verification.
+
+**Google OAuth client** (once, free, no billing): in https://console.cloud.google.com
+
+1. Create a project `OpenLibrary` and, in **APIs & Services → Library**, enable **Google Drive API**.
+2. **Google Auth Platform → Branding**: app name `OpenLibrary` and your e-mail. **Audience**: *External*.
+3. **Data Access → Add or remove scopes**: add `https://www.googleapis.com/auth/drive.file`.
+4. **Audience → Publish app** (*In production*). While the app is in *Testing*, Google expires the authorisation after 7 days and the backups stop. `drive.file` is not a sensitive scope, so there is no need to submit the app for verification; the consent screen may just not show the name and logo.
+5. **Clients → Create client → Web application**, with this *Authorized redirect URI* (`PUBLIC_URL` + `/api/v1/backups/drive/callback`):
+   ```
+   https://app-production-10a9154b.up.railway.app/api/v1/backups/drive/callback
+   ```
+
+**Service variables** (the secret never goes in git or in a command line):
+
+```bash
+railway variable set GOOGLE_OAUTH_CLIENT_ID=<client id> --service app
+railway variable set GOOGLE_OAUTH_CLIENT_SECRET --stdin --service app   # paste the secret, then Ctrl-D
+```
+
+Setting a variable redeploys the service. Then, in the web: **Import and export → Backups to Google Drive → Connect Google Drive**, accept, press **Back up now** and pick the frequency. The authorisation lives in `/data/google-drive.json` (mode 600), outside the database, so it never travels inside a backup. **Disconnect** revokes it; the copies already in Drive are kept.
 
 ## 7. Restore
 
@@ -99,7 +124,26 @@ The current database is set aside as `library.db*.before-restore-<date>` (delete
 
 **(b) A Railway volume backup** (only if the workspace moves to Pro and the schedule is enabled): service → Backups → Restore the chosen backup, wait for the redeploy, then `railway ssh --service app -- node dist/cli.js after-restore`. Restoring brings back the whole volume, covers included.
 
-**(c) Logical restore from a full export zip** (a new installation, another project, another host): provision and deploy (§2–§3), `set-password` (§4), web → Import and export → import the zip with a **dry run** first, then for real. Compare the totals with the export. Sessions, passkeys and devices are not part of the export: add a passkey again and reconnect the phones.
+**(c) A Google Drive copy** (the volume or the project was lost, or the snapshots are not enough). On a new installation first provision, deploy, `set-password` (§2–§4) and connect Google Drive in the web with the same Google account (§6.1). Then:
+
+```bash
+railway ssh --service app -- node dist/cli.js drive-fetch          # the newest copy; or pass a file name from Drive
+```
+
+It downloads the copy to `/data/restore.db`, checks its integrity and downloads the covers this server lacks. Swap it in as in (a), starting from `restore.db`:
+
+```bash
+railway ssh --service app -- sh -c '
+  cd /data && day=$(date +%Y%m%d-%H%M%S) && chown 1000:1000 restore.db &&
+  for f in library.db library.db-wal library.db-shm; do [ -f "$f" ] && mv "$f" "$f.before-restore-$day"; done;
+  mv restore.db library.db'
+railway restart --service app --yes
+railway ssh --service app -- node dist/cli.js after-restore
+```
+
+The restored database brings back its own password, sessions and passkeys: sign in with the password you had then.
+
+**(d) Logical restore from a full export zip** (a new installation, another project, another host): provision and deploy (§2–§3), `set-password` (§4), web → Import and export → import the zip with a **dry run** first, then for real. Compare the totals with the export. Sessions, passkeys and devices are not part of the export: add a passkey again and reconnect the phones.
 
 ## 8. Cost and usage limit
 

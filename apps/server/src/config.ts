@@ -45,6 +45,12 @@ const EnvSchema = z.object({
   /** Dated snapshots kept by the in-process backup. */
   BACKUP_KEEP: z.coerce.number().int().min(1).max(90).default(7),
   /**
+   * Google OAuth client (type "Web application") for backups to the owner's Google Drive, set up
+   * from the web (Import and export). Optional; without it the feature says it is not set up.
+   */
+  GOOGLE_OAUTH_CLIENT_ID: z.string().trim().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().trim().optional(),
+  /**
    * SHA-256 fingerprints of the certificates that sign the Android app (as `keytool` prints them,
    * comma-separated). They go to /.well-known/assetlinks.json and make the app's origin acceptable
    * for passkeys. Each fork or self-hoster sets its own; without it, passkeys work on the web only.
@@ -80,6 +86,10 @@ export type Config = {
   googleBooksKey: string | undefined;
   backupSchedule: 'off' | 'daily';
   backupKeep: number;
+  /** Google OAuth credentials for Drive backups; null when not set up. */
+  google: { clientId: string; clientSecret: string } | null;
+  /** Drive refresh token and folder ids. Kept out of the database so it never travels in a backup. */
+  driveStateFile: string;
   /** WebAuthn relying-party id (hostname of PUBLIC_URL) and the origins passkeys may come from. */
   passkeys: { rpId: string; origins: string[] };
   android: { packageName: string; certFingerprints: string[] };
@@ -125,6 +135,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     googleBooksKey: e.GOOGLE_BOOKS_API_KEY || undefined,
     backupSchedule: e.BACKUP_SCHEDULE,
     backupKeep: e.BACKUP_KEEP,
+    google:
+      e.GOOGLE_OAUTH_CLIENT_ID && e.GOOGLE_OAUTH_CLIENT_SECRET
+        ? { clientId: e.GOOGLE_OAUTH_CLIENT_ID, clientSecret: e.GOOGLE_OAUTH_CLIENT_SECRET }
+        : null,
+    driveStateFile: path.join(dataDir, 'google-drive.json'),
     passkeys: {
       rpId: publicUrl.hostname,
       origins: [publicUrl.origin, ...extra, ...fingerprints.map(androidOrigin)],

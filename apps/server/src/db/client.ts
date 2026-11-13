@@ -44,6 +44,10 @@ export function setMeta(db: Db, key: string, value: string): void {
     .run();
 }
 
+export function deleteMeta(db: Db, key: string): void {
+  db.delete(schema.meta).where(eq(schema.meta.key, key)).run();
+}
+
 /** The "epoch" identifies a data timeline; it changes after a backup is restored. */
 function ensureEpoch(db: Db): void {
   if (!getMeta(db, 'epoch')) setMeta(db, 'epoch', randomUUID());

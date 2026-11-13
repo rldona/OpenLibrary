@@ -34,6 +34,8 @@ app.log.info(
   'OpenLibrary ready',
 );
 
+app.drive.startScheduler();
+
 if (config.backupSchedule === 'daily') {
   backups = new BackupScheduler({
     db,

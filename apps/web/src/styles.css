@@ -2468,6 +2468,16 @@ dialog .snackbar-host {
 .segmented button:focus-visible {
   outline-offset: -3px;
 }
+/* Many short segments (the Drive backup frequency): equal widths that fit a phone. */
+.segmented.dense {
+  display: flex;
+}
+.segmented.dense button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
 .field {
   display: flex;
   flex-direction: column;

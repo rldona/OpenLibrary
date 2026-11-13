@@ -46,3 +46,6 @@ export const IMPORT_ENTITIES = [
 ] as const;
 /** A backup older than this is reported as stale (design §9). */
 export const BACKUP_STALE_DAYS = 3;
+/** Minutes between automatic backups to Google Drive; 0 = manual only. */
+export const DRIVE_BACKUP_INTERVALS = [0, 1, 5, 10, 15] as const;
+export type DriveBackupInterval = (typeof DRIVE_BACKUP_INTERVALS)[number];

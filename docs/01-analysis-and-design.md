@@ -332,7 +332,7 @@ Monorepo with **npm workspaces** for the TypeScript side; Android uses its own G
 
 - **Railway volumes made SQLite viable.** The plan of 2026-11-04 assumed that moving to Railway meant Postgres plus S3 for covers. A volume mounted at `/data` keeps the database, the covers and the snapshots as "one folder": no rewrite of the catalog, sync or FTS5 code, and moving away again is copying that folder. Cost of the choice: one replica, and a few seconds without service on every deploy.
 - **The real library starts empty.** The owner decided not to migrate the data from the PC: the cutover begins with an empty volume, a new password and a new passkey, and the phone is set up again.
-- **No off-site copy, no volume backups.** The library holds nothing sensitive and losing it is acceptable. Railway only offers volume backups on Pro workspaces, and the service runs on Hobby. The only backup is the nightly in-process snapshot on the same volume.
+- **No volume backups; optional off-site copy to Google Drive** (2026-11-13). The library holds nothing sensitive and losing it is acceptable. Railway only offers volume backups on Pro workspaces, and the service runs on Hobby. The only backup is the nightly in-process snapshot on the same volume.
 - **Passkeys** replace the planned TOTP second factor (§9.1).
 - **Configuration as code:** `.railway/railway.ts` (Railway's Infrastructure as Code, which replaced `railway.json` before 2026-12-01) and `deploy/railway/provision.sh`. Continuous deployment runs from GitHub Actions after CI.
 
@@ -343,6 +343,7 @@ Monorepo with **npm workspaces** for the TypeScript side; Android uses its own G
 - First run: `set-password` through `railway ssh` sets the owner password (never from the web, so nobody can get there first).
 
 ### Backups
+- **Google Drive from the web** (optional, 2026-11-13): the server uploads a gzip of a checked hot copy of the database plus the covers (each one once) to an `OpenLibrary backups` folder in the owner's Drive, manually or every 1/5/10/15 minutes (`src/drive/`, `/backups/drive*`, web: Import and export). Automatic runs are skipped when nothing changed (fingerprint: epoch + last change-log seq + cover count). OAuth scope `drive.file` (the app only sees its own files); the refresh token lives in `DATA_DIR/google-drive.json`, outside the database. Retention: newest 24 copies + newest of each of the last 30 days. Not encrypted. Restore: `cli drive-fetch` → `restore.db` → swap → `after-restore`.
 - **Nightly in-process snapshot** (`BACKUP_SCHEDULE=daily`), at 03:00 UTC and at boot when the last one is more than a day old: a consistent hot copy of the database, checked for integrity, plus 7 dated copies and `backups/last-success`. The web's Import and export page warns when it is older than 3 days.
 - It covers a bad release or a logical mistake, not losing the volume or the project. Covers are not in it.
 - The web lets you download the **full export** (zip with every record and cover) at any time: the copy that does not depend on the app.
@@ -419,7 +420,7 @@ Indicative total: **~11 weeks** part-time. Every phase ends with something usabl
 |----|------|:-----:|:------:|------------|
 | R1 | Poor metadata for Spanish / old books | High | Medium | Two providers + BNE later; fast manual entry; cover photos; never block creation |
 | R2 | Subtle sync bugs (loss/duplication) | Medium | High | Simple protocol (outbox + cursor), property-based and fault-injection tests, readable sync logs |
-| R3 | Loss of the Railway volume or project (no volume backups on Hobby, no off-site copy) | Low | Medium (accepted by the owner) | Nightly snapshot for logical mistakes; the full export zip can be downloaded any time; Android holds a copy of the records |
+| R3 | Loss of the Railway volume or project (no volume backups on Hobby) | Low | Medium (accepted by the owner) | Nightly snapshot for logical mistakes; optional Google Drive copy (database + covers) outside Railway; the full export zip can be downloaded any time; Android holds a copy of the records |
 | R4 | The phone cannot reach the server (network, Railway outage, a deploy) | Medium | Low | Offline is the normal mode; clear status; automatic retries |
 | R5 | Restoring a backup "breaks" clients with newer data | Low | High | `epoch` + full resync that keeps pending ops as conflicts |
 | R6 | Scanning in low light / EAN-5 add-on | Medium | Low | Torch, manual ISBN entry, add-on ignored |

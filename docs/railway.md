@@ -38,13 +38,14 @@ being offline and retries the sync later.
 
 ## Backups: only the nightly snapshot on the same volume
 
-On the Hobby plan Railway offers **no volume backups**: the API answers that manual backups and backup schedules "are only available for Pro workspaces". The owner decided (2026-11-11) to accept this, because the library holds nothing sensitive and losing it is acceptable. There is also no off-site copy.
+On the Hobby plan Railway offers **no volume backups**: the API answers that manual backups and backup schedules "are only available for Pro workspaces". The owner decided (2026-11-11) to accept this, because the library holds nothing sensitive and losing it is acceptable. Since 2026-11-13 there is an optional off-site copy to the owner's Google Drive (below).
 
 The only protection is the server's own nightly snapshot (`BACKUP_SCHEDULE=daily`, `BACKUP_KEEP=7`): every night at 03:00 UTC, and at boot when the last one is more than a day old, it writes `backups/library.db` plus a dated copy, keeping the newest 7, and `backups/last-success` (shown in the web's Import and export page).
 
 - **It protects against** a bad migration, a buggy release or a logical mistake. Restore one of the dated copies over `library.db` (runbook, "Restore") and run `after-restore`.
 - **It does not protect against** losing the volume, the service or the project: the snapshots live on that same volume. Covers (`assets/`) are not in the snapshot at all.
 - To keep a copy elsewhere by hand: `railway volume files --volume <volume> download /backups/library.db ./library.db`, or download the web's full export (zip with every record and cover).
+- **Google Drive** (optional, runbook §6.1): the server uploads a gzip of the database and the covers to the owner's Drive from the web, manually or every 1/5/10/15 minutes, only when something changed. It survives losing the volume or the project; restore with `drive-fetch` (runbook §7 c). It needs `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in the service variables. Egress is negligible: covers are uploaded once.
 - Moving the workspace to Pro would allow a daily volume backup with one API call (`volumeInstanceBackupScheduleUpdate`, `kinds: [DAILY]`).
 
 ## Cost levers

@@ -118,6 +118,15 @@ const SERVER: Record<Lang, Dict> = {
     'import.notANumber': 'Not a number: {value}.',
     'import.imageInvalid': 'Not a usable image.',
     'import.discardedWishSkipped': 'A discarded wish: skipped (discarded wishes are deleted now).',
+    // backups to Google Drive
+    'errors.driveNotConfigured':
+      'Google Drive is not set up on the server: set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET.',
+    'errors.driveNotConnected': 'Connect Google Drive first.',
+    'errors.driveReconnect': 'Google Drive no longer accepts the authorisation. Connect it again.',
+    'errors.driveUnreachable': 'Google Drive cannot be reached.',
+    'errors.driveFailed': 'Google Drive answered with an error ({status}).',
+    'errors.backupRunning': 'A backup is already in progress.',
+    'errors.backupFailed': 'The backup failed: {reason}',
   },
   es: {
     'title.400': 'Petición no válida',
@@ -233,6 +242,14 @@ const SERVER: Record<Lang, Dict> = {
     'import.imageInvalid': 'No es una imagen utilizable.',
     'import.discardedWishSkipped':
       'Un deseo descartado: se omite (ahora los deseos descartados se eliminan).',
+    'errors.driveNotConfigured':
+      'Google Drive no está configurado en el servidor: define GOOGLE_OAUTH_CLIENT_ID y GOOGLE_OAUTH_CLIENT_SECRET.',
+    'errors.driveNotConnected': 'Conecta primero Google Drive.',
+    'errors.driveReconnect': 'Google Drive ya no acepta la autorización. Vuelve a conectarlo.',
+    'errors.driveUnreachable': 'No se puede contactar con Google Drive.',
+    'errors.driveFailed': 'Google Drive respondió con un error ({status}).',
+    'errors.backupRunning': 'Ya hay una copia de seguridad en curso.',
+    'errors.backupFailed': 'La copia de seguridad falló: {reason}',
   },
 };
 

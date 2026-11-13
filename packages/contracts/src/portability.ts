@@ -24,7 +24,7 @@ import {
   WishFields,
   WorkFields,
 } from './catalog.js';
-import { IMPORT_ENTITIES } from './constants.js';
+import { DRIVE_BACKUP_INTERVALS, IMPORT_ENTITIES, type DriveBackupInterval } from './constants.js';
 
 export const EXPORT_FORMAT = 'openlibrary';
 export const EXPORT_FORMAT_VERSION = 1;
@@ -168,3 +168,39 @@ export type BackupStatus = {
   lastSuccessAt: string | null;
   stale: boolean;
 };
+
+// ---------- Backups to Google Drive (web only) ----------
+export const DriveBackupSettings = z.object({
+  intervalMinutes: z
+    .number()
+    .int()
+    .refine(
+      (n): n is DriveBackupInterval => (DRIVE_BACKUP_INTERVALS as readonly number[]).includes(n),
+      'validation.invalidInterval',
+    ),
+});
+export type DriveBackupSettings = { intervalMinutes: DriveBackupInterval };
+
+export type DriveBackupStatus = {
+  drive: {
+    /** The server has Google OAuth credentials (GOOGLE_OAUTH_CLIENT_ID / _SECRET). */
+    available: boolean;
+    connected: boolean;
+    /** Google account the backups go to, if Google reported it. */
+    account: string | null;
+  };
+  intervalMinutes: DriveBackupInterval;
+  running: boolean;
+  /** false when the library changed since the last successful backup. */
+  upToDate: boolean;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  /** Name of the last database file uploaded to Drive. */
+  lastFile: string | null;
+  /** Already translated to the request language. */
+  lastError: string | null;
+  /** When the scheduler next looks for changes (null when manual only or not connected). */
+  nextCheckAt: string | null;
+};
+
+export type DriveConnectResponse = { url: string };

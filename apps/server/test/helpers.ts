@@ -46,7 +46,11 @@ export async function webClient(app: App) {
     payload: { password: PASSWORD },
   });
   const token = cookieOf(res)!;
-  const call = async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) => {
+  const call = async (
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    url: string,
+    payload?: unknown,
+  ) => {
     const r = await app.inject({
       method,
       url: `/api/v1${url}`,
@@ -60,6 +64,7 @@ export async function webClient(app: App) {
     token,
     get: (u: string) => call('GET', u),
     post: (u: string, b?: unknown) => call('POST', u, b ?? {}),
+    put: (u: string, b: unknown) => call('PUT', u, b),
     patch: (u: string, b: unknown) => call('PATCH', u, b),
     del: (u: string) => call('DELETE', u),
   };

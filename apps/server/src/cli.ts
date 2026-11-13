@@ -7,6 +7,8 @@
  *   status                  state summary
  *   demo-data [en|es]       loads sample locations and books (only on an empty library)
  *   passkeys-reset          removes every passkey and recovery code: password-only sign-in again
+ *   drive-fetch [file]      downloads a Google Drive backup (the newest by default) to DATA_DIR/restore.db
+ *                           and the covers missing here; swapping it in is a separate step (runbook)
  */
 import readline from 'node:readline';
 import { pickLang } from '@openlibrary/contracts';
@@ -20,6 +22,9 @@ import { tr } from './i18n.js';
 import { loadDemo } from './demo.js';
 import { dropPrivileges } from './privileges.js';
 import { integrityOf, snapshot } from './backup.js';
+import { DriveBackupService } from './drive/service.js';
+import { DriveError } from './drive/client.js';
+import { AssetService } from './assets/service.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -141,9 +146,28 @@ async function main(): Promise<number> {
         return 1;
       }
     }
+    case 'drive-fetch': {
+      const assets = new AssetService(db, config.assetsDir);
+      const drive = new DriveBackupService(db, config, (id, size) => assets.pathOf(id, size));
+      try {
+        const r = await drive.fetchBackup(args[0]);
+        console.log(
+          `Downloaded ${r.file} to ${r.path} (integrity ok) and ${r.coversDownloaded} missing cover files.`,
+        );
+        console.log('Next: swap restore.db in as in "Restore" of the runbook, restart, then after-restore.');
+        return 0;
+      } catch (e) {
+        console.error(
+          e instanceof HttpError || e instanceof DriveError
+            ? tr('en')(e.key, e.params)
+            : (e as Error).message,
+        );
+        return 1;
+      }
+    }
     default:
       console.log(
-        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es] | passkeys-reset',
+        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es] | passkeys-reset | drive-fetch [file]',
       );
       return cmd ? 1 : 0;
   }
