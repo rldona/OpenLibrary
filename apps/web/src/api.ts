@@ -1,4 +1,7 @@
 import type {
+  DriveBackupSettings,
+  DriveBackupStatus,
+  DriveConnectResponse,
   AuthMethods,
   CeremonyOptions,
   PasskeyList,
@@ -157,6 +160,12 @@ export const api = {
   importFile: (file: Blob, dryRun: boolean) =>
     request<ImportReport>('POST', `/import?dryRun=${dryRun}`, file, { contentType: file.type }),
   backupStatus: () => request<BackupStatus>('GET', '/backups/status'),
+  driveBackups: () => request<DriveBackupStatus>('GET', '/backups/drive'),
+  setDriveBackupSettings: (b: DriveBackupSettings) =>
+    request<DriveBackupStatus>('PUT', '/backups/drive/settings', b),
+  runDriveBackup: () => request<DriveBackupStatus>('POST', '/backups/drive/run'),
+  connectDrive: () => request<DriveConnectResponse>('POST', '/backups/drive/connect'),
+  disconnectDrive: () => request<DriveBackupStatus>('DELETE', '/backups/drive'),
 };
 
 export const coverUrl = (id: string, size: 'thumb' | 'full' = 'thumb') =>

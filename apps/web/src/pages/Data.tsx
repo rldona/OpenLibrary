@@ -14,6 +14,7 @@ import { useToast } from '../components/snackbar';
 import { ErrorState, LoadingState } from '../components/states';
 import { fmtDateTime } from '../lib/format';
 import { useI18n } from '../i18n';
+import { DriveBackups } from './DriveBackups';
 
 /** UC12–UC14: export, import (dry run first) and the state of the backups. */
 export function Data() {
@@ -28,6 +29,7 @@ export function Data() {
       </div>
       <div className="stack">
         <Backups />
+        <DriveBackups />
         <section className="panel">
           <h3>{t('data.export')}</h3>
           <p className="muted">{t('data.exportHint')}</p>
