@@ -1,21 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher icon foreground: the open book from the web favicon, 36dp wide and centred, well inside the
-     66dp adaptive-icon safe zone so launchers' masks never crop it or crowd its edges. -->
+<!-- Launcher icon foreground: the dark panel with the shelf of books, the same artwork as the web favicon.
+     The panel covers 69% of the 72dp safe zone, so launchers' masks never crop it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:scaleX="2"
-        android:scaleY="2"
-        android:translateX="22"
-        android:translateY="21">
+        android:scaleX="2.25"
+        android:scaleY="2.25"
+        android:translateX="18"
+        android:translateY="18">
         <path
-            android:fillColor="#00000000"
-            android:pathData="M7 9h6a3 3 0 0 1 3 3v12a2.5 2.5 0 0 0-2.5-2.5H7zM25 9h-6a3 3 0 0 0-3 3v12a2.5 2.5 0 0 1 2.5-2.5H25z"
-            android:strokeColor="#1A120C"
-            android:strokeLineJoin="round"
-            android:strokeWidth="1.8" />
+            android:fillColor="#1A120C"
+            android:pathData="M7.3,5.4h17.4a2.4,2.4 0,0 1,2.4 2.4v14.4a2.4,2.4 0,0 1,-2.4 2.4H7.3a2.4,2.4 0,0 1,-2.4 -2.4V7.8a2.4,2.4 0,0 1,2.4 -2.4z" />
+        <group
+            android:scaleX="0.2274"
+            android:scaleY="0.2414"
+            android:translateX="3.49"
+            android:translateY="7.13">
+            <path
+                android:fillColor="#E2925F"
+                android:pathData="M14,0h15v62h12v8h-27z" />
+            <group
+                android:pivotX="50"
+                android:pivotY="70"
+                android:rotation="-14">
+                <path
+                    android:fillColor="#E2925F"
+                    android:pathData="M48.5,2h3a1.5,1.5 0,0 1,1.5 1.5v65a1.5,1.5 0,0 1,-1.5 1.5h-3a1.5,1.5 0,0 1,-1.5 -1.5v-65a1.5,1.5 0,0 1,1.5 -1.5z" />
+            </group>
+            <group
+                android:pivotX="66.5"
+                android:pivotY="70"
+                android:rotation="-13">
+                <path
+                    android:fillColor="#E2925F"
+                    android:pathData="M62,6h9a2,2 0,0 1,2 2v60a2,2 0,0 1,-2 2h-9a2,2 0,0 1,-2 -2V8a2,2 0,0 1,2 -2z" />
+            </group>
+            <group
+                android:pivotX="88.5"
+                android:pivotY="70"
+                android:rotation="-17.5">
+                <path
+                    android:fillColor="#E2925F"
+                    android:pathData="M83,10h11a2,2 0,0 1,2 2v56a2,2 0,0 1,-2 2H83a2,2 0,0 1,-2 -2V12a2,2 0,0 1,2 -2z" />
+            </group>
+        </group>
     </group>
 </vector>
