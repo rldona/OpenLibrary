@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher icon foreground: the white panel with the orange shelf of books, the same artwork as the web favicon.
-     The panel is scaled 1.1x around its centre and moved 1 unit down so it sits in the middle of the tile; it
-     covers 76% of the 72dp visible area and its rounded corners keep it inside the round launcher mask. -->
+<!-- Launcher icon foreground: the dark panel with the orange shelf of books, the same artwork as the web favicon.
+     The panel is scaled 1.05x around its centre and moved 1 unit down so it sits in the middle of the tile; it
+     covers 72% of the 72dp visible area and its rounded corners keep it inside the round launcher mask. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -15,11 +15,11 @@
         <group
             android:pivotX="16"
             android:pivotY="15"
-            android:scaleX="1.1"
-            android:scaleY="1.1"
+            android:scaleX="1.05"
+            android:scaleY="1.05"
             android:translateY="1">
             <path
-                android:fillColor="#FFFFFF"
+                android:fillColor="#1A120C"
                 android:pathData="M7.3,5.4h17.4a2.4,2.4 0,0 1,2.4 2.4v14.4a2.4,2.4 0,0 1,-2.4 2.4H7.3a2.4,2.4 0,0 1,-2.4 -2.4V7.8a2.4,2.4 0,0 1,2.4 -2.4z" />
             <group
                 android:scaleX="0.2274"
