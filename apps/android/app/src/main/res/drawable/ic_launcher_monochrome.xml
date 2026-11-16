@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed (monochrome) launcher icon: the shelf of books alone, without the tile, so the system can
+     tint it. The shape stays inside the central 72dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.39"
+        android:scaleY="0.39"
+        android:translateX="32.15"
+        android:translateY="36.45">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M5,80h102a5,5 0,0 1,5 5a5,5 0,0 1,-5 5H5a5,5 0,0 1,-5 -5a5,5 0,0 1,5 -5z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M14,0h15v62h12v8h-27z" />
+        <group
+            android:pivotX="50"
+            android:pivotY="70"
+            android:rotation="-14">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M48.5,2h3a1.5,1.5 0,0 1,1.5 1.5v65a1.5,1.5 0,0 1,-1.5 1.5h-3a1.5,1.5 0,0 1,-1.5 -1.5v-65a1.5,1.5 0,0 1,1.5 -1.5z" />
+        </group>
+        <group
+            android:pivotX="66.5"
+            android:pivotY="70"
+            android:rotation="-13">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M62,6h9a2,2 0,0 1,2 2v60a2,2 0,0 1,-2 2h-9a2,2 0,0 1,-2 -2V8a2,2 0,0 1,2 -2z" />
+        </group>
+        <group
+            android:pivotX="88.5"
+            android:pivotY="70"
+            android:rotation="-17.5">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M83,10h11a2,2 0,0 1,2 2v56a2,2 0,0 1,-2 2H83a2,2 0,0 1,-2 -2V12a2,2 0,0 1,2 -2z" />
+        </group>
+    </group>
+</vector>
