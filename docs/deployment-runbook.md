@@ -68,6 +68,7 @@ Then sign in on the web, add a passkey (§11) and keep the recovery codes. Insta
 | Metrics (CPU, RAM, volume, HTTP) | `railway metrics --service app --since 1h` |
 | Change the password (signs out every session) | `railway ssh --service app -- node dist/cli.js set-password` |
 | Locked out of passkeys | `railway ssh --service app -- node dist/cli.js passkeys-reset` (§11) |
+| Genres saved in English | `railway ssh --service app -- node dist/cli.js translate-subjects es` lists the changes; add `--apply` to save them (phones get them on their next sync) |
 | Restart without rebuilding | `railway restart --service app --yes` |
 | Revoke a lost phone | Web → Settings → Sessions and devices → Revoke |
 

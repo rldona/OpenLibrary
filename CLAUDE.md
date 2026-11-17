@@ -24,7 +24,7 @@ npm test            # server and web tests (vitest; web: jsdom + Testing Library
 npm run lint        # eslint + prettier --check
 npm run typecheck
 npm run build       # web (vite) + server (tsup)
-npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
+npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status | translate-subjects es [--apply]
 ```
 
 - `apps/android`: Kotlin + Compose + Room, its own Gradle build (JDK 21, SDK in `~/Android/Sdk`). From `apps/android`: `./gradlew :app:testDebugUnitTest :app:assembleDebug`. Strings are generated: `npm run android:strings` after changing any catalog. API changes: update `packages/contracts/openapi.yaml`, regenerate fixtures (`UPDATE_FIXTURES=1 npx vitest run test/openapi.test.ts test/stats.test.ts` in apps/server, then `npm run format`) and the Kotlin DTOs.
@@ -59,3 +59,4 @@ npm run cli -w @openlibrary/server -- set-password | demo-data en|es | status
 - Cloud migration, milestone 2 ✔ (2026-11-11): Railway project `openlibrary`, service `app`, volume `/data` in `europe-west4-drams3a`, https://app-production-10a9154b.up.railway.app. Created by `deploy/railway/provision.sh`; service config in `.railway/railway.ts` (`railway config plan|apply`; replaced `railway.json`); CD from GitHub Actions with the `RAILWAY_TOKEN` project token. No volume backups on Hobby and no off-site copy (owner decision): only the nightly snapshot. Admin CLI: `railway ssh --service app -- node dist/cli.js …`. Railway CLI quirks: `railway volume add` panics in 5.71 (use the GraphQL API), a workspace token cannot run `whoami`/`ssh` (use an account token). Docs: `docs/deployment-runbook.md`, `docs/railway.md`.
 - Google Drive backups ✔ (2026-11-13): web Import and export → connect Drive (OAuth `drive.file`, web client with secret; `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` service variables, token in `DATA_DIR/google-drive.json`), back up now or every 1/5/10/15 min when something changed (`src/drive/`, `/backups/drive*`, web-only, not in `openapi.yaml`); restore with `cli drive-fetch` (runbook §7 c). Not yet tried against the real Google API.
 - Cutover (#16) is the owner's: the real library starts **empty** on Railway (no data migrated), with a new password and passkey, and the phone set up again with the release APK.
+- Spanish genres ✔ (2026-11-17): `/lookup/isbn` translates subjects into the client's language (`lookup/subjects.ts`, Spanish dictionary of BISAC headings and frequent Open Library subjects; unknown ones stay; the cache keeps the providers' English). CLI `translate-subjects es [--apply]` translates the books already saved (dry run by default; each change is a `patchWork`, so phones sync it). The Spanish room kind reads "Estancia (salón, dormitorio…)".

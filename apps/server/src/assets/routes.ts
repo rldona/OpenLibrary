@@ -49,7 +49,7 @@ export async function assetAndLookupRoutes(
 
   app.get<{ Params: { isbn: string }; Querystring: { refresh?: string } }>(
     '/lookup/isbn/:isbn',
-    async (req) => lookup.byIsbn(req.params.isbn, { refresh: req.query.refresh === '1' }),
+    async (req) => lookup.byIsbn(req.params.isbn, { refresh: req.query.refresh === '1', lang: req.lang }),
   );
 
   /**
