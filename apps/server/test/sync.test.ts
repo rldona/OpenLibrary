@@ -276,6 +276,57 @@ describe('sync push', () => {
     expect(tree.body.items.find((l: { id: string }) => l.id === shelf)).toMatchObject({ copyCount: 1 });
   });
 
+  it('location.delete removes an empty location (tombstone, idempotent) and refuses one that is not empty', async () => {
+    const { device, web, home, copyId } = await setup();
+    const snap = (await device('/sync/snapshot')).body;
+    const shelf = uuidv7();
+    const inner = uuidv7();
+    await web.post('/locations', { id: shelf, parentId: home, name: 'Balda' });
+    await web.post('/locations', { id: inner, parentId: shelf, name: 'Caja' });
+    const del = (id: string) => ({ opId: uuidv7(), type: 'location.delete', id });
+
+    // Not empty: a sub-location, then an active copy. Spanish messages, like any rejection.
+    const [children, copies] = (
+      await device.push(snap.epoch, [del(shelf), del(home)], { 'accept-language': 'es' })
+    ).body.results;
+    expect(children).toMatchObject({ status: 'rejected', code: 'location-not-empty' });
+    expect(children.message).toMatch(/subdivisiones/);
+    expect(copies).toMatchObject({ status: 'rejected', code: 'location-not-empty' });
+
+    // The innermost first, then its parent, in one batch.
+    const first = del(inner);
+    const r = await device.push(snap.epoch, [first, del(shelf)]);
+    expect(r.body.results.map((x: { status: string }) => x.status)).toEqual(['applied', 'applied']);
+    const ids = (await web.get('/locations')).body.items.map((l: { id: string }) => l.id);
+    expect(ids).not.toContain(shelf);
+    expect(ids).not.toContain(inner);
+    const page = (await device(`/sync/pull?since=${snap.cursor}&epoch=${snap.epoch}`)).body;
+    expect(page.deleted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entity: 'location', id: inner }),
+        expect.objectContaining({ entity: 'location', id: shelf }),
+      ]),
+    );
+
+    expect((await device.push(snap.epoch, [first])).body.results[0].status).toBe('duplicate');
+    // Another device (or the web) deleted it too: nothing left to do.
+    expect((await device.push(snap.epoch, [del(shelf)])).body.results[0].status).toBe('applied');
+    expect((await device.push(snap.epoch, [del(uuidv7())])).body.results[0]).toMatchObject({
+      status: 'rejected',
+      code: 'not-found',
+    });
+
+    // A retired copy does not keep a location from going.
+    const room = uuidv7();
+    await web.post('/locations', { id: room, parentId: home, name: 'Despacho' });
+    await web.patch(`/copies/${copyId}`, { baseVersion: 1, fields: { locationId: room } });
+    await web.patch(`/copies/${copyId}`, {
+      baseVersion: 2,
+      fields: { status: 'retired', retiredReason: 'lost' },
+    });
+    expect((await device.push(snap.epoch, [del(room)])).body.results[0].status).toBe('applied');
+  });
+
   it('merges different fields edited on web and phone without losing either', async () => {
     const { device, web, copyId, home } = await setup();
     const epoch = await epochOf(device);

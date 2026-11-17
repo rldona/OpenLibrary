@@ -298,6 +298,45 @@ class OfflineWritesTest {
     }
 
     @Test
+    fun anEmptyLocationIsDeletedOfflineAndPushed() = runBlocking {
+        val shelf = writes.createLocation("l1", "Balda", "shelf")
+        writes.deleteLocation(db.catalog().locationById(shelf)!!)
+        assertEquals(null, db.catalog().locationById(shelf))
+        val ops = db.outbox().allPending()
+        assertEquals(listOf("location.create", "location.delete"), ops.map { it.type })
+        assertEquals(shelf, ops.last().entityId)
+
+        server.enqueue(pushed(*ops.map { """{"opId":"${it.opId}","status":"applied"}""" }.toTypedArray()))
+        server.enqueue(emptyPage(cursor = 12))
+        assertEquals(SyncStatus.Idle, repo.sync())
+        val sent = server.takeRequest().json()["ops"]!!.jsonArray.last().jsonObject
+        assertEquals("location.delete", sent["type"]!!.jsonPrimitive.content)
+        assertEquals(shelf, sent["id"]!!.jsonPrimitive.content)
+        assertTrue(db.outbox().allPending().isEmpty())
+    }
+
+    @Test
+    fun aLocationTheServerRefusesToDeleteComesBackAndIsKeptForReview() = runBlocking {
+        // Empty on the phone, but another device put a copy in it before this was pushed.
+        writes.deleteLocation(db.catalog().locationById("l1")!!)
+        assertEquals(null, db.catalog().locationById("l1"))
+        val opId = db.outbox().allPending().single().opId
+        server.enqueue(
+            pushed("""{"opId":"$opId","status":"rejected","code":"location-not-empty","message":"Hay 1 ejemplar(es) aquí: muévelos antes de borrarla."}"""),
+        )
+        server.enqueue(json(snapshot))
+        assertEquals(SyncStatus.Idle, repo.sync())
+
+        assertEquals("Casa", db.catalog().locationById("l1")!!.name)
+        val problem = db.outbox().problems().first().single()
+        assertEquals("rejected", problem.status)
+        assertEquals("location.delete", problem.type)
+        writes.discard(problem)
+        assertEquals(0, db.outbox().problemCount().first())
+        assertEquals("Casa", db.catalog().locationById("l1")!!.name)
+    }
+
+    @Test
     fun quotesAreAddedEditedAndDeletedOffline() = runBlocking {
         writes.addQuote("w1", "  Una cita  ", 12, "", null)
         val q = db.catalog().quotesOfWork("w1").first().single()

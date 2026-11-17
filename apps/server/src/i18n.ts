@@ -48,8 +48,6 @@ const SERVER: Record<Lang, Dict> = {
     'errors.locationNotFound': 'The given location does not exist.',
     'errors.parentNotFound': 'The parent location does not exist.',
     'errors.locationCycle': 'A location cannot be moved inside itself or one of its sub-locations.',
-    'errors.locationHasChildren': 'It has sub-locations: move or delete them first.',
-    'errors.locationHasCopies': 'There are {n} copies here: move them before deleting it.',
     'errors.coverNotFound': 'That cover does not exist. Upload it first.',
     'errors.duplicateIsbn':
       'You already own this edition ("{title}", {n} copies). Add another copy instead of duplicating it.',
@@ -172,8 +170,6 @@ const SERVER: Record<Lang, Dict> = {
     'errors.locationNotFound': 'La ubicación indicada no existe.',
     'errors.parentNotFound': 'La ubicación padre no existe.',
     'errors.locationCycle': 'No puedes mover una ubicación dentro de sí misma o de una de sus subdivisiones.',
-    'errors.locationHasChildren': 'Tiene subdivisiones: muévelas o bórralas primero.',
-    'errors.locationHasCopies': 'Hay {n} ejemplar(es) aquí: muévelos antes de borrarla.',
     'errors.coverNotFound': 'La portada indicada no existe. Súbela primero.',
     'errors.duplicateIsbn':
       'Ya tienes esta edición («{title}», {n} ejemplar(es)). Añade otro ejemplar en lugar de duplicarla.',

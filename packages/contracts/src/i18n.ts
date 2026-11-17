@@ -61,6 +61,9 @@ export const SHARED: Record<Lang, Dict> = {
     'validation.invalidTimestamp': 'Use the ISO date-time format (2024-01-31T10:00:00Z).',
     'validation.wishDiscarded': 'A new wish cannot be discarded.',
     'validation.wishDiscardedAlone': 'Discarding a wish deletes it: send the status without other changes.',
+    // Why a location cannot be deleted: the server's 409 and the Android app's own check.
+    'errors.locationHasChildren': 'It has sub-locations: move or delete them first.',
+    'errors.locationHasCopies': 'There are {n} copies here: move them before deleting it.',
     'import.notOurFormat': 'This is not an OpenLibrary export.',
     'import.newerFormat': 'This export comes from a newer version of OpenLibrary. Update the app first.',
     'condition.new': 'As new',
@@ -103,6 +106,8 @@ export const SHARED: Record<Lang, Dict> = {
     'validation.invalidTimestamp': 'Usa el formato de fecha y hora ISO (2024-01-31T10:00:00Z).',
     'validation.wishDiscarded': 'Un deseo nuevo no puede estar descartado.',
     'validation.wishDiscardedAlone': 'Descartar un deseo lo elimina: envía el estado sin otros cambios.',
+    'errors.locationHasChildren': 'Tiene subdivisiones: muévelas o bórralas primero.',
+    'errors.locationHasCopies': 'Hay {n} ejemplar(es) aquí: muévelos antes de borrarla.',
     'import.notOurFormat': 'No es una exportación de OpenLibrary.',
     'import.newerFormat':
       'Esta exportación es de una versión más nueva de OpenLibrary. Actualiza la app primero.',

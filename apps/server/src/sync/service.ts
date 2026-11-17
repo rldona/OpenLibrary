@@ -264,6 +264,9 @@ export class SyncService {
       case 'location.update':
         c.patchLocation(op.id, op.patch, sid);
         break;
+      case 'location.delete':
+        c.deleteLocationOp(op.id, sid);
+        break;
       case 'reading.create':
         c.createReading(op.reading, sid);
         break;

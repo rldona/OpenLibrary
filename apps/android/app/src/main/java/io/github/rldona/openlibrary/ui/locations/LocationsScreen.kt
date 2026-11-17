@@ -70,6 +70,14 @@ import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import io.github.rldona.openlibrary.ui.components.LocationPicker
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import io.github.rldona.openlibrary.ui.components.DestructiveDialog
+import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 
 data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int, val children: Int = 0)
 
@@ -100,6 +108,23 @@ fun visibleNodes(nodes: List<LocationNode>, collapsed: Set<String>): List<Locati
     return out
 }
 
+/** Why a location cannot be deleted: the same rules as the server (409 `location-not-empty`). */
+sealed interface DeleteBlocker {
+    data object Children : DeleteBlocker
+    data class Copies(val n: Int) : DeleteBlocker
+}
+
+/**
+ * Null when [n] can be deleted: no sub-locations and no active copies (retired ones do not count, as on the
+ * server). Without sub-locations, the cumulative count is the location's own.
+ */
+fun deleteBlocker(n: LocationNode): DeleteBlocker? =
+    when {
+        n.children > 0 -> DeleteBlocker.Children
+        n.total > 0 -> DeleteBlocker.Copies(n.total)
+        else -> null
+    }
+
 /** The sheet is open, to create a location at the top level or inside [parentId]. */
 private data class AddSheet(val parentId: String?)
 
@@ -108,6 +133,8 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
 
     fun create(parentId: String?, name: String, kind: String) =
         viewModelScope.launch { c.writes.createLocation(parentId, name, kind) }
+
+    fun delete(location: LocationEntity) = viewModelScope.launch { c.writes.deleteLocation(location) }
 
     val tree: StateFlow<List<LocationNode>?> =
         combine(c.db.catalog().locations(), c.db.catalog().placements()) { locs, places ->
@@ -221,6 +248,34 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
         return
     }
     val level = stringResource(R.string.locations_level)
+    val snackbar = LocalSnackbar.current
+    val deleteLabel = stringResource(R.string.common_delete)
+    val hasChildren = stringResource(R.string.errors_locationHasChildren)
+    val hasCopies = stringResource(R.string.errors_locationHasCopies)
+    val deletedText = stringResource(R.string.locations_deleted)
+    // Asked for with a destructive dialog, as on the web, rather than undone from the snackbar: the location
+    // shows in every picker and filter, and the server refuses it once something is in it.
+    var deleting by remember { mutableStateOf<LocationEntity?>(null) }
+    val askDelete = { n: LocationNode ->
+        when (val b = deleteBlocker(n)) {
+            DeleteBlocker.Children -> snackbar.showMessage(hasChildren)
+            is DeleteBlocker.Copies -> snackbar.showMessage(format(hasCopies, "n" to b.n))
+            null -> deleting = n.location
+        }
+    }
+    deleting?.let { l ->
+        DestructiveDialog(
+            title = str(R.string.locations_deleteConfirm, "name" to l.name),
+            text = stringResource(R.string.locations_deleteText),
+            confirm = deleteLabel,
+            onConfirm = {
+                deleting = null
+                vm.delete(l)
+                snackbar.showMessage(deletedText)
+            },
+            onDismiss = { deleting = null },
+        )
+    }
     // Folded branches, kept while the tab is away and across rotation.
     var collapsed by rememberSaveable { mutableStateOf(ArrayList<String>()) }
     val shown = visibleNodes(nodes, collapsed.toSet())
@@ -234,7 +289,10 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
             // Indented by depth; TalkBack hears the depth too ("Level 2"), since it cannot see the indent.
             ListItem(
                 onClick = { onOpen(id) },
-                modifier = Modifier.semantics { stateDescription = format(level, "n" to n.depth + 1) },
+                modifier = Modifier.semantics {
+                    stateDescription = format(level, "n" to n.depth + 1)
+                    customActions = listOf(CustomAccessibilityAction(deleteLabel) { askDelete(n); true })
+                },
                 // The chevron's room is kept on leaves too, so siblings line up.
                 leadingContent = if (!foldable) null else ({
                     Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
@@ -254,6 +312,19 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
                         Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium)
                         IconButton(onClick = { onAddInside(id) }) {
                             Icon(Icons.Default.AddCircleOutline, contentDescription = str(R.string.locations_addInside, "name" to n.location.name))
+                        }
+                        Box {
+                            var menu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { menu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more))
+                            }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(deleteLabel, color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                    onClick = { menu = false; askDelete(n) },
+                                )
+                            }
                         }
                     }
                 },
