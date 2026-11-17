@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import {
   normalizeIsbn,
+  type Lang,
   type LookupResult,
   type MetadataProposal,
   type MetadataSearchResult,
@@ -12,6 +13,7 @@ import type { Clock } from '../auth/service.js';
 import type { CatalogService } from '../catalog/service.js';
 import { mergeProposals, PROVIDERS, type Fetch } from './providers.js';
 import { searchCandidates } from './search.js';
+import { translateSubjects } from './subjects.js';
 
 const FOUND_TTL_MS = 30 * 24 * 3600_000;
 const MISS_TTL_MS = 24 * 3600_000;
@@ -26,14 +28,23 @@ export class LookupService {
     private readonly now: Clock = () => new Date(),
   ) {}
 
-  async byIsbn(raw: string, opts: { refresh?: boolean } = {}): Promise<LookupResult> {
+  /** The cache keeps the providers' answer as it came; subjects are translated per request (`lang`). */
+  async byIsbn(raw: string, opts: { refresh?: boolean; lang?: Lang } = {}): Promise<LookupResult> {
+    const r = await this.fetchByIsbn(raw, opts.refresh ?? false);
+    const p = r.proposal;
+    return p && opts.lang
+      ? { ...r, proposal: { ...p, subjects: translateSubjects(p.subjects, opts.lang) } }
+      : r;
+  }
+
+  private async fetchByIsbn(raw: string, refresh: boolean): Promise<LookupResult> {
     const n = normalizeIsbn(raw);
     if (!n.ok) throw badRequest(`isbn.${n.reason}`);
     const existing = this.catalog.findByIsbn(n.isbn13);
     const base = { isbn13: n.isbn13, isbn10: n.isbn10, existing };
 
     const cached = this.db.select().from(lookupCache).where(eq(lookupCache.isbn13, n.isbn13)).get();
-    if (cached && !opts.refresh) {
+    if (cached && !refresh) {
       const p = cached.payload as Cached;
       const age = this.now().getTime() - new Date(cached.fetchedAt).getTime();
       if (age < (p.proposal ? FOUND_TTL_MS : MISS_TTL_MS)) {

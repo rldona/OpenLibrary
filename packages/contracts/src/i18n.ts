@@ -118,7 +118,7 @@ export const SHARED: Record<Lang, Dict> = {
     'retire.damaged': 'Deteriorado',
     'retire.other': 'Otro',
     'locationKind.home': 'Vivienda',
-    'locationKind.room': 'Habitación',
+    'locationKind.room': 'Estancia (salón, dormitorio…)',
     'locationKind.bookcase': 'Estantería / mueble',
     'locationKind.shelf': 'Balda',
     'locationKind.box': 'Caja',

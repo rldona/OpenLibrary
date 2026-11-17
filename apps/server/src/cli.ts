@@ -9,6 +9,8 @@
  *   passkeys-reset          removes every passkey and recovery code: password-only sign-in again
  *   drive-fetch [file]      downloads a Google Drive backup (the newest by default) to DATA_DIR/restore.db
  *                           and the covers missing here; swapping it in is a separate step (runbook)
+ *   translate-subjects es [--apply]
+ *                           translates the books' subjects (genres) saved in English; a dry run unless --apply
  */
 import readline from 'node:readline';
 import { pickLang } from '@openlibrary/contracts';
@@ -25,6 +27,7 @@ import { integrityOf, snapshot } from './backup.js';
 import { DriveBackupService } from './drive/service.js';
 import { DriveError } from './drive/client.js';
 import { AssetService } from './assets/service.js';
+import { retranslateSubjects } from './lookup/retranslate.js';
 
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -165,9 +168,24 @@ async function main(): Promise<number> {
         return 1;
       }
     }
+    case 'translate-subjects': {
+      if (args[0] !== 'es') {
+        console.error('Usage: translate-subjects es [--apply]');
+        return 1;
+      }
+      const apply = args.includes('--apply');
+      const changes = retranslateSubjects(db, new CatalogService(db), 'es', apply);
+      for (const c of changes) console.log(`${c.title}: ${c.before.join(', ')} -> ${c.after.join(', ')}`);
+      console.log(
+        apply
+          ? `Translated the subjects of ${changes.length} books.`
+          : `${changes.length} books would change. Dry run: nothing written; add --apply to save.`,
+      );
+      return 0;
+    }
     default:
       console.log(
-        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es] | passkeys-reset | drive-fetch [file]',
+        'Commands: set-password | backup <file.db> | check | after-restore | status | demo-data [en|es] | passkeys-reset | drive-fetch [file] | translate-subjects es [--apply]',
       );
       return cmd ? 1 : 0;
   }

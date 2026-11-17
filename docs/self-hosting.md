@@ -123,6 +123,7 @@ The web's **Import and export** page shows when the last backup finished (from `
 | Task | Command |
 |------|---------|
 | Try it with sample data (empty library) | `ol demo-data en` or `ol demo-data es` |
+| Translate genres saved in English into Spanish | `ol translate-subjects es` (dry run), then `ol translate-subjects es --apply` |
 | Status | `ol status` · `docker compose -f /opt/openlibrary/deploy/docker-compose.yml ps` |
 | Logs | `docker compose -f /opt/openlibrary/deploy/docker-compose.yml logs -f --tail=100` |
 | Change the password (if forgotten) | `ol set-password` (signs out every session) |
