@@ -284,14 +284,19 @@ describe('sync push', () => {
     await web.post('/locations', { id: shelf, parentId: home, name: 'Balda' });
     await web.post('/locations', { id: inner, parentId: shelf, name: 'Caja' });
     const del = (id: string) => ({ opId: uuidv7(), type: 'location.delete', id });
+    // A location holding only the copy.
+    const study = uuidv7();
+    await web.post('/locations', { id: study, parentId: home, name: 'Despacho' });
+    await web.patch(`/copies/${copyId}`, { baseVersion: 1, fields: { locationId: study } });
 
     // Not empty: a sub-location, then an active copy. Spanish messages, like any rejection.
     const [children, copies] = (
-      await device.push(snap.epoch, [del(shelf), del(home)], { 'accept-language': 'es' })
+      await device.push(snap.epoch, [del(shelf), del(study)], { 'accept-language': 'es' })
     ).body.results;
     expect(children).toMatchObject({ status: 'rejected', code: 'location-not-empty' });
     expect(children.message).toMatch(/subdivisiones/);
     expect(copies).toMatchObject({ status: 'rejected', code: 'location-not-empty' });
+    expect(copies.message).toBe('Hay 1 ejemplar aquí: muévelo antes de borrar la ubicación.');
 
     // The innermost first, then its parent, in one batch.
     const first = del(inner);
@@ -317,14 +322,11 @@ describe('sync push', () => {
     });
 
     // A retired copy does not keep a location from going.
-    const room = uuidv7();
-    await web.post('/locations', { id: room, parentId: home, name: 'Despacho' });
-    await web.patch(`/copies/${copyId}`, { baseVersion: 1, fields: { locationId: room } });
     await web.patch(`/copies/${copyId}`, {
       baseVersion: 2,
       fields: { status: 'retired', retiredReason: 'lost' },
     });
-    expect((await device.push(snap.epoch, [del(room)])).body.results[0].status).toBe('applied');
+    expect((await device.push(snap.epoch, [del(study)])).body.results[0].status).toBe('applied');
   });
 
   it('merges different fields edited on web and phone without losing either', async () => {

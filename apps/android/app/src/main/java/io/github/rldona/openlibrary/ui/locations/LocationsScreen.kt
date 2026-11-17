@@ -251,7 +251,8 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
     val snackbar = LocalSnackbar.current
     val deleteLabel = stringResource(R.string.common_delete)
     val hasChildren = stringResource(R.string.errors_locationHasChildren)
-    val hasCopies = stringResource(R.string.errors_locationHasCopies)
+    val hasCopy = stringResource(R.string.errors_locationHasCopies_one)
+    val hasCopies = stringResource(R.string.errors_locationHasCopies_other)
     val deletedText = stringResource(R.string.locations_deleted)
     // Asked for with a destructive dialog, as on the web, rather than undone from the snackbar: the location
     // shows in every picker and filter, and the server refuses it once something is in it.
@@ -259,7 +260,7 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
     val askDelete = { n: LocationNode ->
         when (val b = deleteBlocker(n)) {
             DeleteBlocker.Children -> snackbar.showMessage(hasChildren)
-            is DeleteBlocker.Copies -> snackbar.showMessage(format(hasCopies, "n" to b.n))
+            is DeleteBlocker.Copies -> snackbar.showMessage(format(if (b.n == 1) hasCopy else hasCopies, "n" to b.n))
             null -> deleting = n.location
         }
     }

@@ -242,7 +242,8 @@
     <string name="entity_location">location</string>
     <string name="entity_work">book</string>
     <string name="errors_locationHasChildren">It has sub-locations: move or delete them first.</string>
-    <string name="errors_locationHasCopies">There are {n} copies here: move them before deleting it.</string>
+    <string name="errors_locationHasCopies_one">There is 1 copy here: move it before deleting the location.</string>
+    <string name="errors_locationHasCopies_other">There are {n} copies here: move them before deleting the location.</string>
     <string name="errors_network">Cannot reach the server.</string>
     <string name="errors_retryInMinutes">Too many attempts. Try again in {n} min.</string>
     <string name="errors_retryInSeconds">Too many attempts. Try again in {n} s.</string>

@@ -914,7 +914,8 @@ export class CatalogService {
       .where(and(eq(copies.locationId, id), isNull(copies.deletedAt), eq(copies.status, 'active')))
       .all();
     if (inside.length) {
-      throw new HttpError(409, 'location-not-empty', 'errors.locationHasCopies', { n: inside.length });
+      const key = inside.length === 1 ? 'errors.locationHasCopies.one' : 'errors.locationHasCopies.other';
+      throw new HttpError(409, 'location-not-empty', key, { n: inside.length });
     }
     softDelete(tx, 'location', id, this.ts(), sid);
   }
