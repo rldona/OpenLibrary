@@ -887,22 +887,36 @@ export class CatalogService {
   }
 
   deleteLocation(id: string, sid: string | null = null): LocationTree {
-    this.db.transaction((tx) => {
-      const map = this.locationMap(tx);
-      if (!map.has(id)) throw notFound('errors.locationNotFound');
-      if ([...map.values()].some((l) => l.parentId === id)) {
-        throw new HttpError(409, 'location-not-empty', 'errors.locationHasChildren');
-      }
-      const inside = tx
-        .select({ id: copies.id })
-        .from(copies)
-        .where(and(eq(copies.locationId, id), isNull(copies.deletedAt), eq(copies.status, 'active')))
-        .all();
-      if (inside.length) {
-        throw new HttpError(409, 'location-not-empty', 'errors.locationHasCopies', { n: inside.length });
-      }
-      softDelete(tx, 'location', id, this.ts(), sid);
-    });
+    this.db.transaction((tx) => this.removeLocation(tx, id, sid, false));
     return this.locationTree();
+  }
+
+  /** Sync op `location.delete`: deleting an already deleted location again is a no-op. */
+  deleteLocationOp(id: string, sid: string | null = null): void {
+    this.db.transaction((tx) => this.removeLocation(tx, id, sid, true));
+  }
+
+  /** BR: only an empty location goes (no sub-locations, no active copies), as a tombstone. */
+  private removeLocation(tx: Tx, id: string, sid: string | null, idempotent: boolean) {
+    const map = this.locationMap(tx);
+    if (!map.has(id)) {
+      const gone =
+        idempotent && tx.select({ id: locations.id }).from(locations).where(eq(locations.id, id)).get();
+      if (gone) return;
+      throw notFound('errors.locationNotFound');
+    }
+    if ([...map.values()].some((l) => l.parentId === id)) {
+      throw new HttpError(409, 'location-not-empty', 'errors.locationHasChildren');
+    }
+    const inside = tx
+      .select({ id: copies.id })
+      .from(copies)
+      .where(and(eq(copies.locationId, id), isNull(copies.deletedAt), eq(copies.status, 'active')))
+      .all();
+    if (inside.length) {
+      const key = inside.length === 1 ? 'errors.locationHasCopies.one' : 'errors.locationHasCopies.other';
+      throw new HttpError(409, 'location-not-empty', key, { n: inside.length });
+    }
+    softDelete(tx, 'location', id, this.ts(), sid);
   }
 }

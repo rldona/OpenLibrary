@@ -85,6 +85,13 @@ class LocalWrites(
         return id
     }
 
+    /**
+     * The caller checks first that it is empty ([io.github.rldona.openlibrary.ui.locations.deleteBlocker]); if
+     * something lands in it on another device before this is pushed, the server refuses it and the review
+     * screen says why.
+     */
+    suspend fun deleteLocation(location: LocationEntity) = enqueue(Op.LocationDelete(uuidv7(), location.id))
+
     // ---------------- Reading ----------------
     /** Starts reading a copy ("reading") or records it as already read ("read"). */
     suspend fun startReading(copyId: String, status: String) =
@@ -215,6 +222,7 @@ class LocalWrites(
                 }
                 is Op.EditionUpdate -> c.editionById(op.id)?.let { d.upsertEditions(listOf(patched(it, op.patch.fields, EditionEntity.serializer()))) }
                 is Op.LocationUpdate -> c.locationById(op.id)?.let { d.upsertLocations(listOf(patched(it, op.patch.fields, LocationEntity.serializer()))) }
+                is Op.LocationDelete -> d.deleteLocations(listOf(op.id))
                 is Op.ReadingCreate -> {
                     val r = op.reading
                     if (c.readingById(r.id) == null) {
@@ -266,7 +274,7 @@ class LocalWrites(
                 is Op.WorkUpdate -> reindexEditions(db, d.editionIdsOf(op.id))
                 is Op.CopyCreate -> op.copy.editionId?.let { reindexEditions(db, listOf(it)) }
                 is Op.CopyUpdate -> d.editionOfCopy(op.id)?.let { reindexEditions(db, listOf(it)) }
-                // New locations hold nothing yet; readings, quotes and wishes are not searched.
+                // New locations hold nothing yet, deleted ones held nothing; readings, quotes and wishes are not searched.
                 else -> Unit
             }
         }
@@ -306,6 +314,7 @@ private fun Op.typeName(): String =
         is Op.EditionUpdate -> "edition.update"
         is Op.CopyUpdate -> "copy.update"
         is Op.LocationUpdate -> "location.update"
+        is Op.LocationDelete -> "location.delete"
         is Op.ReadingCreate -> "reading.create"
         is Op.ReadingUpdate -> "reading.update"
         is Op.WishCreate -> "wish.create"
@@ -326,5 +335,6 @@ private fun Op.entityId(): String =
         is Op.QuoteCreate -> quote.id
         is Op.QuoteDelete -> id
         is Op.WishDelete -> id
+        is Op.LocationDelete -> id
         is Op.Update -> id
     }

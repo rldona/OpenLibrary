@@ -241,6 +241,9 @@
     <string name="entity_edition">edición</string>
     <string name="entity_location">ubicación</string>
     <string name="entity_work">libro</string>
+    <string name="errors_locationHasChildren">Tiene subdivisiones: muévelas o bórralas primero.</string>
+    <string name="errors_locationHasCopies_one">Hay 1 ejemplar aquí: muévelo antes de borrar la ubicación.</string>
+    <string name="errors_locationHasCopies_other">Hay {n} ejemplares aquí: muévelos antes de borrar la ubicación.</string>
     <string name="errors_network">No se puede contactar con el servidor.</string>
     <string name="errors_retryInMinutes">Demasiados intentos. Vuelve a probar en {n} min.</string>
     <string name="errors_retryInSeconds">Demasiados intentos. Vuelve a probar en {n} s.</string>

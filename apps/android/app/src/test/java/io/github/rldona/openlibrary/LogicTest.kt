@@ -9,6 +9,8 @@ import io.github.rldona.openlibrary.data.LocationEntity
 import io.github.rldona.openlibrary.network.normalizeServerUrl
 import io.github.rldona.openlibrary.sync.pathOf
 import io.github.rldona.openlibrary.ui.library.subtree
+import io.github.rldona.openlibrary.ui.locations.DeleteBlocker
+import io.github.rldona.openlibrary.ui.locations.deleteBlocker
 import io.github.rldona.openlibrary.ui.locations.flattenTree
 import io.github.rldona.openlibrary.ui.locations.nextLocationKind
 import io.github.rldona.openlibrary.ui.locations.visibleNodes
@@ -70,6 +72,17 @@ class LogicTest {
         assertEquals(2, nodes.first { it.location.id == "salon" }.total)
         // Direct children, for the fold chevron.
         assertEquals(listOf("casa" to 2, "despacho" to 0, "salon" to 1, "balda" to 0), nodes.map { it.location.id to it.children })
+    }
+
+    @Test
+    fun onlyEmptyLocationsCanBeDeletedLikeOnTheServer() {
+        // Active copies only (placements): 2 on the shelf, 1 in the study.
+        val nodes = flattenTree(tree + loc("caja", "casa", "Caja"), mapOf("balda" to 2, "despacho" to 1)).associateBy { it.location.id }
+        assertEquals(DeleteBlocker.Children, deleteBlocker(nodes.getValue("casa")))
+        assertEquals(DeleteBlocker.Children, deleteBlocker(nodes.getValue("salon")))
+        assertEquals(DeleteBlocker.Copies(2), deleteBlocker(nodes.getValue("balda")))
+        assertEquals(DeleteBlocker.Copies(1), deleteBlocker(nodes.getValue("despacho")))
+        assertEquals(null, deleteBlocker(nodes.getValue("caja")))
     }
 
     private fun wish(id: String, title: String, priority: String, created: String) =

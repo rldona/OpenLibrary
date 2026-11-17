@@ -616,6 +616,8 @@ components:
             `wish.create` → `wish` (as POST /wishlist: `title`, `authors`, `isbn13`, `priority`, `notes`…);
             `quote.create` → `quote` (as POST /quotes: `workId`, `text`, `page`, `note`, `copyId`); `quote.delete` → `id`;
             `wish.delete` → `id` (deleting it again is a no-op; a bought wish is rejected);
+            `location.delete` → `id` (only an empty location: one with sub-locations or active copies is
+            rejected with `location-not-empty`; deleting it again is a no-op);
             `work.update` | `edition.update` | `copy.update` | `location.update` | `reading.update` |
             `wish.update` | `quote.update` → `id` and
             `patch` ({ baseVersion, fields }, only the fields the user changed).
@@ -636,6 +638,7 @@ components:
                     quote.create,
                     quote.delete,
                     wish.delete,
+                    location.delete,
                     work.update,
                     edition.update,
                     copy.update,

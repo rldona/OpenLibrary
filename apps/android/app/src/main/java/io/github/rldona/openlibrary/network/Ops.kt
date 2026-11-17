@@ -134,6 +134,10 @@ sealed interface Op {
     @Serializable @SerialName("wish.delete")
     data class WishDelete(override val opId: String, val id: String) : Op
 
+    /** Only an empty location (no sub-locations, no active copies); the server rejects it otherwise. */
+    @Serializable @SerialName("location.delete")
+    data class LocationDelete(override val opId: String, val id: String) : Op
+
     sealed interface Update : Op {
         val id: String
         val patch: Patch
