@@ -357,4 +357,15 @@ export const es: Record<keyof typeof en, string> = {
   'settings.advanced': 'Avanzado',
   'settings.advancedText': 'Servidor y versión de datos',
   'device.disconnectThis': 'Desconectar este móvil',
+
+  // Editing and deleting locations.
+  'locations.edit': 'Editar',
+  'locations.deleteInside_one': 'También se borrará la ubicación que hay dentro.',
+  'locations.deleteInside_other': 'También se borrarán las {n} ubicaciones que hay dentro.',
+  'locations.hasBooks_one': '«{name}» tiene {n} libro',
+  'locations.hasBooks_other': '«{name}» tiene {n} libros',
+  'locations.hasBooksText': 'Antes de borrarla, ¿dónde van?',
+  'locations.moveBooks': 'Moverlos a otro sitio',
+  'locations.leaveUnplaced': 'Dejarlos sin colocar',
+  'locations.moveTo': 'Mover a {name}',
 };

@@ -92,6 +92,21 @@ class LocalWrites(
      */
     suspend fun deleteLocation(location: LocationEntity) = enqueue(Op.LocationDelete(uuidv7(), location.id))
 
+    /** Renames, changes the kind or moves a location: only [fields] that changed (name, kind, parentId). */
+    suspend fun editLocation(location: LocationEntity, fields: JsonObject) =
+        enqueue(Op.LocationUpdate(uuidv7(), location.id, Patch(baseOf(location.version), fields)))
+
+    /**
+     * Deletes [places] (a location and everything inside it, deepest first: see
+     * [io.github.rldona.openlibrary.core.deletionOrder]) after moving their active [copies] to [moveTo]
+     * (null: not placed). The ops go in that order, so the server finds each place empty when it deletes it.
+     */
+    suspend fun deleteLocations(places: List<LocationEntity>, copies: List<CopyEntity>, moveTo: String?) {
+        val target = moveTo?.let(::JsonPrimitive) ?: JsonNull
+        copies.forEach { editCopy(it, JsonObject(mapOf("locationId" to target))) }
+        places.forEach { deleteLocation(it) }
+    }
+
     // ---------------- Reading ----------------
     /** Starts reading a copy ("reading") or records it as already read ("read"). */
     suspend fun startReading(copyId: String, status: String) =

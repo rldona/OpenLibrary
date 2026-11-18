@@ -56,3 +56,18 @@ fun roomShelves(locations: List<LocationEntity>): List<RoomShelves> {
 /** The room that holds [locationId] (itself when it is a room), or null if it is not a place of [rooms]. */
 fun roomOf(rooms: List<RoomShelves>, locationId: String?): RoomShelves? =
     locationId?.let { id -> rooms.firstOrNull { r -> r.room.id == id || r.places.any { it.location.id == id } } }
+
+/** [rootId] and every place inside it, children before their parents: the order to delete them in. */
+fun deletionOrder(locations: List<LocationEntity>, rootId: String): List<LocationEntity> {
+    val byId = locations.associateBy { it.id }
+    val children = locations.groupBy { it.parentId }
+    val out = mutableListOf<LocationEntity>()
+    val seen = HashSet<String>()
+    fun visit(id: String) {
+        if (!seen.add(id)) return
+        children[id].orEmpty().forEach { visit(it.id) }
+        byId[id]?.let(out::add)
+    }
+    visit(rootId)
+    return out
+}

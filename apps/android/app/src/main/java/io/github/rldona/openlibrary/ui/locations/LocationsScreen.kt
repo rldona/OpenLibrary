@@ -87,6 +87,17 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
+import io.github.rldona.openlibrary.ui.components.LocationSheet
+import io.github.rldona.openlibrary.data.CopyEntity
+import io.github.rldona.openlibrary.core.deletionOrder
 
 data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int, val children: Int = 0)
 
@@ -134,8 +145,11 @@ fun deleteBlocker(n: LocationNode): DeleteBlocker? =
         else -> null
     }
 
-/** The sheet is open, to create a location at the top level or inside [parentId]. */
-private data class AddSheet(val parentId: String?)
+/** The sheet is open, to create a location at the top level or inside [parentId], or to edit [editing]. */
+private data class AddSheet(val parentId: String?, val editing: LocationEntity? = null)
+
+/** A location about to be deleted, everything inside it ([places], deepest first) and the books in them. */
+data class Deletion(val root: LocationEntity, val places: List<LocationEntity>, val copies: List<CopyEntity>)
 
 class LocationsViewModel(private val c: AppContainer) : ViewModel() {
     val all = c.db.catalog().locations()
@@ -144,6 +158,32 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch { c.writes.createLocation(parentId, name, kind) }
 
     fun delete(location: LocationEntity) = viewModelScope.launch { c.writes.deleteLocation(location) }
+
+    /** Only what changed: the name, the kind and where it is (moving it inside another place). */
+    fun edit(location: LocationEntity, name: String, kind: String, parentId: String?) = viewModelScope.launch {
+        val fields = buildMap<String, JsonElement> {
+            if (name.trim() != location.name) put("name", JsonPrimitive(name.trim()))
+            if (kind != location.kind) put("kind", JsonPrimitive(kind))
+            if (parentId != location.parentId) put("parentId", parentId?.let(::JsonPrimitive) ?: JsonNull)
+        }
+        if (fields.isNotEmpty()) c.writes.editLocation(location, JsonObject(fields))
+    }
+
+    /** What deleting [id] takes with it: the places, deepest first, and the active copies in them. */
+    suspend fun deletion(id: String): Deletion? {
+        val all = c.db.catalog().locations().first()
+        val root = all.firstOrNull { it.id == id } ?: return null
+        val places = deletionOrder(all, id)
+        return Deletion(root, places, c.db.catalog().activeCopiesIn(places.map { it.id }))
+    }
+
+    /** Moves the copies to [moveTo] (null: not placed) and deletes the places. */
+    fun delete(d: Deletion, moveTo: String?) = viewModelScope.launch {
+        c.writes.deleteLocations(d.places, d.copies, moveTo)
+        moveTo?.let { c.libraryPrefs.setLastLocation(it) }
+    }
+
+    val lastLocation = c.libraryPrefs.lastLocation
 
     /** Books with a copy not placed anywhere. */
     val unplaced = c.db.catalog().unplacedCopies().map { copies -> copies.distinctBy { it.editionId }.size }
@@ -174,10 +214,15 @@ fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit
         },
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
-            Rooms(vm, onOpen, onPlace, onAdd = { adding = AddSheet(home) }, onAddInside = { adding = AddSheet(it) })
+            Rooms(
+                vm, onOpen, onPlace,
+                onAdd = { adding = AddSheet(home) },
+                onAddInside = { adding = AddSheet(it) },
+                onEdit = { id -> all.firstOrNull { it.id == id }?.let { adding = AddSheet(it.parentId, it) } },
+            )
         }
     }
-    adding?.let { NewLocationSheet(vm, it.parentId, onDismiss = { adding = null }) }
+    adding?.let { NewLocationSheet(vm, it.parentId, it.editing, onDismiss = { adding = null }) }
 }
 
 /**
@@ -186,13 +231,22 @@ fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NewLocationSheet(vm: LocationsViewModel, parentId: String?, onDismiss: () -> Unit) {
-    val all by vm.all.collectAsState(emptyList())
-    var name by remember { mutableStateOf("") }
+private fun NewLocationSheet(vm: LocationsViewModel, parentId: String?, editing: LocationEntity?, onDismiss: () -> Unit) {
+    val everything by vm.all.collectAsState(emptyList())
+    // A place cannot go inside itself or anything inside it.
+    val all = remember(everything, editing) {
+        if (editing == null) {
+            everything
+        } else {
+            val inside = deletionOrder(everything, editing.id).mapTo(HashSet()) { it.id }
+            everything.filter { it.id !in inside }
+        }
+    }
+    var name by remember { mutableStateOf(editing?.name.orEmpty()) }
     var parent by remember { mutableStateOf(parentId) }
-    // The kind follows the parent (a shelf inside a bookcase) until the user picks one.
-    var kind by remember { mutableStateOf(nextLocationKind(null)) }
-    var kindChosen by remember { mutableStateOf(false) }
+    // The kind follows the parent (a shelf inside a bookcase) until the user picks one; an edited place keeps its own.
+    var kind by remember { mutableStateOf(editing?.kind ?: nextLocationKind(null)) }
+    var kindChosen by remember { mutableStateOf(editing != null) }
     LaunchedEffect(all) { if (!kindChosen) kind = nextLocationKind(all.firstOrNull { it.id == parent }?.kind) }
     val sheet = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
@@ -200,7 +254,7 @@ private fun NewLocationSheet(vm: LocationsViewModel, parentId: String?, onDismis
             Modifier.fillMaxWidth().padding(horizontal = Spacing.page).padding(bottom = Spacing.page),
             verticalArrangement = Arrangement.spacedBy(Spacing.item),
         ) {
-            Text(stringResource(R.string.locations_newTitle), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(if (editing != null) str(R.string.locations_editTitle, "name" to editing.name) else stringResource(R.string.locations_newTitle), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(80) },
@@ -229,7 +283,13 @@ private fun NewLocationSheet(vm: LocationsViewModel, parentId: String?, onDismis
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-                Button(onClick = { vm.create(parent, name, kind); onDismiss() }, enabled = name.isNotBlank()) {
+                Button(
+                    onClick = {
+                        if (editing != null) vm.edit(editing, name, kind, parent) else vm.create(parent, name, kind)
+                        onDismiss()
+                    },
+                    enabled = name.isNotBlank(),
+                ) {
                     Text(stringResource(R.string.common_save))
                 }
             }
@@ -254,6 +314,7 @@ private fun Rooms(
     onPlace: () -> Unit,
     onAdd: () -> Unit,
     onAddInside: (parentId: String) -> Unit,
+    onEdit: (id: String) -> Unit,
 ) {
     val tree by vm.tree.collectAsStateWithLifecycle()
     val all by vm.all.collectAsState(emptyList())
@@ -274,33 +335,69 @@ private fun Rooms(
     }
     val snackbar = LocalSnackbar.current
     val deleteLabel = stringResource(R.string.common_delete)
-    val hasChildren = stringResource(R.string.errors_locationHasChildren)
-    val hasCopy = stringResource(R.string.errors_locationHasCopies_one)
-    val hasCopies = stringResource(R.string.errors_locationHasCopies_other)
     val deletedText = stringResource(R.string.locations_deleted)
-    // Asked for with a destructive dialog, as on the web, rather than undone from the snackbar: the location
-    // shows in every picker and filter, and the server refuses it once something is in it.
-    var deleting by remember { mutableStateOf<LocationEntity?>(null) }
+    val lastPlace by vm.lastLocation.collectAsStateWithLifecycle(null)
+    val scope = rememberCoroutineScope()
+    // Asked for with a dialog, as on the web: the place goes with everything inside it, and its books are moved
+    // first (somewhere else, or not placed).
+    var deleting by remember { mutableStateOf<Deletion?>(null) }
+    var moving by remember { mutableStateOf<Deletion?>(null) }
     val byId = remember(nodes) { nodes.associateBy { it.location.id } }
-    val askDelete = { id: String ->
-        val n = byId[id]
-        when (val b = n?.let(::deleteBlocker)) {
-            DeleteBlocker.Children -> snackbar.showMessage(hasChildren)
-            is DeleteBlocker.Copies -> snackbar.showMessage(format(if (b.n == 1) hasCopy else hasCopies, "n" to b.n))
-            null -> deleting = n?.location
+    val askDelete = { id: String -> scope.launch { deleting = vm.deletion(id) }; Unit }
+    val finish = { d: Deletion, moveTo: String? ->
+        vm.delete(d, moveTo)
+        snackbar.showMessage(deletedText)
+    }
+    deleting?.let { d ->
+        val inside = d.places.size - 1
+        val insideText = if (inside > 0) plural(R.string.locations_deleteInside_one, R.string.locations_deleteInside_other, inside) else null
+        if (d.copies.isEmpty()) {
+            DestructiveDialog(
+                title = str(R.string.locations_deleteConfirm, "name" to d.root.name),
+                text = insideText ?: stringResource(R.string.locations_deleteText),
+                confirm = deleteLabel,
+                onConfirm = { deleting = null; finish(d, null) },
+                onDismiss = { deleting = null },
+            )
+        } else {
+            val title = format(
+                stringResource(if (d.copies.size == 1) R.string.locations_hasBooks_one else R.string.locations_hasBooks_other),
+                "name" to d.root.name,
+                "n" to d.copies.size,
+            )
+            AlertDialog(
+                onDismissRequest = { deleting = null },
+                title = { Text(title) },
+                text = { Text(listOfNotNull(stringResource(R.string.locations_hasBooksText), insideText).joinToString("\n\n")) },
+                confirmButton = {
+                    TextButton(onClick = { deleting = null; moving = d }) { Text(stringResource(R.string.locations_moveBooks)) }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) }
+                        TextButton(onClick = { deleting = null; finish(d, null) }) {
+                            Text(stringResource(R.string.locations_leaveUnplaced), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                },
+            )
         }
     }
-    deleting?.let { l ->
-        DestructiveDialog(
-            title = str(R.string.locations_deleteConfirm, "name" to l.name),
-            text = stringResource(R.string.locations_deleteText),
-            confirm = deleteLabel,
-            onConfirm = {
-                deleting = null
-                vm.delete(l)
-                snackbar.showMessage(deletedText)
-            },
-            onDismiss = { deleting = null },
+    moving?.let { d ->
+        // Anywhere but what is being deleted.
+        val gone = d.places.mapTo(HashSet()) { it.id }
+        LocationSheet(
+            all.filter { it.id !in gone },
+            lastUsedId = lastPlace?.takeIf { it !in gone },
+            initial = null,
+            subtitle = format(
+                stringResource(if (d.copies.size == 1) R.string.locations_hasBooks_one else R.string.locations_hasBooks_other),
+                "name" to d.root.name,
+                "n" to d.copies.size,
+            ),
+            confirmLabel = { str(R.string.locations_moveTo, "name" to it) },
+            onConfirm = { to -> moving = null; finish(d, to) },
+            onDismiss = { moving = null },
         )
     }
     val rooms = remember(all) { roomShelves(all) }
@@ -335,6 +432,7 @@ private fun Rooms(
                 onToggle = { open = ArrayList(if (expanded) open - id else open + id) },
                 onOpen = onOpen,
                 onAddInside = onAddInside,
+                onEdit = onEdit,
                 onDelete = askDelete,
             )
         }
@@ -376,6 +474,7 @@ private fun RoomCard(
     onToggle: () -> Unit,
     onOpen: (String) -> Unit,
     onAddInside: (String) -> Unit,
+    onEdit: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
     val name = r.room.name
@@ -393,7 +492,7 @@ private fun RoomCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (expanded) {
-                    PlaceMenu(name, onAdd = { onAddInside(r.room.id) }, addLabel = R.string.locations_addFurniture, onDelete = { onDelete(r.room.id) })
+                    PlaceMenu(name, onAdd = { onAddInside(r.room.id) }, addLabel = R.string.locations_addFurniture, onEdit = { onEdit(r.room.id) }, onDelete = { onDelete(r.room.id) })
                 } else {
                     Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.padding(12.dp))
                 }
@@ -413,14 +512,14 @@ private fun RoomCard(
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                PlaceActions(menu, { menu = false }, onAdd = { onAddInside(furniture.id) }, addLabel = R.string.locations_addShelf, onDelete = { onDelete(furniture.id) })
+                                PlaceActions(menu, { menu = false }, onAdd = { onAddInside(furniture.id) }, addLabel = R.string.locations_addShelf, onEdit = { onEdit(furniture.id) }, onDelete = { onDelete(furniture.id) })
                             }
                         }
                         // The room itself when it has nothing inside: its books are opened like a shelf's.
                         val places = g.places.filter { it.location.id != r.room.id || g.places.size == 1 }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
                             places.forEach { p ->
-                                ShelfTile(p.label, count(p.location.id), Modifier.weight(1f), onOpen = { onOpen(p.location.id) }, onAddInside = { onAddInside(p.location.id) }, onDelete = { onDelete(p.location.id) })
+                                ShelfTile(p.label, count(p.location.id), Modifier.weight(1f), onOpen = { onOpen(p.location.id) }, onAddInside = { onAddInside(p.location.id) }, onEdit = { onEdit(p.location.id) }, onDelete = { onDelete(p.location.id) })
                             }
                         }
                     }
@@ -437,10 +536,11 @@ private fun RoomCard(
 /** A shelf as a button: its name and its books ("empty"). Long press: add inside or delete. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShelfTile(label: String, books: Int, modifier: Modifier, onOpen: () -> Unit, onAddInside: () -> Unit, onDelete: () -> Unit) {
+private fun ShelfTile(label: String, books: Int, modifier: Modifier, onOpen: () -> Unit, onAddInside: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val addLabel = stringResource(R.string.locations_addInside, label).let { format(it, "name" to label) }
     val deleteLabel = stringResource(R.string.common_delete)
+    val editLabel = stringResource(R.string.locations_edit)
     Box(modifier) {
         Surface(
             shape = MaterialTheme.shapes.large,
@@ -451,6 +551,7 @@ private fun ShelfTile(label: String, books: Int, modifier: Modifier, onOpen: () 
                 .semantics {
                     customActions = listOf(
                         CustomAccessibilityAction(addLabel) { onAddInside(); true },
+                        CustomAccessibilityAction(editLabel) { onEdit(); true },
                         CustomAccessibilityAction(deleteLabel) { onDelete(); true },
                     )
                 },
@@ -465,25 +566,38 @@ private fun ShelfTile(label: String, books: Int, modifier: Modifier, onOpen: () 
                 )
             }
         }
-        PlaceActions(menu, { menu = false }, onAdd = onAddInside, addLabel = null, addText = addLabel, onDelete = onDelete)
+        PlaceActions(menu, { menu = false }, onAdd = onAddInside, addLabel = null, addText = addLabel, onEdit = onEdit, onDelete = onDelete)
     }
 }
 
 /** The ⋮ of a room: add furniture, delete. */
 @Composable
-private fun PlaceMenu(name: String, onAdd: () -> Unit, addLabel: Int, onDelete: () -> Unit) {
+private fun PlaceMenu(name: String, onAdd: () -> Unit, addLabel: Int, onEdit: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { menu = true }) {
             Icon(Icons.Default.MoreVert, contentDescription = str(R.string.locations_actions, "name" to name))
         }
-        PlaceActions(menu, { menu = false }, onAdd = onAdd, addLabel = addLabel, onDelete = onDelete)
+        PlaceActions(menu, { menu = false }, onAdd = onAdd, addLabel = addLabel, onEdit = onEdit, onDelete = onDelete)
     }
 }
 
 @Composable
-private fun PlaceActions(open: Boolean, onClose: () -> Unit, onAdd: () -> Unit, addLabel: Int?, onDelete: () -> Unit, addText: String? = null) {
+private fun PlaceActions(
+    open: Boolean,
+    onClose: () -> Unit,
+    onAdd: () -> Unit,
+    addLabel: Int?,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    addText: String? = null,
+) {
     DropdownMenu(expanded = open, onDismissRequest = onClose) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.locations_edit)) },
+            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+            onClick = { onClose(); onEdit() },
+        )
         DropdownMenuItem(
             text = { Text(addText ?: stringResource(addLabel!!)) },
             leadingIcon = { Icon(Icons.Default.AddCircleOutline, contentDescription = null) },
