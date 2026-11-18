@@ -339,4 +339,13 @@ export const es: Record<keyof typeof en, string> = {
   'library.noAuthor': 'Sin autor',
   'library.noLanguage': 'Sin idioma',
   'stats.more': 'Más cifras',
+
+  // Redesign: wishlist.
+  'wish.emptyTitleNew': 'Aún no hay deseos',
+  'wish.emptyLine':
+    'Apunta los libros que quieres comprar. Cuando consigas uno, pasa a tu biblioteca con un toque.',
+  'wish.scanBook': 'Escanear un libro',
+  'wish.typeTitle': 'Escribir el título',
+  'wish.scanText': 'En la librería: se busca y se rellena solo',
+  'wish.typeText': 'Título, autor o ISBN a mano',
 };

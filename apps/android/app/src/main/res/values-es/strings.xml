@@ -768,8 +768,10 @@
     <string name="wish_deleted">«{title}» eliminado</string>
     <string name="wish_drawerLabel">Detalle del deseo</string>
     <string name="wish_editTitle">Editar deseo</string>
+    <string name="wish_emptyLine">Apunta los libros que quieres comprar. Cuando consigas uno, pasa a tu biblioteca con un toque.</string>
     <string name="wish_emptyText">Añade los libros que quieres comprar; cuando consigas uno, márcalo con «Lo he comprado».</string>
     <string name="wish_emptyTitle">Sin deseos</string>
+    <string name="wish_emptyTitleNew">Aún no hay deseos</string>
     <string name="wish_notes">Notas</string>
     <string name="wish_notesPlaceholder">Dónde encontrarlo, qué edición, idea para regalo…</string>
     <string name="wish_offline">Sin conexión: escribe tú el título, el ISBN se guarda.</string>
@@ -779,6 +781,8 @@
     <string name="wish_priority_high">Alta</string>
     <string name="wish_priority_low">Baja</string>
     <string name="wish_priority_normal">Normal</string>
+    <string name="wish_scanBook">Escanear un libro</string>
+    <string name="wish_scanText">En la librería: se busca y se rellena solo</string>
     <string name="wish_sort_added">Añadido (recientes)</string>
     <string name="wish_sort_priority">Prioridad</string>
     <string name="wish_sort_title">Título</string>
@@ -786,6 +790,8 @@
     <string name="wish_status_discarded">Descartado</string>
     <string name="wish_status_open">Lo quiero</string>
     <string name="wish_subtitle">Libros que quieres. No cuentan como tuyos hasta que los compras.</string>
+    <string name="wish_typeText">Título, autor o ISBN a mano</string>
+    <string name="wish_typeTitle">Escribir el título</string>
     <string name="wish_updatedOn">Último cambio</string>
     <string name="wish_willBeAcquired">«{title}» está en tus deseos: se marcará como comprado.</string>
 </resources>

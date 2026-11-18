@@ -4,6 +4,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -67,6 +69,10 @@ fun EmptyState(
     modifier: Modifier = Modifier,
     text: String? = null,
     action: Pair<String, () -> Unit>? = null,
+    /** An icon in the main button. */
+    actionIcon: ImageVector? = null,
+    /** A second, quieter way (a text button under the main one). */
+    secondary: Pair<String, () -> Unit>? = null,
 ) {
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 48.dp),
@@ -85,7 +91,13 @@ fun EmptyState(
         }
         action?.let { (label, onClick) ->
             // The page's one main action: its corners morph when pressed (Expressive).
-            Button(onClick = onClick, shapes = ButtonDefaults.shapes(), modifier = Modifier.padding(top = 8.dp)) { Text(label) }
+            Button(onClick = onClick, shapes = ButtonDefaults.shapes(), modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp)) {
+                actionIcon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize)); Spacer(Modifier.width(ButtonDefaults.IconSpacing)) }
+                Text(label)
+            }
+        }
+        secondary?.let { (label, onClick) ->
+            TextButton(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp)) { Text(label) }
         }
     }
 }

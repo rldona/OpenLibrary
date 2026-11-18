@@ -72,7 +72,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.FilterChip
@@ -107,9 +106,7 @@ import io.github.rldona.openlibrary.core.str
 import io.github.rldona.openlibrary.data.WishEntity
 import io.github.rldona.openlibrary.core.format
 import io.github.rldona.openlibrary.network.ApiException
-import io.github.rldona.openlibrary.ui.components.AddFabMenu
 import io.github.rldona.openlibrary.ui.components.BusyLabel
-import io.github.rldona.openlibrary.ui.components.FabItem
 import io.github.rldona.openlibrary.ui.components.TabScaffold
 import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -128,6 +125,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import androidx.compose.material.icons.filled.BookmarkBorder
+import io.github.rldona.openlibrary.ui.book.AddWay
+import io.github.rldona.openlibrary.ui.book.AddBookSheet
+import io.github.rldona.openlibrary.ui.components.AddFab
 
 val PRIORITIES = listOf("low", "normal", "high")
 
@@ -356,33 +357,32 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
 
     val fab = rememberFabVisibility()
     var grid by rememberSaveable { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    val priority by vm.priority.collectAsStateWithLifecycle()
+    val scan = { vm.add(); onScan() }
+    // An empty list says what it is for and how to start: no button, view or order to choose yet.
+    val empty = all?.isEmpty() == true && priority == null
     TabScaffold(
         stringResource(R.string.nav_wishlist),
         Modifier.nestedScroll(fab.connection),
         actions = {
-            IconButton(onClick = { grid = !grid }) {
-                Icon(
-                    if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                    contentDescription = stringResource(if (grid) R.string.library_viewTable else R.string.library_viewCovers),
-                )
+            if (!empty && all != null) {
+                IconButton(onClick = { grid = !grid }) {
+                    Icon(
+                        if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                        contentDescription = stringResource(if (grid) R.string.library_viewList else R.string.library_viewCovers),
+                    )
+                }
+                val sort by vm.sort.collectAsStateWithLifecycle()
+                WishSortMenu(sort) { vm.sort.value = it }
             }
-            val sort by vm.sort.collectAsStateWithLifecycle()
-            WishSortMenu(sort) { vm.sort.value = it }
         },
         fab = {
-            AddFabMenu(
-                listOf(
-                    FabItem(stringResource(R.string.wish_add), Icons.Default.Add, onClick = vm::add),
-                    // Straight to the camera: scanned in a bookshop, looked up, and the dialog opens filled in.
-                    FabItem(stringResource(R.string.add_scan), Icons.Default.QrCodeScanner) { vm.add(); onScan() },
-                ),
-                visible = fab.visible,
-            )
+            if (!empty && all != null) AddFab(visible = fab.visible) { adding = true }
         },
     ) { inner ->
         val open = all
         val shown = open.orEmpty()
-        val priority by vm.priority.collectAsStateWithLifecycle()
         Column(Modifier.padding(inner).fillMaxSize()) {
             if (open != null && (shown.isNotEmpty() || priority != null)) PriorityFilter(priority) { vm.priority.value = it }
             val modifier = Modifier.weight(1f)
@@ -392,16 +392,30 @@ fun WishlistScreen(vm: WishlistViewModel, onScan: () -> Unit, onPhoto: () -> Uni
                     EmptyState(Icons.Default.SearchOff, stringResource(R.string.library_noMatchesTitle), modifier, text = stringResource(R.string.library_noMatchesText))
                 shown.isEmpty() ->
                     EmptyState(
-                        Icons.Default.FavoriteBorder,
-                        stringResource(R.string.wish_emptyTitle),
+                        Icons.Default.BookmarkBorder,
+                        stringResource(R.string.wish_emptyTitleNew),
                         modifier,
-                        // What the list is for is said here, the first time, not above every list.
-                        text = stringResource(R.string.wish_subtitle) + " " + stringResource(R.string.wish_emptyText),
-                        action = stringResource(R.string.wish_add) to vm::add,
+                        text = stringResource(R.string.wish_emptyLine),
+                        action = stringResource(R.string.wish_scanBook) to scan,
+                        actionIcon = Icons.Default.QrCodeScanner,
+                        secondary = stringResource(R.string.wish_typeTitle) to vm::add,
                     )
                 else -> Box(modifier) { WishList(vm, shown, onBought, delete, grid) }
             }
         }
+    }
+    if (adding) {
+        AddBookSheet(
+            emptyList(),
+            locationId = null,
+            onLocation = {},
+            onChoose = { way ->
+                adding = false
+                if (way == AddWay.Scan) scan() else vm.add()
+            },
+            onDismiss = { adding = false },
+            forWish = true,
+        )
     }
     vm.draft?.let { d -> WishDialog(vm, d, onScan, onPhoto, onGallery) }
 }

@@ -768,8 +768,10 @@
     <string name="wish_deleted">“{title}” deleted</string>
     <string name="wish_drawerLabel">Wish details</string>
     <string name="wish_editTitle">Edit wish</string>
+    <string name="wish_emptyLine">Note the books you want to buy. When you get one, it moves to your library with one tap.</string>
     <string name="wish_emptyText">Add the books you want to buy; when you get one, mark it with \"I bought it\".</string>
     <string name="wish_emptyTitle">No wishes</string>
+    <string name="wish_emptyTitleNew">No wishes yet</string>
     <string name="wish_notes">Notes</string>
     <string name="wish_notesPlaceholder">Where to find it, which edition, a gift idea…</string>
     <string name="wish_offline">No connection: type the title yourself, the ISBN is kept.</string>
@@ -779,6 +781,8 @@
     <string name="wish_priority_high">High</string>
     <string name="wish_priority_low">Low</string>
     <string name="wish_priority_normal">Normal</string>
+    <string name="wish_scanBook">Scan a book</string>
+    <string name="wish_scanText">In a bookshop: it is looked up and filled in</string>
     <string name="wish_sort_added">Added (newest)</string>
     <string name="wish_sort_priority">Priority</string>
     <string name="wish_sort_title">Title</string>
@@ -786,6 +790,8 @@
     <string name="wish_status_discarded">Discarded</string>
     <string name="wish_status_open">Wanted</string>
     <string name="wish_subtitle">Books you want. They do not count as yours until you buy them.</string>
+    <string name="wish_typeText">Title, author or ISBN by hand</string>
+    <string name="wish_typeTitle">Type the title</string>
     <string name="wish_updatedOn">Last change</string>
     <string name="wish_willBeAcquired">\"{title}\" is on your wishlist: it will be marked as bought.</string>
 </resources>
