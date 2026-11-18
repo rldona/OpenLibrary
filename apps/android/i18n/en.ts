@@ -300,4 +300,17 @@ export const en = {
   'unplaced.empty': 'Every book has its place',
   'unplaced.emptyText': 'Books added without a place show up here.',
   'unplaced.pick': 'Choose the books',
+
+  // Redesign: locations.
+  'locations.rooms_one': '{n} room',
+  'locations.rooms_other': '{n} rooms',
+  'locations.totalBooks_one': '{n} book in total',
+  'locations.totalBooks_other': '{n} books in total',
+  'locations.waiting_one': '{n} book waits for a shelf',
+  'locations.waiting_other': '{n} books wait for a shelf',
+  'locations.emptyShelf': 'empty',
+  'locations.addFurniture': 'Add furniture',
+  'locations.addShelf': 'Add shelf',
+  'locations.newRoom': 'New room',
+  'locations.actions': 'Actions for {name}',
 } as const;

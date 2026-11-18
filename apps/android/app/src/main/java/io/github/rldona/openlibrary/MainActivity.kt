@@ -446,7 +446,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                         }
                         screen<LocationsRoute>(topBar = true) {
                             val vm = viewModel<LocationsViewModel>(factory = viewModelFactory { initializer { LocationsViewModel(c) } })
-                            LocationsScreen(vm) { id -> nav.navigate(LibraryRoute(id)) }
+                            LocationsScreen(vm, onOpen = { id -> nav.navigate(LibraryRoute(id)) }, onPlace = { nav.navigate(UnplacedRoute) })
                         }
                         screen<SettingsRoute>(topBar = true) {
                             val vm = viewModel<SettingsViewModel>(

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,20 +35,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import io.github.rldona.openlibrary.core.str
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import io.github.rldona.openlibrary.core.format
 import io.github.rldona.openlibrary.ui.components.Spacing
-import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ExpandMore
@@ -78,6 +73,20 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import io.github.rldona.openlibrary.ui.components.DestructiveDialog
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
+import kotlinx.coroutines.flow.map
+import io.github.rldona.openlibrary.core.roomShelves
+import io.github.rldona.openlibrary.core.RoomShelves
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
 
 data class LocationNode(val location: LocationEntity, val depth: Int, val total: Int, val children: Int = 0)
 
@@ -136,6 +145,9 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
 
     fun delete(location: LocationEntity) = viewModelScope.launch { c.writes.deleteLocation(location) }
 
+    /** Books with a copy not placed anywhere. */
+    val unplaced = c.db.catalog().unplacedCopies().map { copies -> copies.distinctBy { it.editionId }.size }
+
     val tree: StateFlow<List<LocationNode>?> =
         combine(c.db.catalog().locations(), c.db.catalog().placements()) { locs, places ->
             flattenTree(locs, places.groupingBy { it.locationId }.eachCount())
@@ -143,22 +155,27 @@ class LocationsViewModel(private val c: AppContainer) : ViewModel() {
 }
 
 @Composable
-fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit) {
+fun LocationsScreen(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onPlace: () -> Unit = {}) {
     var adding by remember { mutableStateOf<AddSheet?>(null) }
+    val all by vm.all.collectAsState(emptyList())
     val fab = rememberFabVisibility()
+    // New rooms go inside the home when the places hang from one ("Home › Study").
+    val home = all.filter { it.parentId == null && it.kind == "home" }.singleOrNull()?.id
     TabScaffold(
         stringResource(R.string.nav_locations),
         Modifier.nestedScroll(fab.connection),
         fab = {
             ExtendedFloatingActionButton(
-                onClick = { adding = AddSheet(null) },
+                onClick = { adding = AddSheet(home) },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.locations_add)) },
+                text = { Text(stringResource(R.string.locations_newRoom)) },
                 expanded = fab.visible,
             )
         },
     ) { inner ->
-        Box(Modifier.fillMaxSize().padding(inner)) { LocationTree(vm, onOpen, onAdd = { adding = AddSheet(null) }, onAddInside = { adding = AddSheet(it) }) }
+        Box(Modifier.fillMaxSize().padding(inner)) {
+            Rooms(vm, onOpen, onPlace, onAdd = { adding = AddSheet(home) }, onAddInside = { adding = AddSheet(it) })
+        }
     }
     adding?.let { NewLocationSheet(vm, it.parentId, onDismiss = { adding = null }) }
 }
@@ -231,8 +248,16 @@ fun nextLocationKind(parentKind: String?): String =
     }
 
 @Composable
-private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) -> Unit, onAdd: () -> Unit, onAddInside: (parentId: String) -> Unit) {
+private fun Rooms(
+    vm: LocationsViewModel,
+    onOpen: (locationId: String) -> Unit,
+    onPlace: () -> Unit,
+    onAdd: () -> Unit,
+    onAddInside: (parentId: String) -> Unit,
+) {
     val tree by vm.tree.collectAsStateWithLifecycle()
+    val all by vm.all.collectAsState(emptyList())
+    val unplaced by vm.unplaced.collectAsStateWithLifecycle(0)
     val nodes = tree
     if (nodes == null) {
         LoadingState()
@@ -243,11 +268,10 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
             Icons.Default.Place,
             stringResource(R.string.locations_emptyTitle),
             text = stringResource(R.string.locations_subtitle) + " " + stringResource(R.string.locations_emptyText),
-            action = stringResource(R.string.locations_add) to onAdd,
+            action = stringResource(R.string.locations_newRoom) to onAdd,
         )
         return
     }
-    val level = stringResource(R.string.locations_level)
     val snackbar = LocalSnackbar.current
     val deleteLabel = stringResource(R.string.common_delete)
     val hasChildren = stringResource(R.string.errors_locationHasChildren)
@@ -257,11 +281,13 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
     // Asked for with a destructive dialog, as on the web, rather than undone from the snackbar: the location
     // shows in every picker and filter, and the server refuses it once something is in it.
     var deleting by remember { mutableStateOf<LocationEntity?>(null) }
-    val askDelete = { n: LocationNode ->
-        when (val b = deleteBlocker(n)) {
+    val byId = remember(nodes) { nodes.associateBy { it.location.id } }
+    val askDelete = { id: String ->
+        val n = byId[id]
+        when (val b = n?.let(::deleteBlocker)) {
             DeleteBlocker.Children -> snackbar.showMessage(hasChildren)
             is DeleteBlocker.Copies -> snackbar.showMessage(format(if (b.n == 1) hasCopy else hasCopies, "n" to b.n))
-            null -> deleting = n.location
+            null -> deleting = n?.location
         }
     }
     deleting?.let { l ->
@@ -277,62 +303,196 @@ private fun LocationTree(vm: LocationsViewModel, onOpen: (locationId: String) ->
             onDismiss = { deleting = null },
         )
     }
-    // Folded branches, kept while the tab is away and across rotation.
-    var collapsed by rememberSaveable { mutableStateOf(ArrayList<String>()) }
-    val shown = visibleNodes(nodes, collapsed.toSet())
-    // A flat list (nothing to fold anywhere) needs no room for chevrons.
-    val foldable = nodes.any { it.children > 0 }
-    // Bottom room so the floating button never covers the last location.
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Spacing.fab)) {
-        items(shown, key = { it.location.id }) { n ->
-            val id = n.location.id
-            val folded = id in collapsed
-            // Indented by depth; TalkBack hears the depth too ("Level 2"), since it cannot see the indent.
-            ListItem(
-                onClick = { onOpen(id) },
-                modifier = Modifier.semantics {
-                    stateDescription = format(level, "n" to n.depth + 1)
-                    customActions = listOf(CustomAccessibilityAction(deleteLabel) { askDelete(n); true })
-                },
-                // The chevron's room is kept on leaves too, so siblings line up.
-                leadingContent = if (!foldable) null else ({
-                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                        if (n.children > 0) {
-                            IconButton(onClick = { collapsed = ArrayList(if (folded) collapsed - id else collapsed + id) }) {
-                                Icon(
-                                    if (folded) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.Default.ExpandMore,
-                                    contentDescription = str(if (folded) R.string.locations_expand else R.string.locations_collapse, "name" to n.location.name),
-                                )
-                            }
-                        }
-                    }
-                }),
-                supportingContent = { Text(stringResource(locationKindLabel(n.location.kind))) },
-                trailingContent = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(plural(R.string.library_copies_one, R.string.library_copies_other, n.total), style = MaterialTheme.typography.labelMedium)
-                        IconButton(onClick = { onAddInside(id) }) {
-                            Icon(Icons.Default.AddCircleOutline, contentDescription = str(R.string.locations_addInside, "name" to n.location.name))
-                        }
-                        Box {
-                            var menu by remember { mutableStateOf(false) }
-                            IconButton(onClick = { menu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more))
-                            }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(deleteLabel, color = MaterialTheme.colorScheme.error) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                    onClick = { menu = false; askDelete(n) },
-                                )
-                            }
-                        }
-                    }
-                },
-                colors = pageListItemColors(),
-                contentPadding = PaddingValues(start = ((if (foldable) 4 else 16) + 20 * n.depth).dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            ) { Text(n.location.name) }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    val rooms = remember(all) { roomShelves(all) }
+    val count = { id: String -> byId[id]?.total ?: 0 }
+    // Open rooms, kept while the tab is away and across rotation; the first one starts open.
+    var open by rememberSaveable { mutableStateOf(ArrayList(listOfNotNull(rooms.firstOrNull()?.room?.id))) }
+    val total = nodes.filter { it.depth == 0 }.sumOf { it.total }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = Spacing.fab),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text(
+                plural(R.string.locations_rooms_one, R.string.locations_rooms_other, rooms.size) + " · " +
+                    plural(R.string.locations_totalBooks_one, R.string.locations_totalBooks_other, total),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
         }
+        if (unplaced > 0) {
+            item { UnplacedCard(unplaced, onPlace) }
+        }
+        items(rooms, key = { it.room.id }) { r ->
+            val id = r.room.id
+            val expanded = id in open
+            RoomCard(
+                r,
+                expanded = expanded,
+                count = count,
+                onToggle = { open = ArrayList(if (expanded) open - id else open + id) },
+                onOpen = onOpen,
+                onAddInside = onAddInside,
+                onDelete = askDelete,
+            )
+        }
+    }
+}
+
+/** "Not placed · 11 books wait for a shelf · Place". */
+@Composable
+private fun UnplacedCard(count: Int, onPlace: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.unplaced_title),
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    plural(R.string.locations_waiting_one, R.string.locations_waiting_other, count),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            Button(onClick = onPlace, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.library_place)) }
+        }
+    }
+}
+
+/**
+ * A room: its name and books, folded or open. Open, each piece of furniture with its shelves as buttons
+ * (name and books, or "empty"); a shelf opens its books, a long press shows what can be done with it.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RoomCard(
+    r: RoomShelves,
+    expanded: Boolean,
+    count: (String) -> Int,
+    onToggle: () -> Unit,
+    onOpen: (String) -> Unit,
+    onAddInside: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    val name = r.room.name
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClickLabel = str(if (expanded) R.string.locations_collapse else R.string.locations_expand, "name" to name), onClick = onToggle)
+                    .padding(start = 20.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(name, Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.titleMedium.fontSize))
+                Text(
+                    plural(R.string.library_books_one, R.string.library_books_other, count(r.room.id)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (expanded) {
+                    PlaceMenu(name, onAdd = { onAddInside(r.room.id) }, addLabel = R.string.locations_addFurniture, onDelete = { onDelete(r.room.id) })
+                } else {
+                    Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.padding(12.dp))
+                }
+            }
+            AnimatedVisibility(expanded) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    r.groups.forEach { g ->
+                        val furniture = g.furniture
+                        if (furniture != null) {
+                            var menu by remember { mutableStateOf(false) }
+                            Box {
+                                Text(
+                                    furniture.name,
+                                    Modifier.fillMaxWidth()
+                                        .combinedClickable(onLongClickLabel = str(R.string.locations_actions, "name" to furniture.name), onLongClick = { menu = true }, onClick = { onOpen(furniture.id) })
+                                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                PlaceActions(menu, { menu = false }, onAdd = { onAddInside(furniture.id) }, addLabel = R.string.locations_addShelf, onDelete = { onDelete(furniture.id) })
+                            }
+                        }
+                        // The room itself when it has nothing inside: its books are opened like a shelf's.
+                        val places = g.places.filter { it.location.id != r.room.id || g.places.size == 1 }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
+                            places.forEach { p ->
+                                ShelfTile(p.label, count(p.location.id), Modifier.weight(1f), onOpen = { onOpen(p.location.id) }, onAddInside = { onAddInside(p.location.id) }, onDelete = { onDelete(p.location.id) })
+                            }
+                        }
+                    }
+                    TextButton(onClick = { onAddInside(r.room.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(stringResource(R.string.locations_addFurniture), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A shelf as a button: its name and its books ("empty"). Long press: add inside or delete. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ShelfTile(label: String, books: Int, modifier: Modifier, onOpen: () -> Unit, onAddInside: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val addLabel = stringResource(R.string.locations_addInside, label).let { format(it, "name" to label) }
+    val deleteLabel = stringResource(R.string.common_delete)
+    Box(modifier) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
+                .clip(MaterialTheme.shapes.large)
+                .combinedClickable(onLongClickLabel = str(R.string.locations_actions, "name" to label), onLongClick = { menu = true }, onClick = onOpen)
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(addLabel) { onAddInside(); true },
+                        CustomAccessibilityAction(deleteLabel) { onDelete(); true },
+                    )
+                },
+        ) {
+            Column(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                Text(
+                    if (books == 0) stringResource(R.string.locations_emptyShelf) else plural(R.string.library_books_one, R.string.library_books_other, books),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+        PlaceActions(menu, { menu = false }, onAdd = onAddInside, addLabel = null, addText = addLabel, onDelete = onDelete)
+    }
+}
+
+/** The ⋮ of a room: add furniture, delete. */
+@Composable
+private fun PlaceMenu(name: String, onAdd: () -> Unit, addLabel: Int, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = str(R.string.locations_actions, "name" to name))
+        }
+        PlaceActions(menu, { menu = false }, onAdd = onAdd, addLabel = addLabel, onDelete = onDelete)
+    }
+}
+
+@Composable
+private fun PlaceActions(open: Boolean, onClose: () -> Unit, onAdd: () -> Unit, addLabel: Int?, onDelete: () -> Unit, addText: String? = null) {
+    DropdownMenu(expanded = open, onDismissRequest = onClose) {
+        DropdownMenuItem(
+            text = { Text(addText ?: stringResource(addLabel!!)) },
+            leadingIcon = { Icon(Icons.Default.AddCircleOutline, contentDescription = null) },
+            onClick = { onClose(); onAdd() },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            onClick = { onClose(); onDelete() },
+        )
     }
 }
