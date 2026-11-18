@@ -430,7 +430,10 @@
     <string name="locations_createFirst">Crear la primera</string>
     <string name="locations_deleteConfirm">¿Borrar «{name}»?</string>
     <string name="locations_deleted">Ubicación borrada</string>
+    <string name="locations_deleteInside_one">También se borrará la ubicación que hay dentro.</string>
+    <string name="locations_deleteInside_other">También se borrarán las {n} ubicaciones que hay dentro.</string>
     <string name="locations_deleteText">No se puede deshacer. Solo se puede borrar una ubicación sin sububicaciones ni ejemplares.</string>
+    <string name="locations_edit">Editar</string>
     <string name="locations_editMove">Editar / mover</string>
     <string name="locations_editTitle">Editar «{name}»</string>
     <string name="locations_emptyShelf">vacía</string>
@@ -438,10 +441,16 @@
     <string name="locations_emptyTitle">Aún no hay ubicaciones</string>
     <string name="locations_expand">Desplegar {name}</string>
     <string name="locations_goTo">Ir a</string>
+    <string name="locations_hasBooks_one">«{name}» tiene {n} libro</string>
+    <string name="locations_hasBooks_other">«{name}» tiene {n} libros</string>
+    <string name="locations_hasBooksText">Antes de borrarla, ¿dónde van?</string>
     <string name="locations_includeChildren">Incluir lo que hay en las subdivisiones</string>
     <string name="locations_inside">Dentro de</string>
     <string name="locations_kind">Tipo</string>
+    <string name="locations_leaveUnplaced">Dejarlos sin colocar</string>
     <string name="locations_level">Nivel {n}</string>
+    <string name="locations_moveBooks">Moverlos a otro sitio</string>
+    <string name="locations_moveTo">Mover a {name}</string>
     <string name="locations_name">Nombre</string>
     <string name="locations_namePlaceholder">Salón, Estantería principal, Balda 3…</string>
     <string name="locations_newRoom">Nueva estancia</string>

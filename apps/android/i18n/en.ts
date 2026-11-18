@@ -359,4 +359,15 @@ export const en = {
   'settings.advanced': 'Advanced',
   'settings.advancedText': 'Server and data version',
   'device.disconnectThis': 'Disconnect this phone',
+
+  // Editing and deleting locations.
+  'locations.edit': 'Edit',
+  'locations.deleteInside_one': 'The place inside it will be deleted too.',
+  'locations.deleteInside_other': 'The {n} places inside it will be deleted too.',
+  'locations.hasBooks_one': '“{name}” has {n} book',
+  'locations.hasBooks_other': '“{name}” has {n} books',
+  'locations.hasBooksText': 'Before deleting it, where do they go?',
+  'locations.moveBooks': 'Move them to another place',
+  'locations.leaveUnplaced': 'Leave them unplaced',
+  'locations.moveTo': 'Move to {name}',
 } as const;

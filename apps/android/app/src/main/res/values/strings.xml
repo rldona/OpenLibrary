@@ -430,7 +430,10 @@
     <string name="locations_createFirst">Create the first one</string>
     <string name="locations_deleteConfirm">Delete \"{name}\"?</string>
     <string name="locations_deleted">Location deleted</string>
+    <string name="locations_deleteInside_one">The place inside it will be deleted too.</string>
+    <string name="locations_deleteInside_other">The {n} places inside it will be deleted too.</string>
     <string name="locations_deleteText">This cannot be undone. Only a location with no sub-locations and no copies can be deleted.</string>
+    <string name="locations_edit">Edit</string>
     <string name="locations_editMove">Edit / move</string>
     <string name="locations_editTitle">Edit \"{name}\"</string>
     <string name="locations_emptyShelf">empty</string>
@@ -438,10 +441,16 @@
     <string name="locations_emptyTitle">No locations yet</string>
     <string name="locations_expand">Expand {name}</string>
     <string name="locations_goTo">Go to</string>
+    <string name="locations_hasBooks_one">“{name}” has {n} book</string>
+    <string name="locations_hasBooks_other">“{name}” has {n} books</string>
+    <string name="locations_hasBooksText">Before deleting it, where do they go?</string>
     <string name="locations_includeChildren">Include what is in the sub-locations</string>
     <string name="locations_inside">Inside</string>
     <string name="locations_kind">Type</string>
+    <string name="locations_leaveUnplaced">Leave them unplaced</string>
     <string name="locations_level">Level {n}</string>
+    <string name="locations_moveBooks">Move them to another place</string>
+    <string name="locations_moveTo">Move to {name}</string>
     <string name="locations_name">Name</string>
     <string name="locations_namePlaceholder">Living room, Main bookcase, Shelf 3…</string>
     <string name="locations_newRoom">New room</string>

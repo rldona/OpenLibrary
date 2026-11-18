@@ -64,6 +64,10 @@ interface CatalogDao {
     fun placements(): Flow<List<Placement>>
 
     /** Copies still to be put somewhere (the library's "not placed" notice). */
+    /** Active copies in any of [ids] (a location being deleted and everything inside it). */
+    @Query("SELECT * FROM copies WHERE status = 'active' AND locationId IN (:ids)")
+    suspend fun activeCopiesIn(ids: List<String>): List<CopyEntity>
+
     @Query("SELECT * FROM copies WHERE status = 'active' AND locationId IS NULL ORDER BY createdAt")
     fun unplacedCopies(): Flow<List<CopyEntity>>
 
