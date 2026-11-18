@@ -66,6 +66,7 @@ import io.github.rldona.openlibrary.ui.components.splitChips
 import io.github.rldona.openlibrary.ui.detail.CONDITIONS
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import io.github.rldona.openlibrary.core.subjectLabel
 
 /**
  * Add a book by hand (2c), also used for "I bought it": cover, title (the only required field) and author
@@ -286,6 +287,7 @@ private fun MoreDetails(vm: BookFormViewModel, open: Boolean, onToggle: () -> Un
                         vm.suggestions,
                         stringResource(R.string.form_subjectsPlaceholder),
                         { vm.subjects = it },
+                        display = { subjectLabel(it) },
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         FieldLabel(stringResource(R.string.copy_condition))
