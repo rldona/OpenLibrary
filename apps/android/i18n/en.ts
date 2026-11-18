@@ -370,4 +370,8 @@ export const en = {
   'locations.moveBooks': 'Move them to another place',
   'locations.leaveUnplaced': 'Leave them unplaced',
   'locations.moveTo': 'Move to {name}',
+
+  // Library genre filter.
+  'library.genreFilter': 'Genre',
+  'library.allGenres': 'All genres',
 } as const;

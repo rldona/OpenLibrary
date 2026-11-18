@@ -131,6 +131,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.InputChip
+import androidx.compose.material.icons.automirrored.filled.Label
+import io.github.rldona.openlibrary.core.subjectLabel
 
 data class LibraryItem(val row: LibraryRow, val place: List<String>)
 
@@ -156,8 +158,12 @@ data class LibraryState(
     val unplaced: Int = 0,
     /** "author" or "language": only the books without one. */
     val missing: String? = null,
+    /** The genre shown (in the phone's language), or null for every genre. */
+    val genre: String? = null,
+    /** The genres of the books searched/filtered (the genre filter aside), shown names with their counts. */
+    val genres: List<Pair<String, Int>> = emptyList(),
 ) {
-    val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly || missing != null
+    val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly || missing != null || genre != null
     /** Only the favorites chip is on: an empty list then means there are no favorites, not a search without matches. */
     val onlyFavorites get() = favoritesOnly && location == null && !onlyProvisional && reading == null
 }
@@ -171,6 +177,8 @@ class LibraryViewModel(
 ) : ViewModel() {
     /** The statistics' "To fix" lists: books without an author or a language. */
     val missing = MutableStateFlow(missingFilter)
+    /** A genre as shown ("Filosofía"): books stored as "Philosophy" or "Filosofía" both match. */
+    val genre = MutableStateFlow<String?>(null)
     val query = MutableStateFlow("")
     /** A search to put in the search field (handed over by another screen); the screen clears it once applied. */
     val searchRequest = MutableStateFlow<String?>(null)
@@ -204,15 +212,16 @@ class LibraryViewModel(
                     // Reading statuses: for the reading filter and the "Unread" chip's count.
                     c.db.catalog().readingStatuses(),
                     prefs.sort,
-                    combine(favoritesOnly, missing) { fav, miss -> fav to miss },
-                ) { allRows, places, statuses, sort, (favorites, miss) ->
-                    val rows = allRows.filter { r ->
+                    combine(favoritesOnly, missing, genre) { fav, miss, gen -> Triple(fav, miss, gen) },
+                ) { allRows, places, statuses, sort, (favorites, miss, gen) ->
+                    val notMissing = allRows.filter { r ->
                         when (miss) {
                             "author" -> r.authors.isEmpty()
                             "language" -> r.language.isNullOrBlank()
                             else -> true
                         }
                     }
+                    val rows = filterByGenre(notMissing, gen)
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
                     val byWork = statuses.associate { it.workId to it.status }
                     val shown = shapeLibrary(rows, byWork, f.reading, f.prov, sort, favorites)
@@ -224,6 +233,8 @@ class LibraryViewModel(
                         sort = sort,
                         favoritesOnly = favorites,
                         missing = miss,
+                        genre = gen,
+                        genres = genreCounts(notMissing),
                         items = shown.map { r ->
                             val inFilter = firstPlace[r.editionId].orEmpty().firstOrNull { f.loc == null || it in ids }
                             LibraryItem(r, pathOf(byId, inFilter))
@@ -296,6 +307,17 @@ fun shapeLibrary(
         LibrarySort.Added -> kept.sortedByDescending { it.addedAt }
     }
 }
+
+/** The rows with a genre shown as [genre] (null: all), whatever language it is stored in. */
+fun filterByGenre(rows: List<LibraryRow>, genre: String?): List<LibraryRow> =
+    if (genre == null) rows else rows.filter { r -> r.subjects.any { subjectLabel(it) == genre } }
+
+/** Genres as shown, each with how many of [rows] have it, alphabetically (accents and case aside). */
+fun genreCounts(rows: List<LibraryRow>): List<Pair<String, Int>> =
+    rows.flatMap { r -> r.subjects.map(::subjectLabel).distinct() }
+        .groupingBy { it }.eachCount()
+        .toList()
+        .sortedBy { fold(it.first) }
 
 /** A location and everything inside it. */
 fun subtree(all: List<LocationEntity>, root: String): List<String> {
@@ -556,6 +578,7 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
             }
         }
         item { LocationFilter(state, vm::setLocation) }
+        if (state.genres.isNotEmpty() || state.genre != null) item { GenreFilter(state) { vm.genre.value = it } }
         items(READING_FILTERS) { status ->
             val selected = state.reading == status
             FilterChip(
@@ -614,6 +637,36 @@ private fun LocationFilter(state: LibraryState, onSelect: (String?) -> Unit) {
                     text = { Text(path) },
                     onClick = { onSelect(id); open = false },
                     leadingIcon = { if (state.location?.id == id) Icon(Icons.Default.Check, contentDescription = null) },
+                )
+            }
+        }
+    }
+}
+
+/** A dropdown chip like the location's: every genre of the books on show, with its count. */
+@Composable
+private fun GenreFilter(state: LibraryState, onSelect: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = state.genre != null,
+            onClick = { open = true },
+            label = { Text(state.genre ?: stringResource(R.string.library_genreFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.library_allGenres)) },
+                onClick = { onSelect(null); open = false },
+                leadingIcon = { if (state.genre == null) Icon(Icons.Default.Check, contentDescription = null) },
+            )
+            state.genres.forEach { (name, n) ->
+                DropdownMenuItem(
+                    text = { Text(name) },
+                    trailingIcon = { Text(n.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = { onSelect(name); open = false },
+                    leadingIcon = { if (state.genre == name) Icon(Icons.Default.Check, contentDescription = null) },
                 )
             }
         }

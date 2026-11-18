@@ -360,6 +360,7 @@
     <string name="language_code">Language code, e.g. ja</string>
     <string name="language_other">Other language…</string>
     <string name="library_activeFilters">Active filters</string>
+    <string name="library_allGenres">All genres</string>
     <string name="library_allLanguages">All languages</string>
     <string name="library_allLocations">All locations</string>
     <string name="library_allSubjects">All subjects</string>
@@ -379,6 +380,7 @@
     <string name="library_emptyTitle">Your library is empty</string>
     <string name="library_filters">Filters</string>
     <string name="library_filterValue">{name}: {value}</string>
+    <string name="library_genreFilter">Genre</string>
     <string name="library_loadError">The library could not be loaded.</string>
     <string name="library_loadMore">Load more ({n} left)</string>
     <string name="library_locationFilter">Location</string>

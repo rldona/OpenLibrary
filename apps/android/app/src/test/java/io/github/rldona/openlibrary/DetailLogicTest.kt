@@ -22,5 +22,6 @@ class SubjectLabelTest {
         assertEquals("Ficción / Science Fictionish", io.github.rldona.openlibrary.core.subjectLabel("Fiction / Science Fictionish", "es"))
         assertEquals("Long Now Manual", io.github.rldona.openlibrary.core.subjectLabel("Long Now Manual", "es"))
         assertEquals("Philosophy", io.github.rldona.openlibrary.core.subjectLabel("Philosophy", "en"))
+        assertEquals("Ecology", io.github.rldona.openlibrary.core.subjectLabel("ecology", "es"))
     }
 }
