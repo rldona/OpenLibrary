@@ -313,4 +313,11 @@ export const en = {
   'locations.addShelf': 'Add shelf',
   'locations.newRoom': 'New room',
   'locations.actions': 'Actions for {name}',
+
+  // Redesign: edit book.
+  'edit.missing_one': '{n} missing',
+  'edit.missing_other': '{n} missing',
+  'edit.fill': 'Fill in what is missing',
+  'language.other': 'Other language…',
+  'language.code': 'Language code, e.g. ja',
 } as const;

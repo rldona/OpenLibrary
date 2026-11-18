@@ -111,7 +111,9 @@ fun LabeledField(
             onValueChange = onChange,
             singleLine = true,
             isError = error,
-            placeholder = (if (missing && value.isEmpty()) stringResource(R.string.form_missing) else placeholder)?.let { { Text(it) } },
+            placeholder = (if (missing && value.isEmpty()) stringResource(R.string.form_missing) else placeholder)?.let {
+                { Text(it, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+            },
             trailingIcon = trailing,
             shape = MaterialTheme.shapes.large,
             colors = if (missing && value.isEmpty()) OutlinedTextFieldDefaults.colors(unfocusedBorderColor = accent) else OutlinedTextFieldDefaults.colors(),
@@ -272,7 +274,9 @@ fun CoverSlot(covers: CoverStore, coverId: String?, title: String, authors: List
     } else {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Box(Modifier.clickable(onClick = onClick)) { Cover(covers, coverId, title.ifBlank { "?" }, width, authors = authors) }
-            TextButton(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.form_changeCover), maxLines = 1) }
+            TextButton(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp).width(width)) {
+                Text(stringResource(R.string.form_changeCover), maxLines = 2, textAlign = TextAlign.Center)
+            }
         }
     }
 }

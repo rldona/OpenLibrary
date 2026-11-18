@@ -588,10 +588,10 @@ private fun BookForm(
         onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
-        onWishAdded = onWishAdded,
         onClose = { nav.popBackStack() },
     )
 }
+
 
 /** The five tabs, as a bottom bar or (wide windows) a rail; favorites are a filter of the library. */
 @Composable

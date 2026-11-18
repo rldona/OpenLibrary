@@ -263,6 +263,9 @@
     <string name="drawer_retire">Retirar</string>
     <string name="drawer_retiredCount">Retirados ({n})</string>
     <string name="drawer_series">Serie: {series}</string>
+    <string name="edit_fill">Rellenar lo que falta</string>
+    <string name="edit_missing_one">Falta {n}</string>
+    <string name="edit_missing_other">Faltan {n}</string>
     <string name="entity_copy">ejemplar</string>
     <string name="entity_edition">edición</string>
     <string name="entity_location">ubicación</string>
@@ -353,6 +356,8 @@
     <string name="isbn_ismn">Es un ISMN (partitura), no un ISBN.</string>
     <string name="isbn_issn">Es un ISSN (revista o publicación periódica), no un ISBN.</string>
     <string name="isbn_length">Longitud no válida: se esperan 10 o 13 dígitos.</string>
+    <string name="language_code">Código del idioma, p. ej. ja</string>
+    <string name="language_other">Otro idioma…</string>
     <string name="library_activeFilters">Filtros activos</string>
     <string name="library_allLanguages">Todos los idiomas</string>
     <string name="library_allLocations">Todas las ubicaciones</string>

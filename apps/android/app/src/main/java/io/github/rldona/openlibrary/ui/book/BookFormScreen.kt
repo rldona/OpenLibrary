@@ -3,34 +3,20 @@ package io.github.rldona.openlibrary.ui.book
 import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.HideImage
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ButtonGroup
-import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -41,24 +27,19 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.remember
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,7 +47,6 @@ import io.github.rldona.openlibrary.AppContainer
 import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.sync.BulkScan
 import io.github.rldona.openlibrary.core.IsbnResult
-import io.github.rldona.openlibrary.core.conditionLabel
 import io.github.rldona.openlibrary.core.languageName
 import io.github.rldona.openlibrary.core.normalizeIsbn
 import io.github.rldona.openlibrary.core.plural
@@ -88,12 +68,9 @@ import io.github.rldona.openlibrary.ui.components.BackScaffold
 import io.github.rldona.openlibrary.ui.components.DestructiveDialog
 import io.github.rldona.openlibrary.ui.components.BusyLabel
 import io.github.rldona.openlibrary.ui.components.Cover
-import io.github.rldona.openlibrary.ui.components.LocationPicker
 import io.github.rldona.openlibrary.ui.components.ChipsField
 import io.github.rldona.openlibrary.ui.components.splitChips
 import io.github.rldona.openlibrary.ui.components.withDraft
-import io.github.rldona.openlibrary.ui.components.Picker
-import io.github.rldona.openlibrary.ui.detail.CONDITIONS
 import java.io.IOException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
@@ -106,6 +83,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import io.github.rldona.openlibrary.ui.components.FieldLabel
+import io.github.rldona.openlibrary.ui.components.LabeledField
+import io.github.rldona.openlibrary.ui.components.BookHeader
+import androidx.compose.material3.IconButton
 
 /** What the ISBN lookup found, shown above the form. */
 sealed interface LookupNotice {
@@ -523,7 +504,8 @@ class BookFormViewModel(
         if (pages.toIntOrNull() != e.pages) ef["pages"] = pages.toIntOrNull()?.let(::JsonPrimitive) ?: JsonNull
         val isbn13 = (normalizeIsbn(isbn) as? IsbnResult.Ok)?.isbn13
         if (isbn13 != e.isbn13) ef["isbn13"] = isbn13?.let(::JsonPrimitive) ?: JsonNull
-        val status = if (provisional) "provisional" else "complete"
+        // Provisional until the book is complete: the lookup clears it, and so does filling in what was missing.
+        val status = if (provisional && missing.isNotEmpty()) "provisional" else "complete"
         if (status != e.metadataStatus) ef["metadataStatus"] = JsonPrimitive(status)
         val cover = coverId
         val newCover = cover != e.coverAssetId
@@ -541,6 +523,15 @@ class BookFormViewModel(
         subjectDraft = ""
     }
 
+    /** What the book still lacks (author, publisher, year, language), the same as the detail's warning. */
+    val missing: List<String>
+        get() = listOfNotNull(
+            "author".takeIf { splitChips(withDraft(authors, authorDraft)).isEmpty() },
+            "publisher".takeIf { publisher.isBlank() },
+            "year".takeIf { year.isBlank() },
+            "language".takeIf { language.isBlank() },
+        )
+
     private fun authorList() = splitChips(authors)
 
     private fun splitSubjects(value: String) = splitChips(value)
@@ -549,8 +540,9 @@ class BookFormViewModel(
 }
 
 /**
- * Add or edit a book. The bar carries the way out (✕, which asks before losing changes) and "Save"; the form
- * is grouped as the catalogue is: the work, this edition and, when adding, your copy.
+ * Edit a book (6): ✕ asks before losing changes, "Save" is the bar's filled button. The book's header (cover,
+ * title, subtitle), authors and genres as chips, and "More details" open with what is still missing marked:
+ * "Fill in what is missing" looks the ISBN up and only fills empty fields.
  */
 @Composable
 fun BookFormScreen(
@@ -561,140 +553,77 @@ fun BookFormScreen(
     onGallery: () -> Unit,
     onOpenWork: (String) -> Unit,
     onSaved: (String) -> Unit,
-    onWishAdded: () -> Unit = {},
-    onIdentify: () -> Unit = {},
     onClose: () -> Unit = {},
 ) {
-    val locations by vm.locations.collectAsState(emptyList())
     var confirmDiscard by remember { mutableStateOf(false) }
     val close = { if (vm.dirty) confirmDiscard = true else onClose() }
     // The back gesture asks too; with nothing changed it just leaves.
     BackHandler(enabled = vm.dirty) { confirmDiscard = true }
+    val missing = vm.missing
 
     BackScaffold(
-        stringResource(if (vm.editing) R.string.form_editTitle else R.string.book_add),
+        stringResource(R.string.form_editTitle),
         onBack = close,
         close = true,
         actions = {
-            TextButton(onClick = { vm.save(onSaved) }, enabled = !vm.busy, modifier = Modifier.testTag("save")) {
+            Button(onClick = { vm.save(onSaved) }, enabled = !vm.busy, modifier = Modifier.padding(end = 8.dp).testTag("save")) {
                 BusyLabel(vm.saving, stringResource(R.string.common_save))
             }
         },
     ) { inner ->
         Column(
             Modifier.fillMaxSize().padding(inner).imePadding().verticalScroll(rememberScrollState()).readableWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = vm.isbn,
-                    onValueChange = { vm.isbn = it },
-                    label = { Text(stringResource(R.string.form_isbnOptional)) },
-                    placeholder = { Text(stringResource(R.string.form_isbnPlaceholder)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f).testTag("isbn"),
-                )
-                OutlinedButton(onClick = vm::lookup, enabled = !vm.busy && vm.isbn.isNotBlank()) {
-                    BusyLabel(vm.busy && !vm.saving, stringResource(if (vm.busy && !vm.saving) R.string.form_searching else R.string.form_lookup))
-                }
+            BookHeader(cover = { CoverMenu(vm, onPhoto, onGallery) }) {
+                LabeledField(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
+                LabeledField(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
             }
-            if (!vm.editing) CaptureButtons(onScan, onIdentify)
-            // Said where the decision is made (fill in or look up), not at the bottom of the form.
-            Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            vm.wish?.let { WishNotice(it) }
-            vm.notice?.let { n -> LookupNoticeCard(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
-
-            SectionTitle(stringResource(R.string.form_section_work))
-            Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
-            Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
             ChipsField(
                 stringResource(R.string.book_authors), vm.authors, vm.authorDraft, { vm.authorDraft = it }, vm.authorSuggestions,
-                stringResource(R.string.form_authorsPlaceholder), { vm.authors = it },
+                stringResource(R.string.form_authorsPlaceholder), { vm.authors = it }, missing = "author" in missing,
             )
             ChipsField(
                 stringResource(R.string.book_subjects), vm.subjects, vm.subjectDraft, { vm.subjectDraft = it }, vm.suggestions,
                 stringResource(R.string.form_subjectsPlaceholder), { vm.subjects = it },
             )
-
-            SectionTitle(stringResource(R.string.drawer_edition))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Cover(vm.covers, vm.coverId, vm.title.ifBlank { "?" }, 72.dp, authors = vm.authors.split(';').map { it.trim() }.filter { it.isNotEmpty() })
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val fromProvider = vm.photoId == null && vm.providerCoverId != null
-                    if (fromProvider) {
-                        Text(
-                            str(R.string.form_providerCover, "source" to (vm.providerCoverSource ?: "")),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    // One button, every way: the camera, the gallery, or no cover at all.
-                    var coverMenu by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { coverMenu = true }) {
-                            Text(stringResource(if (vm.coverId == null) R.string.form_addCover else R.string.form_changeCover))
-                        }
-                        DropdownMenu(expanded = coverMenu, onDismissRequest = { coverMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.form_coverCamera)) },
-                                leadingIcon = { Icon(Icons.Default.PhotoCamera, contentDescription = null) },
-                                onClick = { coverMenu = false; onPhoto() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.capture_gallery)) },
-                                leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
-                                onClick = { coverMenu = false; onGallery() },
-                            )
-                            if (vm.photoId != null && !vm.editing) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.add_removePhoto)) },
-                                    leadingIcon = { Icon(Icons.Default.HideImage, contentDescription = null) },
-                                    onClick = { coverMenu = false; vm.photoId = null },
-                                )
-                            }
-                            if (fromProvider) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.form_removeCover)) },
-                                    leadingIcon = { Icon(Icons.Default.HideImage, contentDescription = null) },
-                                    onClick = { coverMenu = false; vm.dropProviderCover() },
-                                )
-                            }
-                        }
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.manual_more),
+                    Modifier.weight(1f).semantics { heading() },
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
+                )
+                if (missing.isNotEmpty()) {
+                    Text(plural(R.string.edit_missing_one, R.string.edit_missing_other, missing.size), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            Field(stringResource(R.string.book_publisher), vm.publisher, { vm.publisher = it })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Field(stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), number = true)
-                Field(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
-                LanguageField(vm.language, { vm.language = it }, Modifier.weight(1f))
-            }
-            // The whole row is the checkbox, for touch and for TalkBack.
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = vm.provisional, role = Role.Checkbox, onValueChange = { vm.provisional = it }),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(checked = vm.provisional, onCheckedChange = null)
-                Text(stringResource(R.string.book_provisional), Modifier.padding(start = 12.dp))
-            }
-            if (!vm.editing) {
-                SectionTitle(stringResource(R.string.copy_yourCopy))
-                LocationPicker(locations, vm.locationId, { vm.locationId = it }, Modifier.fillMaxWidth())
-                Picker(
-                    stringResource(R.string.copy_condition),
-                    vm.condition,
-                    CONDITIONS.map { it to stringResource(conditionLabel(it)) },
-                    { vm.condition = it },
-                    Modifier.fillMaxWidth(),
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LabeledField(
+                    stringResource(R.string.capture_isbn),
+                    vm.isbn,
+                    { vm.isbn = it },
+                    Modifier.weight(1f).testTag("isbn"),
+                    placeholder = stringResource(R.string.form_isbnPlaceholder),
+                    number = true,
+                    trailing = { IconButton(onClick = onScan) { Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.add_scan)) } },
                 )
-                Field(stringResource(R.string.copy_notes), vm.notes, { vm.notes = it }, hint = stringResource(R.string.copy_notesPlaceholder))
+                FilledTonalButton(onClick = vm::lookup, enabled = !vm.busy && vm.isbn.isNotBlank(), modifier = Modifier.heightIn(min = 56.dp)) {
+                    BusyLabel(vm.busy && !vm.saving, stringResource(if (vm.busy && !vm.saving) R.string.form_searching else R.string.edit_fill))
+                }
             }
-            // "Save" is in the bar; keeping it in the wishlist instead is the other way to finish.
-            if (!vm.editing && !vm.fromWish) {
-                OutlinedButton(onClick = { vm.addToWishlist(onWishAdded) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.wish_addToWishlist))
+            vm.notice?.let { n -> LookupNoticeCard(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LabeledField(stringResource(R.string.book_publisher), vm.publisher, { vm.publisher = it }, Modifier.weight(2f), missing = "publisher" in missing)
+                LabeledField(
+                    stringResource(R.string.book_year), vm.year, { vm.year = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f),
+                    number = true, missing = "year" in missing,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LabeledField(stringResource(R.string.book_pages), vm.pages, { vm.pages = it.filter(Char::isDigit).take(5) }, Modifier.weight(1f), number = true)
+                Column(Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FieldLabel(stringResource(R.string.book_language))
+                    LanguageField(vm.language, { vm.language = it }, Modifier.fillMaxWidth(), floatingLabel = false, missing = "language" in missing)
                 }
             }
         }
@@ -707,45 +636,6 @@ fun BookFormScreen(
             onConfirm = { confirmDiscard = false; onClose() },
             onDismiss = { confirmDiscard = false },
             dismiss = stringResource(R.string.form_keepEditing),
-        )
-    }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
-}
-
-/** Scan the barcode or identify the cover: the two ways to fill the form from the camera (Expressive button group). */
-@Composable
-private fun CaptureButtons(onScan: () -> Unit, onIdentify: () -> Unit) {
-    val scan = stringResource(R.string.add_scan)
-    val identify = stringResource(R.string.add_identify)
-    ButtonGroup(
-        overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        customItem(
-            buttonGroupContent = {
-                val source = remember { MutableInteractionSource() }
-                Button(onClick = onScan, shapes = ButtonDefaults.shapes(), interactionSource = source, modifier = Modifier.weight(1f).animateWidth(source)) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(scan, maxLines = 1)
-                }
-            },
-            menuContent = { menu -> DropdownMenuItem(text = { Text(scan) }, onClick = { menu.dismiss(); onScan() }) },
-        )
-        customItem(
-            buttonGroupContent = {
-                val source = remember { MutableInteractionSource() }
-                FilledTonalButton(onClick = onIdentify, shapes = ButtonDefaults.shapes(), interactionSource = source, modifier = Modifier.weight(1f).animateWidth(source)) {
-                    Icon(Icons.Default.ImageSearch, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(identify, maxLines = 1)
-                }
-            },
-            menuContent = { menu -> DropdownMenuItem(text = { Text(identify) }, onClick = { menu.dismiss(); onIdentify() }) },
         )
     }
 }
@@ -784,52 +674,51 @@ internal fun LookupNoticeCard(n: LookupNotice, onOpenWork: (String) -> Unit, onA
     }
 }
 
-@Composable
-private fun Field(
-    label: String,
-    value: String,
-    onChange: (String) -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth(),
-    hint: String? = null,
-    error: Boolean = false,
-    number: Boolean = false,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label) },
-        supportingText = hint?.let { { Text(it) } },
-        isError = error,
-        singleLine = true,
-        keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-        modifier = modifier,
-    )
-}
-
 /** The usual languages of the form, as the web's BOOK_LANGUAGES (ISO 639-1); any other code can be typed. */
 val BOOK_LANGUAGES = listOf("es", "en", "fr", "it", "pt", "de", "ca", "gl", "eu", "la")
 
-/** ISO code typed or picked from the usual languages; the name under the field confirms the code was understood. */
+/**
+ * The language by its name ("Español", not "es"): the usual ones in a list, "Other language…" to type any other
+ * ISO code. [missing] marks it like the other empty fields.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun LanguageField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, floatingLabel: Boolean = true) {
+internal fun LanguageField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, floatingLabel: Boolean = true, missing: Boolean = false) {
     var open by remember { mutableStateOf(false) }
-    val name = languageName(value).takeIf { it != value.trim() }
-    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = modifier) {
+    var typing by remember { mutableStateOf(false) }
+    val code = value.trim()
+    if (typing) {
         OutlinedTextField(
             value = value,
             onValueChange = { onChange(it.take(8)) },
             label = if (floatingLabel) ({ Text(stringResource(R.string.book_language)) }) else null,
-            supportingText = name?.let { { Text(it) } },
+            placeholder = { Text(stringResource(R.string.language_code)) },
+            supportingText = languageName(code).takeIf { code.isNotEmpty() && it != code }?.let { { Text(it) } },
+            singleLine = true,
             shape = if (floatingLabel) OutlinedTextFieldDefaults.shape else MaterialTheme.shapes.large,
+            modifier = modifier,
+        )
+        return
+    }
+    val options = (BOOK_LANGUAGES + listOfNotNull(code.takeIf { it.isNotEmpty() && it !in BOOK_LANGUAGES })).distinct()
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = if (code.isEmpty()) "" else languageName(code),
+            onValueChange = {},
+            readOnly = true,
+            label = if (floatingLabel) ({ Text(stringResource(R.string.book_language)) }) else null,
+            placeholder = if (missing) ({ Text(stringResource(R.string.form_missing)) }) else null,
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
+            shape = if (floatingLabel) OutlinedTextFieldDefaults.shape else MaterialTheme.shapes.large,
+            colors = if (missing) OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.primary) else OutlinedTextFieldDefaults.colors(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            BOOK_LANGUAGES.forEach { code ->
-                DropdownMenuItem(text = { Text(languageName(code)) }, onClick = { onChange(code); open = false })
+            options.forEach { c ->
+                DropdownMenuItem(text = { Text(languageName(c)) }, onClick = { onChange(c); open = false })
             }
+            DropdownMenuItem(text = { Text(stringResource(R.string.language_other)) }, onClick = { open = false; typing = true })
         }
     }
 }

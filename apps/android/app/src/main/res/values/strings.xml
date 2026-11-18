@@ -263,6 +263,9 @@
     <string name="drawer_retire">Retire</string>
     <string name="drawer_retiredCount">Retired ({n})</string>
     <string name="drawer_series">Series: {series}</string>
+    <string name="edit_fill">Fill in what is missing</string>
+    <string name="edit_missing_one">{n} missing</string>
+    <string name="edit_missing_other">{n} missing</string>
     <string name="entity_copy">copy</string>
     <string name="entity_edition">edition</string>
     <string name="entity_location">location</string>
@@ -353,6 +356,8 @@
     <string name="isbn_ismn">This is an ISMN (sheet music), not an ISBN.</string>
     <string name="isbn_issn">This is an ISSN (magazine or periodical), not an ISBN.</string>
     <string name="isbn_length">Invalid length: 10 or 13 digits expected.</string>
+    <string name="language_code">Language code, e.g. ja</string>
+    <string name="language_other">Other language…</string>
     <string name="library_activeFilters">Active filters</string>
     <string name="library_allLanguages">All languages</string>
     <string name="library_allLocations">All locations</string>

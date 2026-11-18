@@ -311,4 +311,11 @@ export const es: Record<keyof typeof en, string> = {
   'locations.addShelf': 'Añadir balda',
   'locations.newRoom': 'Nueva estancia',
   'locations.actions': 'Acciones de {name}',
+
+  // Redesign: edit book.
+  'edit.missing_one': 'Falta {n}',
+  'edit.missing_other': 'Faltan {n}',
+  'edit.fill': 'Rellenar lo que falta',
+  'language.other': 'Otro idioma…',
+  'language.code': 'Código del idioma, p. ej. ja',
 };
