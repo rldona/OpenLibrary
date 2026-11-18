@@ -127,6 +127,18 @@ class BulkScanTest {
     }
 
     @Test
+    fun aBookIsWrittenWhenItsUndoTimeRunsOut() = runBlocking {
+        // Nothing else happens after the scan: no other book, the screen stays open.
+        val s = scan(graceMs = 100)
+        s.add(known, "loc-1")
+        withTimeout(5_000) { s.items.first { l -> l.single().saved } }
+        assertEquals(BulkItem.State.Added, s.items.value.single().state)
+        val ops = db.outbox().allPending().map { LocalWrites.decode(it.payload) }.filterIsInstance<Op.BookCreate>()
+        assertEquals(listOf(known), ops.map { it.book.edition.isbn13 })
+        assertEquals(1, db.catalog().library("", true, emptyList()).first().size)
+    }
+
+    @Test
     fun aPhotoForAPendingBookGoesWithIt() = runBlocking {
         val s = scan(graceMs = 60_000)
         s.add(known, null)

@@ -12,6 +12,7 @@ import io.github.rldona.openlibrary.network.NewEdition
 import io.github.rldona.openlibrary.network.NewWork
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -142,7 +143,9 @@ class BulkScan(
     private suspend fun commit(key: String) {
         saving.withLock {
             val p = synchronized(pending) { pending.remove(key) } ?: return
-            p.timer?.cancel()
+            // Stop the undo timer, unless it is the one writing the book: cancelling itself would end this
+            // write at its first suspension and lose the book.
+            if (p.timer != currentCoroutineContext()[Job]) p.timer?.cancel()
             val isbn = p.book.edition.isbn13
             // Added on another screen meanwhile.
             if (isbn != null) {
