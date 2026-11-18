@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -79,6 +78,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -568,12 +569,11 @@ private fun MenuHeading(text: String) {
  */
 @Composable
 private fun Filters(state: LibraryState, vm: LibraryViewModel) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            // Just the heart, so the four filters fit on a phone; TalkBack reads "Favorites".
+    // One row that always fits the screen (no sideways scrolling): see FitRow. The occasional chips go on
+    // a line below.
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FitRow(gap = 8.dp) {
+            // Just the heart; TalkBack reads "Favorites".
             val favorites = stringResource(R.string.nav_favorites)
             FilterChip(
                 selected = state.favoritesOnly,
@@ -587,43 +587,93 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
                     )
                 },
             )
+            if (state.genres.isNotEmpty() || state.genre != null) GenreFilter(state) { vm.genre.value = it }
+            ReadingFilter(state, onSelect = vm::setReading)
+            LocationFilter(state, onSelect = vm::setLocation)
         }
-        if (state.genres.isNotEmpty() || state.genre != null) item { GenreFilter(state) { vm.genre.value = it } }
-        item { LocationFilter(state, vm::setLocation) }
-        item { ReadingFilter(state, vm::setReading) }
-        if (state.provisional > 0 || state.onlyProvisional) {
-            item {
-                FilterChip(
-                    selected = state.onlyProvisional,
-                    onClick = { vm.onlyProvisional.value = !state.onlyProvisional },
-                    label = { Text(plural(R.string.library_toComplete_one, R.string.library_toComplete_other, state.provisional)) },
-                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
-                )
-            }
-        }
-        state.missing?.let { m ->
-            item {
-                InputChip(
-                    selected = true,
-                    onClick = { vm.missing.value = null },
-                    label = { Text(stringResource(if (m == "author") R.string.library_noAuthor else R.string.library_noLanguage)) },
-                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_remove)) },
-                )
+        val toComplete = state.provisional > 0 || state.onlyProvisional
+        if (toComplete || state.missing != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (toComplete) {
+                    FilterChip(
+                        selected = state.onlyProvisional,
+                        onClick = { vm.onlyProvisional.value = !state.onlyProvisional },
+                        label = { Text(plural(R.string.library_toComplete_one, R.string.library_toComplete_other, state.provisional)) },
+                        leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                    )
+                }
+                state.missing?.let { m ->
+                    InputChip(
+                        selected = true,
+                        onClick = { vm.missing.value = null },
+                        label = { Text(stringResource(if (m == "author") R.string.library_noAuthor else R.string.library_noLanguage)) },
+                        trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_remove)) },
+                    )
+                }
             }
         }
     }
 }
 
+/**
+ * Lays its children out in one row as wide as the screen, never wider. Each child asks for its natural
+ * width; when they all fit, the space left over is shared by every child but the first (the heart), and
+ * when they do not, only the widest ones shrink, to the same width, so short labels stay whole.
+ */
+@Composable
+private fun FitRow(gap: Dp, content: @Composable () -> Unit) {
+    Layout(content, Modifier.fillMaxWidth()) { measurables, constraints ->
+        val space = gap.roundToPx()
+        val total = constraints.maxWidth
+        val available = (total - space * (measurables.size - 1)).coerceAtLeast(0)
+        val natural = measurables.map { it.maxIntrinsicWidth(constraints.maxHeight) }
+        val widths = if (natural.sum() <= available) {
+            val growing = (measurables.size - 1).coerceAtLeast(1)
+            val extra = (available - natural.sum()) / growing
+            natural.mapIndexed { i, w -> if (i == 0 && measurables.size > 1) w else w + extra }
+        } else {
+            // The largest cap c with sum(min(w, c)) <= available.
+            val sorted = natural.sorted()
+            var left = available
+            var cap = 0
+            for ((i, w) in sorted.withIndex()) {
+                val share = left / (sorted.size - i)
+                if (w <= share) left -= w else { cap = share; break }
+                cap = w
+            }
+            natural.map { minOf(it, cap) }
+        }
+        val placeables = measurables.mapIndexed { i, m -> m.measure(Constraints.fixedWidth(widths[i])) }
+        val height = placeables.maxOfOrNull { it.height } ?: 0
+        layout(total, height) {
+            var x = 0
+            placeables.forEach { p ->
+                p.placeRelative(x, (height - p.height) / 2)
+                x += p.width + space
+            }
+        }
+    }
+}
+
+/** A dropdown chip's label: the text, cut with "…" when the chip is narrow, and the arrow at the end. */
+@Composable
+private fun DropdownLabel(text: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(20.dp))
+    }
+}
+
 /** Unread, reading or read in one dropdown chip, each with how many books it has. */
 @Composable
-private fun ReadingFilter(state: LibraryState, onSelect: (String?) -> Unit) {
+private fun ReadingFilter(state: LibraryState, modifier: Modifier = Modifier, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier) {
         FilterChip(
+            modifier = Modifier.fillMaxWidth(),
             selected = state.reading != null,
             onClick = { open = true },
-            label = { Text(stringResource(state.reading?.let(::readingStatusLabel) ?: R.string.library_readingFilter), maxLines = 1) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            label = { DropdownLabel(stringResource(state.reading?.let(::readingStatusLabel) ?: R.string.library_readingFilter)) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
@@ -644,16 +694,16 @@ private fun ReadingFilter(state: LibraryState, onSelect: (String?) -> Unit) {
 }
 
 @Composable
-private fun LocationFilter(state: LibraryState, onSelect: (String?) -> Unit) {
+private fun LocationFilter(state: LibraryState, modifier: Modifier = Modifier, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val byId = remember(state.locations) { state.locations.associateBy { it.id } }
-    Box {
+    Box(modifier) {
         FilterChip(
+            modifier = Modifier.fillMaxWidth(),
             selected = state.location != null,
             onClick = { open = true },
             // Short when nothing is chosen, so the chip stays whole on a phone; the menu says "All locations".
-            label = { Text(state.location?.name ?: stringResource(R.string.library_locationFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            label = { DropdownLabel(state.location?.name ?: stringResource(R.string.library_locationFilter)) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
@@ -674,14 +724,14 @@ private fun LocationFilter(state: LibraryState, onSelect: (String?) -> Unit) {
 
 /** A dropdown chip like the location's: every genre of the books on show, with its count. */
 @Composable
-private fun GenreFilter(state: LibraryState, onSelect: (String?) -> Unit) {
+private fun GenreFilter(state: LibraryState, modifier: Modifier = Modifier, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier) {
         FilterChip(
+            modifier = Modifier.fillMaxWidth(),
             selected = state.genre != null,
             onClick = { open = true },
-            label = { Text(state.genre ?: stringResource(R.string.library_genreFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            label = { DropdownLabel(state.genre ?: stringResource(R.string.library_genreFilter)) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
