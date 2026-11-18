@@ -57,17 +57,19 @@ export function Icon({ name, size = 18 }: { name: keyof typeof PATHS | string; s
   );
 }
 
-/** App icon: the accent-orange tile with the dark panel and the shelf of books, the same artwork as the favicon and the Android launcher. */
+/** App icon: the accent-orange tile with the dark panel and the orange shelf of books, the same artwork as the favicon and the Android launcher. */
 export function Logo({ size = 30, className }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
       <rect width="32" height="32" rx="7" fill="#e2925f" />
-      <rect x="4.9" y="5.4" width="22.2" height="19.2" rx="2.4" fill="#1a120c" />
-      <g transform="translate(3.49 7.13) scale(.2274 .2414)" fill="#e2925f">
-        <path d="M14 0h15v62h12v8H14z" />
-        <rect x="47" y="2" width="6" height="68" rx="1.5" transform="rotate(-14 50 70)" />
-        <rect x="60" y="6" width="13" height="64" rx="2" transform="rotate(-13 66.5 70)" />
-        <rect x="81" y="10" width="15" height="60" rx="2" transform="rotate(-17.5 88.5 70)" />
+      <g transform="translate(0 1)">
+        <rect x="4.9" y="5.4" width="22.2" height="19.2" rx="2.4" fill="#1a120c" />
+        <g transform="translate(3.49 7.13) scale(.2274 .2414)" fill="#e2925f">
+          <path d="M14 0h15v62h12v8H14z" />
+          <rect x="47" y="2" width="6" height="68" rx="1.5" transform="rotate(-14 50 70)" />
+          <rect x="60" y="6" width="13" height="64" rx="2" transform="rotate(-13 66.5 70)" />
+          <rect x="81" y="10" width="15" height="60" rx="2" transform="rotate(-17.5 88.5 70)" />
+        </g>
       </g>
     </svg>
   );
