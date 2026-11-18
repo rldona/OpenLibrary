@@ -103,6 +103,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
+import io.github.rldona.openlibrary.core.subjectLabel
 
 data class DetailState(
     val work: WorkEntity? = null,
@@ -545,7 +546,7 @@ private fun Header(
                     work.subjects.forEach { subject ->
                         SuggestionChip(
                             onClick = { onSubject(subject) },
-                            label = { Text(subject) },
+                            label = { Text(subjectLabel(subject)) },
                             shape = RoundedCornerShape(50),
                             modifier = Modifier.semantics { onClick(label = format(searchFor, "subject" to subject)) { onSubject(subject); true } },
                         )

@@ -6,7 +6,7 @@ import type { Lang } from '@openlibrary/contracts';
  * they reach the book form; unknown subjects stay as they came and the owner can edit them.
  * Google Books' "Fiction / Science Fiction / General" headings are translated part by part.
  */
-const ES: Record<string, string> = {
+export const SUBJECTS_ES: Record<string, string> = {
   // Google Books (BISAC top-level headings)
   'antiques & collectibles': 'Antigüedades y coleccionismo',
   architecture: 'Arquitectura',
@@ -200,6 +200,10 @@ const ES: Record<string, string> = {
   investments: 'Inversiones',
   'self-actualization (psychology)': 'Autorrealización (psicología)',
   success: 'Éxito',
+  forecasting: 'Previsión',
+  'resilience (personality trait)': 'Resiliencia',
+  'social aspects': 'Aspectos sociales',
+  'uncertainty (information theory)': 'Incertidumbre (teoría de la información)',
 };
 
 /** Lower case, single spaces, plain apostrophes: the dictionary's key form. */
@@ -226,7 +230,7 @@ export function translateSubjects(subjects: string[], lang: Lang): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of subjects) {
-    const t = translateOne(s, ES);
+    const t = translateOne(s, SUBJECTS_ES);
     const k = key(t);
     if (seen.has(k)) continue;
     seen.add(k);

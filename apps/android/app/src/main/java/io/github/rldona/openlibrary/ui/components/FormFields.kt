@@ -71,13 +71,21 @@ fun withDraft(value: String, draft: String): String = (splitChips(value) + split
  * Up to [max] of [suggestions] that match what is being typed, leaving out those already chosen. Nothing
  * while the field is empty: the whole list of authors is never shown.
  */
-fun chipSuggestions(suggestions: List<String>, chosen: List<String>, typed: String, max: Int = 4): List<String> {
+fun chipSuggestions(
+    suggestions: List<String>,
+    chosen: List<String>,
+    typed: String,
+    max: Int = 4,
+    /** How a value is shown (a genre in Spanish): matched too, so "Filo" finds a stored "Philosophy". */
+    display: (String) -> String = { it },
+): List<String> {
     val q = fold(typed.trim())
     if (q.isEmpty()) return emptyList()
     val taken = chosen.mapTo(HashSet(), ::fold)
-    val matches = suggestions.filter { fold(it) !in taken && fold(it).contains(q) }
+    val shown = { s: String -> fold(display(s)) }
+    val matches = suggestions.filter { fold(it) !in taken && (fold(it).contains(q) || shown(it).contains(q)) }
     // Names that start with the text first ("Jos" → "José…" before "María José…").
-    return matches.sortedBy { if (fold(it).startsWith(q)) 0 else 1 }.take(max)
+    return matches.sortedBy { if (fold(it).startsWith(q) || shown(it).startsWith(q)) 0 else 1 }.take(max)
 }
 
 /** A label above the field (not floating), as in the book forms. */
@@ -143,6 +151,8 @@ fun ChipsField(
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     missing: Boolean = false,
+    /** How a value is shown (genres in Spanish); what is stored stays as it is. */
+    display: (String) -> String = { it },
 ) {
     val chosen = splitChips(value)
     fun commit(raw: String) {
@@ -170,9 +180,9 @@ fun ChipsField(
                 InputChip(
                     selected = true,
                     onClick = { onChange(chosen.filter { it != name }.joinToString("; ")) },
-                    label = { Text(name) },
+                    label = { Text(display(name)) },
                     trailingIcon = {
-                        Icon(Icons.Default.Close, contentDescription = str(R.string.common_remove) + " " + name, Modifier.size(18.dp))
+                        Icon(Icons.Default.Close, contentDescription = str(R.string.common_remove) + " " + display(name), Modifier.size(18.dp))
                     },
                     shape = RoundedCornerShape(50),
                     colors = InputChipDefaults.inputChipColors(
@@ -207,10 +217,10 @@ fun ChipsField(
                 },
             )
         }
-        val matches = chipSuggestions(suggestions, chosen, draft)
+        val matches = chipSuggestions(suggestions, chosen, draft, display = display)
         if (matches.isNotEmpty()) {
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                matches.forEach { name -> SuggestionPill(name) { commit(name) } }
+                matches.forEach { name -> SuggestionPill(display(name)) { commit(name) } }
             }
         }
     }

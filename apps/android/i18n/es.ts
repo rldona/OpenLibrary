@@ -318,4 +318,34 @@ export const es: Record<keyof typeof en, string> = {
   'edit.fill': 'Rellenar lo que falta',
   'language.other': 'Otro idioma…',
   'language.code': 'Código del idioma, p. ej. ja',
+
+  // Redesign: statistics.
+  'stats.booksWord_one': 'libro',
+  'stats.booksWord_other': 'libros',
+  'stats.allAddedIn': 'todos añadidos en {year}',
+  'stats.addedSince': 'añadidos desde {year}',
+  'stats.works_one': '{n} obra',
+  'stats.works_other': '{n} obras',
+  'stats.unreadN': '{n} sin leer',
+  'stats.readingN': '{n} leyendo',
+  'stats.readN_one': '{n} leído',
+  'stats.readN_other': '{n} leídos',
+  'stats.readingHint': 'Cuando termines un libro verás aquí tu ritmo por año.',
+  'stats.toFix': 'Por arreglar',
+  'stats.fix.unplaced': 'sin colocar en una balda',
+  'stats.fix.author': 'sin autor',
+  'stats.fix.language': 'sin idioma',
+  'stats.seeAll': 'Ver los {n}',
+  'library.noAuthor': 'Sin autor',
+  'library.noLanguage': 'Sin idioma',
+  'stats.more': 'Más cifras',
+
+  // Redesign: wishlist.
+  'wish.emptyTitleNew': 'Aún no hay deseos',
+  'wish.emptyLine':
+    'Apunta los libros que quieres comprar. Cuando consigas uno, pasa a tu biblioteca con un toque.',
+  'wish.scanBook': 'Escanear un libro',
+  'wish.typeTitle': 'Escribir el título',
+  'wish.scanText': 'En la librería: se busca y se rellena solo',
+  'wish.typeText': 'Título, autor o ISBN a mano',
 };

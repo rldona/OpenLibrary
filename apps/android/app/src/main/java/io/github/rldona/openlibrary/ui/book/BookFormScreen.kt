@@ -87,6 +87,7 @@ import io.github.rldona.openlibrary.ui.components.FieldLabel
 import io.github.rldona.openlibrary.ui.components.LabeledField
 import io.github.rldona.openlibrary.ui.components.BookHeader
 import androidx.compose.material3.IconButton
+import io.github.rldona.openlibrary.core.subjectLabel
 
 /** What the ISBN lookup found, shown above the form. */
 sealed interface LookupNotice {
@@ -585,7 +586,7 @@ fun BookFormScreen(
             )
             ChipsField(
                 stringResource(R.string.book_subjects), vm.subjects, vm.subjectDraft, { vm.subjectDraft = it }, vm.suggestions,
-                stringResource(R.string.form_subjectsPlaceholder), { vm.subjects = it },
+                stringResource(R.string.form_subjectsPlaceholder), { vm.subjects = it }, display = { subjectLabel(it) },
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

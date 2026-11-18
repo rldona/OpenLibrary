@@ -320,4 +320,34 @@ export const en = {
   'edit.fill': 'Fill in what is missing',
   'language.other': 'Other language…',
   'language.code': 'Language code, e.g. ja',
+
+  // Redesign: statistics.
+  'stats.booksWord_one': 'book',
+  'stats.booksWord_other': 'books',
+  'stats.allAddedIn': 'all added in {year}',
+  'stats.addedSince': 'added since {year}',
+  'stats.works_one': '{n} work',
+  'stats.works_other': '{n} works',
+  'stats.unreadN': '{n} unread',
+  'stats.readingN': '{n} reading',
+  'stats.readN_one': '{n} read',
+  'stats.readN_other': '{n} read',
+  'stats.readingHint': 'When you finish a book you will see your pace by year here.',
+  'stats.toFix': 'To fix',
+  'stats.fix.unplaced': 'not placed on a shelf',
+  'stats.fix.author': 'without an author',
+  'stats.fix.language': 'without a language',
+  'stats.seeAll': 'See all {n}',
+  'library.noAuthor': 'Without author',
+  'library.noLanguage': 'Without language',
+  'stats.more': 'More figures',
+
+  // Redesign: wishlist.
+  'wish.emptyTitleNew': 'No wishes yet',
+  'wish.emptyLine':
+    'Note the books you want to buy. When you get one, it moves to your library with one tap.',
+  'wish.scanBook': 'Scan a book',
+  'wish.typeTitle': 'Type the title',
+  'wish.scanText': 'In a bookshop: it is looked up and filled in',
+  'wish.typeText': 'Title, author or ISBN by hand',
 } as const;

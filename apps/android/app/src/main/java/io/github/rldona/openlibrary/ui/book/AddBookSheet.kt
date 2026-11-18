@@ -54,6 +54,8 @@ fun AddBookSheet(
     onLocation: (String?) -> Unit,
     onChoose: (AddWay) -> Unit,
     onDismiss: () -> Unit,
+    /** The wishlist's version: its own title and texts, no cover photo and no place (wishes are not placed). */
+    forWish: Boolean = false,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var placing by rememberSaveable { mutableStateOf(false) }
@@ -63,14 +65,14 @@ fun AddBookSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                stringResource(R.string.book_add),
+                stringResource(if (forWish) R.string.wish_add else R.string.book_add),
                 Modifier.padding(start = 8.dp, bottom = 4.dp).semantics { heading() },
                 style = MaterialTheme.typography.headlineSmall,
             )
-            Way(Icons.Default.QrCodeScanner, R.string.add_scanTitle, R.string.add_scanText, primary = true) { onChoose(AddWay.Scan) }
-            Way(Icons.Outlined.PhotoCamera, R.string.add_coverTitle, R.string.add_coverText) { onChoose(AddWay.Cover) }
-            Way(Icons.Outlined.Edit, R.string.add_typeTitle, R.string.add_typeText) { onChoose(AddWay.Type) }
-            PlaceRow(
+            Way(Icons.Default.QrCodeScanner, R.string.add_scanTitle, if (forWish) R.string.wish_scanText else R.string.add_scanText, primary = true) { onChoose(AddWay.Scan) }
+            if (!forWish) Way(Icons.Outlined.PhotoCamera, R.string.add_coverTitle, R.string.add_coverText) { onChoose(AddWay.Cover) }
+            Way(Icons.Outlined.Edit, R.string.add_typeTitle, if (forWish) R.string.wish_typeText else R.string.add_typeText) { onChoose(AddWay.Type) }
+            if (!forWish) PlaceRow(
                 label = stringResource(R.string.add_willGo),
                 path = placePath(locations, locationId),
                 onChange = { placing = true },

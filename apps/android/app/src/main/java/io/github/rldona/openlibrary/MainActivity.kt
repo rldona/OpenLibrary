@@ -133,7 +133,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
 @Serializable object SetupRoute
-@Serializable data class LibraryRoute(val locationId: String? = null)
+/** [missing]: "author" or "language", the books without one (from the statistics' "To fix"). */
+@Serializable data class LibraryRoute(val locationId: String? = null, val missing: String? = null)
 @Serializable data class DetailRoute(val workId: String, val editionId: String? = null)
 @Serializable object LocationsRoute
 @Serializable object SettingsRoute
@@ -309,7 +310,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                         }
                         screen<LibraryRoute>(topBar = true) { e ->
                             val route = e.toRoute<LibraryRoute>()
-                            val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, route.locationId) } })
+                            val vm = viewModel<LibraryViewModel>(factory = viewModelFactory { initializer { LibraryViewModel(c, route.locationId, route.missing) } })
                             // A search handed over by another screen (a subject tapped in the detail), applied once.
                             val search by e.savedStateHandle.getStateFlow<String?>(SEARCH_KEY, null).collectAsStateWithLifecycle()
                             LaunchedEffect(search) {
@@ -365,7 +366,9 @@ private fun App(c: AppContainer, connected: Boolean) {
                         }
                         screen<StatsRoute>(topBar = true) {
                             val vm = viewModel<StatsViewModel>(factory = viewModelFactory { initializer { StatsViewModel(c) } })
-                            StatsScreen(vm)
+                            StatsScreen(vm) { what ->
+                                if (what == "unplaced") nav.navigate(UnplacedRoute) else nav.navigate(LibraryRoute(missing = what))
+                            }
                         }
                         screen<WishlistRoute>(topBar = true) { e ->
                             val vm = viewModel<WishlistViewModel>(factory = viewModelFactory { initializer { WishlistViewModel(c) } })

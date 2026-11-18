@@ -130,6 +130,7 @@ import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.InputChip
 
 data class LibraryItem(val row: LibraryRow, val place: List<String>)
 
@@ -153,8 +154,10 @@ data class LibraryState(
     val unread: Int = 0,
     /** Books with a copy not placed anywhere, in the whole library. */
     val unplaced: Int = 0,
+    /** "author" or "language": only the books without one. */
+    val missing: String? = null,
 ) {
-    val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly
+    val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly || missing != null
     /** Only the favorites chip is on: an empty list then means there are no favorites, not a search without matches. */
     val onlyFavorites get() = favoritesOnly && location == null && !onlyProvisional && reading == null
 }
@@ -164,7 +167,10 @@ data class LibraryState(
 class LibraryViewModel(
     private val c: AppContainer,
     locationId: String?,
+    missingFilter: String? = null,
 ) : ViewModel() {
+    /** The statistics' "To fix" lists: books without an author or a language. */
+    val missing = MutableStateFlow(missingFilter)
     val query = MutableStateFlow("")
     /** A search to put in the search field (handed over by another screen); the screen clears it once applied. */
     val searchRequest = MutableStateFlow<String?>(null)
@@ -198,8 +204,15 @@ class LibraryViewModel(
                     // Reading statuses: for the reading filter and the "Unread" chip's count.
                     c.db.catalog().readingStatuses(),
                     prefs.sort,
-                    favoritesOnly,
-                ) { rows, places, statuses, sort, favorites ->
+                    combine(favoritesOnly, missing) { fav, miss -> fav to miss },
+                ) { allRows, places, statuses, sort, (favorites, miss) ->
+                    val rows = allRows.filter { r ->
+                        when (miss) {
+                            "author" -> r.authors.isEmpty()
+                            "language" -> r.language.isNullOrBlank()
+                            else -> true
+                        }
+                    }
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
                     val byWork = statuses.associate { it.workId to it.status }
                     val shown = shapeLibrary(rows, byWork, f.reading, f.prov, sort, favorites)
@@ -210,6 +223,7 @@ class LibraryViewModel(
                         reading = f.reading,
                         sort = sort,
                         favoritesOnly = favorites,
+                        missing = miss,
                         items = shown.map { r ->
                             val inFilter = firstPlace[r.editionId].orEmpty().firstOrNull { f.loc == null || it in ids }
                             LibraryItem(r, pathOf(byId, inFilter))
@@ -531,6 +545,16 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        state.missing?.let { m ->
+            item {
+                InputChip(
+                    selected = true,
+                    onClick = { vm.missing.value = null },
+                    label = { Text(stringResource(if (m == "author") R.string.library_noAuthor else R.string.library_noLanguage)) },
+                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_remove)) },
+                )
+            }
+        }
         item { LocationFilter(state, vm::setLocation) }
         items(READING_FILTERS) { status ->
             val selected = state.reading == status
