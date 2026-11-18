@@ -25,6 +25,8 @@ data class LibraryRow(
     val favorite: Boolean = false,
     /** The edition's language code, for the "without language" list. */
     val language: String? = null,
+    /** The work's genres as stored, for the genre filter. */
+    val subjects: List<String> = emptyList(),
 )
 
 /** A work's reading status ("reading", "read" or "pending"), derived like [workReadingStatus]. */
@@ -44,7 +46,7 @@ interface CatalogDao {
                e.publishedYear AS publishedYear, e.coverAssetId AS coverAssetId, e.metadataStatus AS metadataStatus,
                (SELECT COUNT(*) FROM copies c WHERE c.editionId = e.id AND c.status = 'active') AS activeCopies,
                e.createdAt AS addedAt,
-               w.favorite AS favorite, e.language AS language,
+               w.favorite AS favorite, e.language AS language, w.subjects AS subjects,
                (SELECT r.rating FROM readings r
                   JOIN copies rc ON rc.id = r.copyId
                   JOIN editions re ON re.id = rc.editionId

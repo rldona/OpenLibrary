@@ -360,10 +360,11 @@
     <string name="language_code">Código del idioma, p. ej. ja</string>
     <string name="language_other">Otro idioma…</string>
     <string name="library_activeFilters">Filtros activos</string>
+    <string name="library_allGenres">Todos los géneros</string>
     <string name="library_allLanguages">Todos los idiomas</string>
     <string name="library_allLocations">Todas las ubicaciones</string>
     <string name="library_allSubjects">Todos los géneros</string>
-    <string name="library_anyReading">Cualquier estado de lectura</string>
+    <string name="library_anyReading">Todos los libros</string>
     <string name="library_books_one">{n} libro</string>
     <string name="library_books_other">{n} libros</string>
     <string name="library_clearFilters">Limpiar filtros</string>
@@ -379,6 +380,7 @@
     <string name="library_emptyTitle">Tu biblioteca está vacía</string>
     <string name="library_filters">Filtros</string>
     <string name="library_filterValue">{name}: {value}</string>
+    <string name="library_genreFilter">Género</string>
     <string name="library_loadError">No se pudo cargar la biblioteca.</string>
     <string name="library_loadMore">Cargar más ({n} restantes)</string>
     <string name="library_locationFilter">Ubicación</string>
@@ -388,6 +390,7 @@
     <string name="library_noMatchesTitle">Nada por aquí</string>
     <string name="library_order">Orden</string>
     <string name="library_place">Colocar</string>
+    <string name="library_readingFilter">Lectura</string>
     <string name="library_removeFilter">Quitar filtro: {filter}</string>
     <string name="library_searchFor">búsqueda «{q}»</string>
     <string name="library_searchShort">Título, autor o ISBN</string>

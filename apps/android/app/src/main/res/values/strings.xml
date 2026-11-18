@@ -360,10 +360,11 @@
     <string name="language_code">Language code, e.g. ja</string>
     <string name="language_other">Other language…</string>
     <string name="library_activeFilters">Active filters</string>
+    <string name="library_allGenres">All genres</string>
     <string name="library_allLanguages">All languages</string>
     <string name="library_allLocations">All locations</string>
     <string name="library_allSubjects">All subjects</string>
-    <string name="library_anyReading">Any reading status</string>
+    <string name="library_anyReading">All books</string>
     <string name="library_books_one">{n} book</string>
     <string name="library_books_other">{n} books</string>
     <string name="library_clearFilters">Clear filters</string>
@@ -379,6 +380,7 @@
     <string name="library_emptyTitle">Your library is empty</string>
     <string name="library_filters">Filters</string>
     <string name="library_filterValue">{name}: {value}</string>
+    <string name="library_genreFilter">Genre</string>
     <string name="library_loadError">The library could not be loaded.</string>
     <string name="library_loadMore">Load more ({n} left)</string>
     <string name="library_locationFilter">Location</string>
@@ -388,6 +390,7 @@
     <string name="library_noMatchesTitle">Nothing here</string>
     <string name="library_order">Order</string>
     <string name="library_place">Place</string>
+    <string name="library_readingFilter">Reading</string>
     <string name="library_removeFilter">Remove filter: {filter}</string>
     <string name="library_searchFor">search \"{q}\"</string>
     <string name="library_searchShort">Title, author or ISBN</string>

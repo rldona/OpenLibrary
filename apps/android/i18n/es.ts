@@ -368,4 +368,12 @@ export const es: Record<keyof typeof en, string> = {
   'locations.moveBooks': 'Moverlos a otro sitio',
   'locations.leaveUnplaced': 'Dejarlos sin colocar',
   'locations.moveTo': 'Mover a {name}',
+
+  // Library genre filter.
+  'library.genreFilter': 'Género',
+  'library.allGenres': 'Todos los géneros',
+
+  // Library reading filter.
+  'library.readingFilter': 'Lectura',
+  'library.anyReading': 'Todos los libros',
 };

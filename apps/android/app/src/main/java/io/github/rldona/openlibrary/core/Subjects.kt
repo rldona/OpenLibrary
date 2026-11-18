@@ -10,7 +10,11 @@ private fun subjectKey(s: String) = s.trim().replace(Regex("\\s+"), " ").replace
  * "Filosofía"; "Fiction / Science Fiction" part by part), as stored otherwise. Only for display: what is
  * saved never changes.
  */
-fun subjectLabel(subject: String, language: String = Locale.getDefault().language): String {
+fun subjectLabel(subject: String, language: String = Locale.getDefault().language): String =
+    translated(subject.trim(), language).replaceFirstChar { it.titlecase(Locale.getDefault()) }
+
+/** Unknown genres keep their words; only their first letter is raised ("censorship" → "Censorship"). */
+private fun translated(subject: String, language: String): String {
     if (language != "es") return subject
     SUBJECTS_ES[subjectKey(subject)]?.let { return it }
     if (!subject.contains('/')) return subject
