@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -110,7 +113,6 @@ import io.github.rldona.openlibrary.ui.components.FillCover
 import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import io.github.rldona.openlibrary.ui.components.SyncBar
-import io.github.rldona.openlibrary.ui.components.TopBarInsets
 import io.github.rldona.openlibrary.ui.components.rememberFabVisibility
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -428,16 +430,23 @@ fun LibraryScreen(
     Scaffold(
         Modifier.nestedScroll(searchScroll.nestedScrollConnection).nestedScroll(fab.connection),
         topBar = {
-            Column(Modifier.background(MaterialTheme.colorScheme.background)) {
+            // The search bar hides while scrolling down, but the status bar and the filters stay on a bar of
+            // their own: the scrolled colour, like the other screens' top bars, so books never show under them.
+            val scrolled = searchScroll.scrollState.contentOffset < 0f
+            val header by animateColorAsState(
+                if (scrolled) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background,
+                label = "header",
+            )
+            Column(Modifier.background(header).statusBarsPadding()) {
                 AppBarWithSearch(
                     state = searchState,
                     inputField = inputField,
                     actions = { ViewSortMenu(grid, { grid = it }, state.sort, vm::setSort) },
                     colors = SearchBarDefaults.appBarWithSearchColors(
-                        appBarContainerColor = MaterialTheme.colorScheme.background,
-                        scrolledAppBarContainerColor = MaterialTheme.colorScheme.background,
+                        appBarContainerColor = Color.Transparent,
+                        scrolledAppBarContainerColor = Color.Transparent,
                     ),
-                    windowInsets = TopBarInsets,
+                    windowInsets = WindowInsets(0),
                     scrollBehavior = searchScroll,
                 )
                 Filters(state, vm)
