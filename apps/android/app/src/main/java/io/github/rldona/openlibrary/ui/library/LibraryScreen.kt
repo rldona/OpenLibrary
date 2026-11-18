@@ -131,7 +131,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.InputChip
-import androidx.compose.material.icons.automirrored.filled.Label
 import io.github.rldona.openlibrary.core.subjectLabel
 
 data class LibraryItem(val row: LibraryRow, val place: List<String>)
@@ -152,8 +151,10 @@ data class LibraryState(
     val reading: String? = null,
     val sort: LibrarySort = LibrarySort.Title,
     val favoritesOnly: Boolean = false,
-    /** Books not read yet among those searched/filtered (the reading filter aside), for the "Unread" chip. */
+    /** Books not read yet among those searched/filtered (the reading filter aside). */
     val unread: Int = 0,
+    /** How many books each reading status has (the reading filter aside), for its menu. */
+    val readingCounts: Map<String, Int> = emptyMap(),
     /** Books with a copy not placed anywhere, in the whole library. */
     val unplaced: Int = 0,
     /** "author" or "language": only the books without one. */
@@ -227,6 +228,7 @@ class LibraryViewModel(
                     val shown = shapeLibrary(rows, byWork, f.reading, f.prov, sort, favorites)
                     LibraryState(
                         unread = shapeLibrary(rows, byWork, "pending", f.prov, sort, favorites).size,
+                        readingCounts = READING_FILTERS.associateWith { shapeLibrary(rows, byWork, it, f.prov, sort, favorites).size },
                         provisional = rows.count { it.metadataStatus == "provisional" },
                         onlyProvisional = f.prov,
                         reading = f.reading,
@@ -560,13 +562,45 @@ private fun MenuHeading(text: String) {
     )
 }
 
-/** Location, reading status, favorites and "to complete", as chips under the search bar. */
+/**
+ * Favorites, genre, location and reading, as chips under the search bar; "to complete" and the statistics'
+ * "without author/language" follow only when they apply.
+ */
 @Composable
 private fun Filters(state: LibraryState, vm: LibraryViewModel) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item {
+            // Just the heart, so the four filters fit on a phone; TalkBack reads "Favorites".
+            val favorites = stringResource(R.string.nav_favorites)
+            FilterChip(
+                selected = state.favoritesOnly,
+                onClick = { vm.favoritesOnly.value = !state.favoritesOnly },
+                label = {
+                    Icon(
+                        if (state.favoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = favorites,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+            )
+        }
+        if (state.genres.isNotEmpty() || state.genre != null) item { GenreFilter(state) { vm.genre.value = it } }
+        item { LocationFilter(state, vm::setLocation) }
+        item { ReadingFilter(state, vm::setReading) }
+        if (state.provisional > 0 || state.onlyProvisional) {
+            item {
+                FilterChip(
+                    selected = state.onlyProvisional,
+                    onClick = { vm.onlyProvisional.value = !state.onlyProvisional },
+                    label = { Text(plural(R.string.library_toComplete_one, R.string.library_toComplete_other, state.provisional)) },
+                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+                )
+            }
+        }
         state.missing?.let { m ->
             item {
                 InputChip(
@@ -577,36 +611,32 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
                 )
             }
         }
-        item { LocationFilter(state, vm::setLocation) }
-        if (state.genres.isNotEmpty() || state.genre != null) item { GenreFilter(state) { vm.genre.value = it } }
-        items(READING_FILTERS) { status ->
-            val selected = state.reading == status
-            FilterChip(
-                selected = selected,
-                onClick = { vm.setReading(if (selected) null else status) },
-                label = {
-                    // "Unread 11": how many are still to read, at a glance.
-                    val name = stringResource(readingStatusLabel(status))
-                    Text(if (status == "pending" && state.unread > 0) "$name ${state.unread}" else name)
-                },
-                leadingIcon = if (selected) ({ Icon(Icons.Default.Check, contentDescription = null) }) else null,
+    }
+}
+
+/** Unread, reading or read in one dropdown chip, each with how many books it has. */
+@Composable
+private fun ReadingFilter(state: LibraryState, onSelect: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = state.reading != null,
+            onClick = { open = true },
+            label = { Text(stringResource(state.reading?.let(::readingStatusLabel) ?: R.string.library_readingFilter), maxLines = 1) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.library_anyReading)) },
+                onClick = { onSelect(null); open = false },
+                leadingIcon = { if (state.reading == null) Icon(Icons.Default.Check, contentDescription = null) },
             )
-        }
-        item {
-            FilterChip(
-                selected = state.favoritesOnly,
-                onClick = { vm.favoritesOnly.value = !state.favoritesOnly },
-                label = { Text(stringResource(R.string.nav_favorites)) },
-                leadingIcon = { Icon(if (state.favoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null) },
-            )
-        }
-        if (state.provisional > 0 || state.onlyProvisional) {
-            item {
-                FilterChip(
-                    selected = state.onlyProvisional,
-                    onClick = { vm.onlyProvisional.value = !state.onlyProvisional },
-                    label = { Text(plural(R.string.library_toComplete_one, R.string.library_toComplete_other, state.provisional)) },
-                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null) },
+            READING_FILTERS.forEach { status ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(readingStatusLabel(status))) },
+                    trailingIcon = { Text((state.readingCounts[status] ?: 0).toString(), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = { onSelect(status); open = false },
+                    leadingIcon = { if (state.reading == status) Icon(Icons.Default.Check, contentDescription = null) },
                 )
             }
         }
@@ -623,7 +653,6 @@ private fun LocationFilter(state: LibraryState, onSelect: (String?) -> Unit) {
             onClick = { open = true },
             // Short when nothing is chosen, so the chip stays whole on a phone; the menu says "All locations".
             label = { Text(state.location?.name ?: stringResource(R.string.library_locationFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -652,7 +681,6 @@ private fun GenreFilter(state: LibraryState, onSelect: (String?) -> Unit) {
             selected = state.genre != null,
             onClick = { open = true },
             label = { Text(state.genre ?: stringResource(R.string.library_genreFilter), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

@@ -372,4 +372,8 @@ export const es: Record<keyof typeof en, string> = {
   // Library genre filter.
   'library.genreFilter': 'Género',
   'library.allGenres': 'Todos los géneros',
+
+  // Library reading filter.
+  'library.readingFilter': 'Lectura',
+  'library.anyReading': 'Todos los libros',
 };

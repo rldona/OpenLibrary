@@ -364,7 +364,7 @@
     <string name="library_allLanguages">All languages</string>
     <string name="library_allLocations">All locations</string>
     <string name="library_allSubjects">All subjects</string>
-    <string name="library_anyReading">Any reading status</string>
+    <string name="library_anyReading">All books</string>
     <string name="library_books_one">{n} book</string>
     <string name="library_books_other">{n} books</string>
     <string name="library_clearFilters">Clear filters</string>
@@ -390,6 +390,7 @@
     <string name="library_noMatchesTitle">Nothing here</string>
     <string name="library_order">Order</string>
     <string name="library_place">Place</string>
+    <string name="library_readingFilter">Reading</string>
     <string name="library_removeFilter">Remove filter: {filter}</string>
     <string name="library_searchFor">search \"{q}\"</string>
     <string name="library_searchShort">Title, author or ISBN</string>

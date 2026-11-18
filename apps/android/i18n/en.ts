@@ -374,4 +374,8 @@ export const en = {
   // Library genre filter.
   'library.genreFilter': 'Genre',
   'library.allGenres': 'All genres',
+
+  // Library reading filter.
+  'library.readingFilter': 'Reading',
+  'library.anyReading': 'All books',
 } as const;
