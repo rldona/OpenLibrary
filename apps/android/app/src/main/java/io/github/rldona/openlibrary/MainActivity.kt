@@ -446,7 +446,7 @@ private fun App(c: AppContainer, connected: Boolean) {
                         }
                         screen<LocationsRoute>(topBar = true) {
                             val vm = viewModel<LocationsViewModel>(factory = viewModelFactory { initializer { LocationsViewModel(c) } })
-                            LocationsScreen(vm) { id -> nav.navigate(LibraryRoute(id)) }
+                            LocationsScreen(vm, onOpen = { id -> nav.navigate(LibraryRoute(id)) }, onPlace = { nav.navigate(UnplacedRoute) })
                         }
                         screen<SettingsRoute>(topBar = true) {
                             val vm = viewModel<SettingsViewModel>(
@@ -588,10 +588,10 @@ private fun BookForm(
         onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
-        onWishAdded = onWishAdded,
         onClose = { nav.popBackStack() },
     )
 }
+
 
 /** The five tabs, as a bottom bar or (wide windows) a rail; favorites are a filter of the library. */
 @Composable

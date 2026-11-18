@@ -298,4 +298,24 @@ export const es: Record<keyof typeof en, string> = {
   'unplaced.empty': 'Todos los libros tienen su sitio',
   'unplaced.emptyText': 'Aquí aparecen los libros que se añaden sin ubicación.',
   'unplaced.pick': 'Elige los libros',
+
+  // Redesign: locations.
+  'locations.rooms_one': '{n} estancia',
+  'locations.rooms_other': '{n} estancias',
+  'locations.totalBooks_one': '{n} libro en total',
+  'locations.totalBooks_other': '{n} libros en total',
+  'locations.waiting_one': '{n} libro espera balda',
+  'locations.waiting_other': '{n} libros esperan balda',
+  'locations.emptyShelf': 'vacía',
+  'locations.addFurniture': 'Añadir mueble',
+  'locations.addShelf': 'Añadir balda',
+  'locations.newRoom': 'Nueva estancia',
+  'locations.actions': 'Acciones de {name}',
+
+  // Redesign: edit book.
+  'edit.missing_one': 'Falta {n}',
+  'edit.missing_other': 'Faltan {n}',
+  'edit.fill': 'Rellenar lo que falta',
+  'language.other': 'Otro idioma…',
+  'language.code': 'Código del idioma, p. ej. ja',
 };
