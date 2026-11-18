@@ -3,8 +3,6 @@ package io.github.rldona.openlibrary.ui.book
 import io.github.rldona.openlibrary.ui.components.readableWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
@@ -24,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HideImage
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -43,22 +39,18 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.runtime.remember
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -66,7 +58,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -98,6 +89,9 @@ import io.github.rldona.openlibrary.ui.components.DestructiveDialog
 import io.github.rldona.openlibrary.ui.components.BusyLabel
 import io.github.rldona.openlibrary.ui.components.Cover
 import io.github.rldona.openlibrary.ui.components.LocationPicker
+import io.github.rldona.openlibrary.ui.components.ChipsField
+import io.github.rldona.openlibrary.ui.components.splitChips
+import io.github.rldona.openlibrary.ui.components.withDraft
 import io.github.rldona.openlibrary.ui.components.Picker
 import io.github.rldona.openlibrary.ui.detail.CONDITIONS
 import java.io.IOException
@@ -110,6 +104,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /** What the ISBN lookup found, shown above the form. */
 sealed interface LookupNotice {
@@ -135,6 +131,9 @@ class BookFormViewModel(
     var subtitle by mutableStateOf("")
     var authors by mutableStateOf("")
     var subjects by mutableStateOf("")
+    /** Typed in the chips fields and not confirmed yet: saved with the rest ([withDraft]). */
+    var authorDraft by mutableStateOf("")
+    var subjectDraft by mutableStateOf("")
     var suggestions by mutableStateOf<List<String>>(emptyList())
     var authorSuggestions by mutableStateOf<List<String>>(emptyList())
     var publisher by mutableStateOf("")
@@ -177,13 +176,16 @@ class BookFormViewModel(
 
     /** Everything the user can change, to tell whether leaving would lose something. */
     private data class Fields(
-        val isbn: String, val title: String, val subtitle: String, val authors: String, val publisher: String,
+        val isbn: String, val title: String, val subtitle: String, val authors: String, val subjects: String, val publisher: String,
         val year: String, val language: String, val pages: String, val provisional: Boolean, val locationId: String?,
         val condition: String, val notes: String, val photoId: String?, val providerCoverId: String?,
     )
 
     private fun fields() =
-        Fields(isbn, title, subtitle, authors, publisher, year, language, pages, provisional, locationId, condition, notes, photoId, providerCoverId)
+        Fields(
+            isbn, title, subtitle, withDraft(authors, authorDraft), withDraft(subjects, subjectDraft), publisher, year, language, pages,
+            provisional, locationId, condition, notes, photoId, providerCoverId,
+        )
 
     /** The form as it opened (empty, or the book being edited once loaded). */
     private var baseline by mutableStateOf(fields())
@@ -192,6 +194,14 @@ class BookFormViewModel(
     val dirty get() = fields() != baseline
 
     init {
+        // A new book goes where the last one went, if that place still exists.
+        if (workId == null) viewModelScope.launch {
+            val last = c.libraryPrefs.lastLocation.first()
+            if (last != null && c.db.catalog().locations().first().any { it.id == last } && locationId == null) {
+                locationId = last
+                baseline = baseline.copy(locationId = last)
+            }
+        }
         viewModelScope.launch {
             suggestions = c.db.catalog().subjects()
             authorSuggestions = c.db.catalog().authors()
@@ -379,6 +389,7 @@ class BookFormViewModel(
             titleMissing = true
             return
         }
+        commitDrafts()
         busy = true
         saving = true
         viewModelScope.launch {
@@ -418,6 +429,7 @@ class BookFormViewModel(
                 copy = NewCopy(uuidv7(), locationId = locationId, condition = condition, notes = notes.trim()),
             )
         c.writes.addBook(book, coverPhoto = photoId)
+        c.libraryPrefs.setLastLocation(locationId)
         // After the book's op, so the copy exists when the server applies this one.
         wish?.let { c.writes.acquireWish(it, book.copy.id) }
         return newWorkId
@@ -445,6 +457,7 @@ class BookFormViewModel(
             titleMissing = true
             return
         }
+        commitDrafts()
         busy = true
         viewModelScope.launch {
             try {
@@ -520,10 +533,17 @@ class BookFormViewModel(
         if (ef.isNotEmpty()) c.writes.editEdition(e, JsonObject(ef), coverPhoto = upload)
     }
 
-    private fun authorList() = authors.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    /** What is typed in the chips fields counts as confirmed when saving. */
+    private fun commitDrafts() {
+        authors = withDraft(authors, authorDraft)
+        subjects = withDraft(subjects, subjectDraft)
+        authorDraft = ""
+        subjectDraft = ""
+    }
 
-    private fun splitSubjects(value: String) =
-        value.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    private fun authorList() = splitChips(authors)
+
+    private fun splitSubjects(value: String) = splitChips(value)
 
     private fun text(s: String): JsonElement = s.trim().ifEmpty { null }?.let(::JsonPrimitive) ?: JsonNull
 }
@@ -583,14 +603,20 @@ fun BookFormScreen(
             // Said where the decision is made (fill in or look up), not at the bottom of the form.
             Text(stringResource(R.string.form_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-            vm.wish?.let { Notice(it) }
-            vm.notice?.let { n -> Notice(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
+            vm.wish?.let { WishNotice(it) }
+            vm.notice?.let { n -> LookupNoticeCard(n, onOpenWork, onAddCopy = { vm.addOwnedCopy(it, onSaved) }) }
 
             SectionTitle(stringResource(R.string.form_section_work))
             Field(stringResource(R.string.book_title), vm.title, { vm.title = it }, error = vm.titleMissing && vm.title.isBlank())
             Field(stringResource(R.string.book_subtitle), vm.subtitle, { vm.subtitle = it })
-            ChipsField(stringResource(R.string.book_authors), vm.authors, vm.authorSuggestions, stringResource(R.string.form_authorsPlaceholder)) { vm.authors = it }
-            ChipsField(stringResource(R.string.book_subjects), vm.subjects, vm.suggestions, stringResource(R.string.form_subjectsPlaceholder)) { vm.subjects = it }
+            ChipsField(
+                stringResource(R.string.book_authors), vm.authors, vm.authorDraft, { vm.authorDraft = it }, vm.authorSuggestions,
+                stringResource(R.string.form_authorsPlaceholder), { vm.authors = it },
+            )
+            ChipsField(
+                stringResource(R.string.book_subjects), vm.subjects, vm.subjectDraft, { vm.subjectDraft = it }, vm.suggestions,
+                stringResource(R.string.form_subjectsPlaceholder), { vm.subjects = it },
+            )
 
             SectionTitle(stringResource(R.string.drawer_edition))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -725,14 +751,14 @@ private fun CaptureButtons(onScan: () -> Unit, onIdentify: () -> Unit) {
 }
 
 @Composable
-private fun Notice(w: WishEntity) {
+internal fun WishNotice(w: WishEntity) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Text(str(R.string.wish_willBeAcquired, "title" to w.title), Modifier.padding(12.dp))
     }
 }
 
 @Composable
-private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (OwnedEdition) -> Unit) {
+internal fun LookupNoticeCard(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (OwnedEdition) -> Unit) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when (n) {
@@ -752,71 +778,6 @@ private fun Notice(n: LookupNotice, onOpenWork: (String) -> Unit, onAddCopy: (Ow
                         Button(onClick = { onAddCopy(n.edition) }) { Text(stringResource(R.string.form_addAnotherCopy)) }
                         OutlinedButton(onClick = { onOpenWork(n.edition.workId) }) { Text(stringResource(R.string.add_viewDetails)) }
                     }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ChipsField(label: String, value: String, suggestions: List<String>, placeholder: String, onChange: (String) -> Unit) {
-    val selected = value.split(';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-    var text by remember { mutableStateOf("") }
-
-    fun commit(raw: String) {
-        // A pasted "Ana García; Luis Pérez" still gives two chips.
-        val names = raw.split(';').map { it.trim() }.filter { it.isNotEmpty() }
-        if (names.isEmpty()) return
-        val added = names.filter { name -> selected.none { it.equals(name, ignoreCase = true) } }.distinctBy { it.lowercase() }
-        if (added.isNotEmpty()) onChange((selected + added).joinToString("; "))
-        text = ""
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        if (selected.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                selected.forEach { subject ->
-                    InputChip(
-                        selected = true,
-                        onClick = { onChange(selected.filter { it != subject }.joinToString("; ")) },
-                        label = { Text(subject) },
-                        trailingIcon = {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = stringResource(R.string.common_remove),
-                                modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
-                }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                placeholder = { Text(placeholder) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { commit(text) }),
-            )
-            IconButton(onClick = { commit(text) }, enabled = text.isNotBlank()) {
-                Icon(Icons.Default.Add, contentDescription = label)
-            }
-        }
-        val remaining = suggestions
-            .filter { suggestion ->
-                selected.none { it.equals(suggestion, ignoreCase = true) } &&
-                    (text.isBlank() || suggestion.contains(text.trim(), ignoreCase = true))
-            }
-            .take(12)
-        if (remaining.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                remaining.forEach { suggestion ->
-                    SuggestionChip(onClick = { commit(suggestion) }, label = { Text(suggestion) })
                 }
             }
         }
@@ -851,15 +812,16 @@ val BOOK_LANGUAGES = listOf("es", "en", "fr", "it", "pt", "de", "ca", "gl", "eu"
 /** ISO code typed or picked from the usual languages; the name under the field confirms the code was understood. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LanguageField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun LanguageField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, floatingLabel: Boolean = true) {
     var open by remember { mutableStateOf(false) }
     val name = languageName(value).takeIf { it != value.trim() }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = modifier) {
         OutlinedTextField(
             value = value,
             onValueChange = { onChange(it.take(8)) },
-            label = { Text(stringResource(R.string.book_language)) },
+            label = if (floatingLabel) ({ Text(stringResource(R.string.book_language)) }) else null,
             supportingText = name?.let { { Text(it) } },
+            shape = if (floatingLabel) OutlinedTextFieldDefaults.shape else MaterialTheme.shapes.large,
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),

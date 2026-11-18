@@ -1,5 +1,9 @@
 package io.github.rldona.openlibrary.ui.capture
 
+import android.graphics.Bitmap
+import androidx.camera.view.PreviewView
+import androidx.compose.runtime.LaunchedEffect
+
 import android.content.pm.ApplicationInfo
 import android.os.SystemClock
 import android.util.Log
@@ -29,7 +33,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -55,6 +58,7 @@ import io.github.rldona.openlibrary.core.extractCoverQuery
 import io.github.rldona.openlibrary.network.MetadataCandidate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import androidx.compose.runtime.setValue
 
 private const val TAG = "OpenLibraryScanner"
 private const val DOTS_INTERVAL_MS = 90L
@@ -68,7 +72,15 @@ private const val MAX_QUERY_CHARS = 200
  * dot at each corner so the reader can see what was understood.
  */
 @Composable
-internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate: (MetadataCandidate) -> Unit) {
+internal fun IdentifyCamera(
+    torch: Boolean,
+    search: IdentifySearch,
+    /** A result is on screen: no new search starts meanwhile. */
+    paused: Boolean,
+    /** Changing it allows searching again for the title already searched ("Retake photo"). */
+    retry: Int,
+    onResult: (IdentifyResult) -> Unit,
+) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -89,15 +101,18 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
     var candidates by remember { mutableStateOf<List<MetadataCandidate>>(emptyList()) }
     // Providers that answered: with no candidates and no sources, every provider failed.
     var sources by remember { mutableStateOf<List<String>>(emptyList()) }
-    var open by remember { mutableStateOf(false) }
+    var view by remember { mutableStateOf<PreviewView?>(null) }
+    val currentPaused by rememberUpdatedState(paused)
+    LaunchedEffect(retry) { if (retry > 0) searchedTitle = null }
 
     fun runSearch(q: CoverQuery) {
         if (searching) return
         lastQuery = q
         searching = true
-        open = false
         candidates = emptyList()
         sources = emptyList()
+        // The cover as it is now, cropped to the frame: the book's cover if no provider has one.
+        val snapshot = runCatching { snapshotOf(view, frame) }.getOrNull()
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         if (debuggable) Log.d(TAG, "cover query: title='${q.title}' author='${q.author}'")
         scope.launch {
@@ -113,7 +128,7 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
                 if (debuggable) Log.w(TAG, "cover search failed", e)
             } finally {
                 searching = false
-                open = true
+                onResult(IdentifyResult(candidates.take(MAX_CANDIDATES), failed = candidates.isEmpty() && sources.isEmpty(), snapshot = snapshot))
             }
         }
     }
@@ -161,7 +176,7 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
                         return@MlKitAnalyzer
                     }
                     detected = true
-                    if (open || searching) return@MlKitAnalyzer
+                    if (currentPaused || searching) return@MlKitAnalyzer
                     if (key == searchedTitle) return@MlKitAnalyzer
                     searchedTitle = key
                     runSearch(query)
@@ -172,7 +187,7 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
     DisposableEffect(recognizer) { onDispose { recognizer.close() } }
 
     Box(Modifier.fillMaxSize()) {
-        CameraPreview(controller, torch)
+        CameraPreview(controller, torch, onView = { view = it })
         Viewfinder(stringResource(R.string.capture_identifyHint), highlight = detected, onFrame = { frame = it }, shape = ::coverFrame)
         val accent = MaterialTheme.colorScheme.primary
         Canvas(Modifier.fillMaxSize()) {
@@ -199,16 +214,21 @@ internal fun IdentifyCamera(torch: Boolean, search: IdentifySearch, onCandidate:
                 }
             }
         }
-        if (open) {
-            CandidateDialog(
-                candidates = candidates.take(MAX_CANDIDATES),
-                failed = candidates.isEmpty() && sources.isEmpty(),
-                onPick = onCandidate,
-                onRetry = { lastQuery?.let(::runSearch) },
-                onDismiss = { open = false },
-            )
-        }
     }
+}
+
+/** What a cover search found: up to [MAX_CANDIDATES] books, whether every provider failed, and the photo. */
+internal class IdentifyResult(val candidates: List<MetadataCandidate>, val failed: Boolean, val snapshot: ByteArray?)
+
+/** The preview's picture inside [frame] (both in view coordinates), as a JPEG. */
+private fun snapshotOf(view: PreviewView?, frame: PixelRect?): ByteArray? {
+    val bitmap = view?.bitmap ?: return null
+    val f = frame ?: return null
+    val left = f.left.toInt().coerceIn(0, bitmap.width - 1)
+    val top = f.top.toInt().coerceIn(0, bitmap.height - 1)
+    val width = (f.right.toInt() - left).coerceIn(1, bitmap.width - left)
+    val height = (f.bottom.toInt() - top).coerceIn(1, bitmap.height - top)
+    return compress(Bitmap.createBitmap(bitmap, left, top, width, height))
 }
 
 /** OCR jitter in case or punctuation must not restart the two-frame stability count. */

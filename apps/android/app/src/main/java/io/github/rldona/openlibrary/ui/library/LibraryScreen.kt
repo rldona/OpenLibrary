@@ -33,7 +33,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -42,9 +41,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AppBarWithSearch
@@ -68,12 +65,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,7 +97,9 @@ import io.github.rldona.openlibrary.data.LocationEntity
 import io.github.rldona.openlibrary.sync.CoverStore
 import io.github.rldona.openlibrary.sync.SyncStatus
 import io.github.rldona.openlibrary.sync.pathOf
-import io.github.rldona.openlibrary.ui.components.AddFabMenu
+import io.github.rldona.openlibrary.ui.components.AddFab
+import io.github.rldona.openlibrary.ui.book.AddBookSheet
+import io.github.rldona.openlibrary.ui.book.AddWay
 import io.github.rldona.openlibrary.ui.components.BookTitle
 import io.github.rldona.openlibrary.ui.components.Cover
 import io.github.rldona.openlibrary.ui.components.Spacing
@@ -110,7 +107,6 @@ import io.github.rldona.openlibrary.ui.components.animateGridItem
 import io.github.rldona.openlibrary.ui.components.animateListItem
 import io.github.rldona.openlibrary.ui.components.pageListItemColors
 import io.github.rldona.openlibrary.ui.components.EmptyState
-import io.github.rldona.openlibrary.ui.components.FabItem
 import io.github.rldona.openlibrary.ui.components.FillCover
 import io.github.rldona.openlibrary.ui.components.LoadingState
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
@@ -130,6 +126,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 data class LibraryItem(val row: LibraryRow, val place: List<String>)
 
@@ -174,6 +172,11 @@ class LibraryViewModel(
     private val readingFilter = MutableStateFlow<String?>(null)
     private val locations = c.db.catalog().locations()
     private val prefs = c.libraryPrefs
+    /** Every location, for "where it goes" in the add sheet. */
+    val places = locations
+    val lastLocation = prefs.lastLocation
+
+    fun setLastLocation(id: String?) = viewModelScope.launch { prefs.setLastLocation(id) }
     val recentSearches = prefs.recentSearches
 
     val state: StateFlow<LibraryState> =
@@ -296,11 +299,21 @@ fun LibraryScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onOpen: (workId: String, editionId: String) -> Unit,
-    onAdd: () -> Unit,
-    onBulk: () -> Unit,
-    onIdentify: () -> Unit,
+    onAdd: (AddWay) -> Unit,
     onReview: () -> Unit,
 ) {
+    var adding by rememberSaveable { mutableStateOf(false) }
+    if (adding) {
+        val places by vm.places.collectAsStateWithLifecycle(emptyList())
+        val lastPlace by vm.lastLocation.collectAsStateWithLifecycle(null)
+        AddBookSheet(
+            places,
+            locationId = lastPlace?.takeIf { id -> places.any { it.id == id } },
+            onLocation = vm::setLastLocation,
+            onChoose = { adding = false; onAdd(it) },
+            onDismiss = { adding = false },
+        )
+    }
     val state by vm.state.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val sync by vm.syncState.collectAsStateWithLifecycle(null)
@@ -390,14 +403,7 @@ fun LibraryScreen(
             }
         },
         floatingActionButton = {
-            AddFabMenu(
-                listOf(
-                    FabItem(stringResource(R.string.book_add), Icons.Default.Add, "add", onAdd),
-                    FabItem(stringResource(R.string.bulk_title), Icons.Default.QrCodeScanner, "bulk", onBulk),
-                    FabItem(stringResource(R.string.add_identify), Icons.Default.ImageSearch, "identify", onIdentify),
-                ),
-                visible = fab.visible,
-            )
+            AddFab(visible = fab.visible) { adding = true }
         },
         snackbarHost = { snackbar.ScreenHost() },
         containerColor = MaterialTheme.colorScheme.background,
@@ -427,7 +433,7 @@ fun LibraryScreen(
                         Icons.AutoMirrored.Filled.LibraryBooks,
                         stringResource(R.string.library_emptyTitle),
                         text = stringResource(R.string.library_emptyText),
-                        action = stringResource(R.string.book_add) to onAdd,
+                        action = stringResource(R.string.book_add) to { adding = true },
                     )
                 else -> Books(
                     state.items,

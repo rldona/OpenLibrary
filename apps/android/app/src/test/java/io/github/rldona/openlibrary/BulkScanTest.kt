@@ -57,7 +57,7 @@ class BulkScanTest {
     @After
     fun tearDown() = db.close()
 
-    private fun scan() = BulkScan(db, writes, scope, lookup = { lookup(it) }, fetchCover = { null })
+    private fun scan(graceMs: Long = 0) = BulkScan(db, writes, scope, lookup = { lookup(it) }, fetchCover = { null }, graceMs = graceMs)
 
     private suspend fun settled(s: BulkScan, n: Int) =
         withTimeout(5_000) { s.items.first { l -> l.size == n && l.none { it.state == BulkItem.State.LookingUp } } }
@@ -100,5 +100,42 @@ class BulkScanTest {
         again.addCopy(again.items.value.single(), null)
         withTimeout(5_000) { again.items.first { it.single().state == BulkItem.State.Added } }
         assertTrue(LocalWrites.decode(db.outbox().allPending().last().payload) is Op.CopyCreate)
+    }
+
+    @Test
+    fun aBookCanBeUndoneUntilItIsWritten() = runBlocking {
+        val s = scan(graceMs = 60_000)
+        s.add(known, "loc-1")
+        val shown = settled(s, 1).single()
+        // Shown as added, but nothing written yet: "Undo" leaves no trace.
+        assertEquals(BulkItem.State.Added, shown.state)
+        assertFalse(shown.saved)
+        assertTrue(db.outbox().allPending().isEmpty())
+        assertTrue(s.undo(shown.key))
+        assertEquals(BulkItem.State.Undone, s.items.value.single().state)
+        s.commitAll()
+        assertTrue(db.outbox().allPending().isEmpty())
+
+        // Scanned again after undoing it, then written when the next one is scanned.
+        assertTrue(s.add(known, "loc-1"))
+        withTimeout(5_000) { s.items.first { l -> l.single().state == BulkItem.State.Added } }
+        s.add(unknown, "loc-1")
+        withTimeout(5_000) { s.items.first { l -> l.first { it.isbn13 == known }.saved } }
+        assertFalse(s.undo(known))
+        val ops = db.outbox().allPending().map { LocalWrites.decode(it.payload) }.filterIsInstance<Op.BookCreate>()
+        assertEquals(listOf(known), ops.map { it.book.edition.isbn13 })
+    }
+
+    @Test
+    fun aPhotoForAPendingBookGoesWithIt() = runBlocking {
+        val s = scan(graceMs = 60_000)
+        s.add(known, null)
+        val item = settled(s, 1).single()
+        s.setPhoto(item.key, "photo-1")
+        withTimeout(5_000) { s.items.first { it.single().coverId == "photo-1" } }
+        s.commitAll()
+        withTimeout(5_000) { s.items.first { it.single().saved } }
+        val op = db.outbox().allPending().map { LocalWrites.decode(it.payload) }.filterIsInstance<Op.BookCreate>().single()
+        assertEquals("photo-1", op.book.edition.coverAssetId)
     }
 }

@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import io.github.rldona.openlibrary.ui.components.NavLayout
 import io.github.rldona.openlibrary.ui.components.navLayoutFor
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentScope
@@ -65,12 +64,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -100,9 +97,11 @@ import io.github.rldona.openlibrary.ui.book.BookFormScreen
 import io.github.rldona.openlibrary.ui.book.BookFormViewModel
 import io.github.rldona.openlibrary.ui.capture.CaptureMode
 import io.github.rldona.openlibrary.ui.capture.CaptureScreen
-import io.github.rldona.openlibrary.ui.capture.BulkScanScreen
-import io.github.rldona.openlibrary.ui.capture.BulkScanViewModel
-import io.github.rldona.openlibrary.ui.capture.IdentifySearch
+import io.github.rldona.openlibrary.ui.capture.ScanMode
+import io.github.rldona.openlibrary.ui.capture.ScanScreen
+import io.github.rldona.openlibrary.ui.capture.ScanViewModel
+import io.github.rldona.openlibrary.ui.book.AddBookScreen
+import io.github.rldona.openlibrary.ui.book.AddWay
 import io.github.rldona.openlibrary.ui.cover.CoverViewModel
 import io.github.rldona.openlibrary.ui.cover.CoverViewerScreen
 import io.github.rldona.openlibrary.ui.components.AppSnackbar
@@ -124,11 +123,12 @@ import io.github.rldona.openlibrary.ui.settings.SettingsViewModel
 import io.github.rldona.openlibrary.ui.setup.SetupScreen
 import io.github.rldona.openlibrary.ui.setup.SetupViewModel
 import io.github.rldona.openlibrary.ui.theme.OpenLibraryTheme
-import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 @Serializable object SetupRoute
 @Serializable data class LibraryRoute(val locationId: String? = null)
@@ -139,13 +139,13 @@ import kotlinx.serialization.Serializable
 @Serializable object WishlistRoute
 @Serializable object StatsRoute
 @Serializable data class EditBookRoute(val workId: String, val editionId: String)
-/** Full-screen camera: `mode` is "isbn", "cover" or "identify"; `tabs` lets the user switch between them. */
-/** [closeForm]: opened straight from the library, so leaving with nothing also drops the empty add-book form below. */
+/** Full-screen camera for one capture: `mode` is "isbn" or "cover"; `tabs` lets the user switch between them. */
 /** `gallery` opens the picture picker at once; the camera stays behind it as the fallback. */
-@Serializable data class CaptureRoute(val mode: String, val tabs: Boolean, val closeForm: Boolean = false, val gallery: Boolean = false)
+@Serializable data class CaptureRoute(val mode: String, val tabs: Boolean, val gallery: Boolean = false)
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
-@Serializable object BulkScanRoute
+/** The camera to add books: "code" (barcodes, one or many) or "cover" (identify a cover). */
+@Serializable data class ScanRoute(val mode: String = "code")
 
 /** A FragmentActivity because the system fingerprint/PIN prompt needs one. */
 class MainActivity : FragmentActivity() {
@@ -320,13 +320,12 @@ private fun App(c: AppContainer, connected: Boolean) {
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedVisibilityScope = this,
                                 onOpen = { workId, editionId -> nav.navigate(DetailRoute(workId, editionId)) },
-                                onAdd = { nav.navigate(AddBookRoute()) },
-                                onBulk = { nav.navigate(BulkScanRoute) },
-                                // Straight to the identify camera, with the add-book form below it to receive
-                                // the candidate. Both in one go: the empty form is never shown on the way in.
-                                onIdentify = {
-                                    nav.navigate(AddBookRoute())
-                                    nav.navigate(CaptureRoute("identify", tabs = true, closeForm = true))
+                                onAdd = { way ->
+                                    when (way) {
+                                        AddWay.Scan -> nav.navigate(ScanRoute("code"))
+                                        AddWay.Cover -> nav.navigate(ScanRoute("cover"))
+                                        AddWay.Type -> nav.navigate(AddBookRoute())
+                                    }
                                 },
                                 onReview = { nav.navigate(ReviewRoute) },
                             )
@@ -392,31 +391,11 @@ private fun App(c: AppContainer, connected: Boolean) {
                         }
                         screen<CaptureRoute>(fullScreen = true) { e ->
                             val route = e.toRoute<CaptureRoute>()
-                            // The identify tab needs the server search; routes from the wishlist (tabs=false) do not show it.
-                            val identify: IdentifySearch? = remember(route.tabs) {
-                                if (!route.tabs) null
-                                else { title: String, author: String? ->
-                                    val s = c.sessions.session.first() ?: throw IOException("Not connected")
-                                    c.api(s.serverUrl, s.token).search(title, author)
-                                }
-                            }
-                            val start = when (route.mode) {
-                                "cover" -> CaptureMode.Cover
-                                "identify" -> CaptureMode.Identify
-                                else -> CaptureMode.Isbn
-                            }
-                            val cancel = { nav.popBackStack<AddBookRoute>(inclusive = true) }
-                            // The editor inside the camera registers its own back handler later, so it still wins.
-                            BackHandler(enabled = route.closeForm) { cancel() }
-                            CaptureScreen(c.covers, start, route.tabs, identify = identify, startWithGallery = route.gallery) { result ->
-                                if (route.closeForm && result.isbn == null && result.photoId == null && result.candidate == null) {
-                                    cancel()
-                                    return@CaptureScreen
-                                }
+                            val start = if (route.mode == "cover") CaptureMode.Cover else CaptureMode.Isbn
+                            CaptureScreen(c.covers, start, route.tabs, startWithGallery = route.gallery) { result ->
                                 nav.previousBackStackEntry?.savedStateHandle?.let { h ->
                                     result.isbn?.let { h["isbn"] = it }
                                     result.photoId?.let { h["photo"] = it }
-                                    result.candidate?.let { h["candidate"] = ApiJson.encodeToString(MetadataCandidate.serializer(), it) }
                                 }
                                 nav.popBackStack()
                             }
@@ -426,9 +405,31 @@ private fun App(c: AppContainer, connected: Boolean) {
                             val vm = viewModel<CoverViewModel>(factory = viewModelFactory { initializer { CoverViewModel(c, route.assetId) } })
                             CoverViewerScreen(vm, route.title) { nav.popBackStack() }
                         }
-                        screen<BulkScanRoute>(fullScreen = true) {
-                            val vm = viewModel<BulkScanViewModel>(factory = viewModelFactory { initializer { BulkScanViewModel(c) } })
-                            BulkScanScreen(vm, onOpen = { nav.navigate(DetailRoute(it)) }, onClose = { nav.popBackStack() })
+                        screen<ScanRoute>(fullScreen = true) { e ->
+                            val route = e.toRoute<ScanRoute>()
+                            val vm = viewModel<ScanViewModel>(factory = viewModelFactory { initializer { ScanViewModel(c) } })
+                            // "Add photo" for a book saved without a cover: the camera hands the photo back here.
+                            val photo by e.savedStateHandle.getStateFlow<String?>("photo", null).collectAsStateWithLifecycle()
+                            LaunchedEffect(photo) {
+                                photo?.let {
+                                    vm.photoTaken(it)
+                                    e.savedStateHandle["photo"] = null
+                                }
+                            }
+                            ScanScreen(
+                                vm,
+                                start = if (route.mode == "cover") ScanMode.Cover else ScanMode.Code,
+                                onOpen = { nav.navigate(DetailRoute(it)) },
+                                onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+                                onByHand = { candidate, photoId ->
+                                    nav.navigate(AddBookRoute()) { popUpTo<ScanRoute> { inclusive = true } }
+                                    nav.currentBackStackEntry?.savedStateHandle?.let { h ->
+                                        candidate?.let { h["candidate"] = ApiJson.encodeToString(MetadataCandidate.serializer(), it) }
+                                        photoId?.let { h["photo"] = it }
+                                    }
+                                },
+                                onClose = { nav.popBackStack() },
+                            )
                         }
                         screen<ReviewRoute>(topBar = true) {
                             val vm = viewModel<ReviewViewModel>(factory = viewModelFactory { initializer { ReviewViewModel(c) } })
@@ -558,16 +559,27 @@ private fun BookForm(
             state["candidate"] = null
         }
     }
+    if (!vm.editing) {
+        AddBookScreen(
+            vm,
+            onScanIsbn = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
+            onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
+            onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
+            onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
+            onSaved = onSaved,
+            onWishAdded = onWishAdded,
+            onClose = { nav.popBackStack() },
+        )
+        return
+    }
     BookFormScreen(
         vm,
-        // Adding a book: ISBN then cover in one camera session. Editing: just the camera for each.
-        onScan = { nav.navigate(CaptureRoute("isbn", tabs = !vm.editing)) },
+        onScan = { nav.navigate(CaptureRoute("isbn", tabs = false)) },
         onPhoto = { nav.navigate(CaptureRoute("cover", tabs = false)) },
         onGallery = { nav.navigate(CaptureRoute("cover", tabs = false, gallery = true)) },
         onOpenWork = { workId -> nav.navigate(DetailRoute(workId)) },
         onSaved = onSaved,
         onWishAdded = onWishAdded,
-        onIdentify = { nav.navigate(CaptureRoute("identify", tabs = !vm.editing)) },
         onClose = { nav.popBackStack() },
     )
 }
