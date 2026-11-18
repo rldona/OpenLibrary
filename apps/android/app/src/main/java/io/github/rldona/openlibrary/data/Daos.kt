@@ -61,6 +61,10 @@ interface CatalogDao {
     @Query("SELECT editionId, locationId FROM copies WHERE status = 'active'")
     fun placements(): Flow<List<Placement>>
 
+    /** Copies still to be put somewhere (the library's "not placed" notice). */
+    @Query("SELECT * FROM copies WHERE status = 'active' AND locationId IS NULL ORDER BY createdAt")
+    fun unplacedCopies(): Flow<List<CopyEntity>>
+
     /** Works with at least one reading; the others are "pending". Same rule as [workReadingStatus]. */
     @Query(
         """

@@ -429,7 +429,7 @@ class BookFormViewModel(
                 copy = NewCopy(uuidv7(), locationId = locationId, condition = condition, notes = notes.trim()),
             )
         c.writes.addBook(book, coverPhoto = photoId)
-        c.libraryPrefs.setLastLocation(locationId)
+        locationId?.let { c.libraryPrefs.setLastLocation(it) }
         // After the book's op, so the copy exists when the server applies this one.
         wish?.let { c.writes.acquireWish(it, book.copy.id) }
         return newWorkId

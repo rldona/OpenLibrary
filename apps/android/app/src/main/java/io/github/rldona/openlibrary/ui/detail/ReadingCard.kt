@@ -11,6 +11,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.rldona.openlibrary.ui.components.RatingBar
 import io.github.rldona.openlibrary.ui.components.Spacing
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -119,6 +120,8 @@ fun ReadingCard(
     onAction: (ReadingAction) -> Unit,
     /** A change is being written: the status row waits, so a second tap cannot start a second reading. */
     busy: Boolean = false,
+    /** Without the card and its title: the status row stands on its own under the book's header. */
+    plain: Boolean = false,
 ) {
     val status = workReadingStatus(readings)
     val latest = editableReading(readings)
@@ -127,9 +130,9 @@ fun ReadingCard(
     var editingNotes by remember { mutableStateOf(false) }
     val codeOf = { id: String -> copies.firstOrNull { it.id == id }?.code?.ifEmpty { null } ?: "—" }
 
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(Spacing.item), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.reading_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+    ReadingFrame(plain) {
+        Column(Modifier.padding(if (plain) 0.dp else Spacing.item), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!plain) Text(stringResource(R.string.reading_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             if (current == null && copies.size > 1) {
                 Picker(stringResource(R.string.reading_copy), copyId, copies.map { it.id to codeOf(it.id) }, { copyId = it }, Modifier.fillMaxWidth())
             }
@@ -214,4 +217,9 @@ private fun NotesDialog(initial: String, onDismiss: () -> Unit, onSave: (String)
         confirmButton = { TextButton(onClick = { onSave(text.trim()) }) { Text(stringResource(R.string.common_save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+@Composable
+private fun ReadingFrame(plain: Boolean, content: @Composable () -> Unit) {
+    if (plain) Box(Modifier.fillMaxWidth()) { content() } else OutlinedCard(Modifier.fillMaxWidth()) { content() }
 }

@@ -87,8 +87,9 @@ fun LocationSheet(
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val rooms = remember(locations) { roomShelves(locations) }
     val byId = remember(locations) { locations.associateBy { it.id } }
-    var selected by rememberSaveable { mutableStateOf(initial?.takeIf { it in byId }) }
     val lastUsed = lastUsedId?.takeIf { it in byId && roomOf(rooms, it) != null }
+    // The current place, or else the last one used: one tap on the button puts the book there.
+    var selected by rememberSaveable { mutableStateOf(initial?.takeIf { it in byId } ?: lastUsed) }
     // The room of the selection (or of the last place) opens; with a single room, that one.
     val openFirst = (roomOf(rooms, selected) ?: roomOf(rooms, lastUsed) ?: rooms.singleOrNull() ?: rooms.firstOrNull())?.room?.id
     var open by rememberSaveable { mutableStateOf(setOfNotNull(openFirst).toList()) }
