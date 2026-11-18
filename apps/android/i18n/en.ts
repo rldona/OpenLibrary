@@ -259,4 +259,22 @@ export const en = {
   'manual.hint': 'Only the title is required. You can complete the rest later from the book.',
   'manual.save': 'Save book',
   'manual.toWishlist': 'Not mine yet: save to wishlist',
+
+  // Redesign: book detail.
+  'detail.unplaced': 'Not placed yet',
+  'detail.place': 'Put on a shelf',
+  'detail.move': 'Move',
+  'detail.missing_one': '{fields} missing',
+  'detail.missing_other': '{fields} missing',
+  'detail.complete': 'Complete',
+  'detail.field.author': 'author',
+  'detail.field.publisher': 'publisher',
+  'detail.field.year': 'year',
+  'detail.field.language': 'language',
+  'list.and': 'and',
+  'detail.quotesNotes': 'Quotes and notes',
+  'detail.fullRecord': 'Full record',
+  'detail.copyN': 'Copy {code}',
+  'detail.editCopy': 'Edit copy',
+  'detail.retiredCopies': 'Retired',
 } as const;

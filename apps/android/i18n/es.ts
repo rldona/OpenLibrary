@@ -257,4 +257,22 @@ export const es: Record<keyof typeof en, string> = {
   'manual.hint': 'Solo el título es obligatorio. El resto puedes completarlo después desde la ficha.',
   'manual.save': 'Guardar libro',
   'manual.toWishlist': 'Aún no lo tengo: guardar en deseos',
+
+  // Redesign: book detail.
+  'detail.unplaced': 'Sin colocar todavía',
+  'detail.place': 'Colocar en una balda',
+  'detail.move': 'Mover',
+  'detail.missing_one': 'Falta {fields}',
+  'detail.missing_other': 'Faltan {fields}',
+  'detail.complete': 'Completar',
+  'detail.field.author': 'autor',
+  'detail.field.publisher': 'editorial',
+  'detail.field.year': 'año',
+  'detail.field.language': 'idioma',
+  'list.and': 'y',
+  'detail.quotesNotes': 'Citas y notas',
+  'detail.fullRecord': 'Ficha completa',
+  'detail.copyN': 'Ejemplar {code}',
+  'detail.editCopy': 'Editar ejemplar',
+  'detail.retiredCopies': 'Retirados',
 };

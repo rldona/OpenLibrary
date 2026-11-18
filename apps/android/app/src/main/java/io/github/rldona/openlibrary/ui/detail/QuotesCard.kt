@@ -3,6 +3,8 @@ package io.github.rldona.openlibrary.ui.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,22 +42,30 @@ sealed interface QuoteAction {
 
 /** Deleting has no confirmation: the screen offers "Undo" instead ([onDelete]). */
 @Composable
-fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (QuoteAction) -> Unit, onDelete: (QuoteEntity) -> Unit) {
+fun QuotesCard(
+    quotes: List<QuoteEntity>,
+    copies: List<CopyEntity>,
+    onAction: (QuoteAction) -> Unit,
+    onDelete: (QuoteEntity) -> Unit,
+    /** A row of the detail ("Quotes and notes · Add") instead of a card. */
+    row: Boolean = false,
+) {
     var editing by remember { mutableStateOf<QuoteEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
-    OutlinedCard(Modifier.fillMaxWidth()) {
+    val title = stringResource(if (row) R.string.detail_quotesNotes else R.string.quotes_title)
+    QuotesFrame(row) {
         if (quotes.isEmpty()) {
             // Nothing to read yet: one row, so an empty card does not take a block of the page.
-            Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = if (row) 8.dp else 12.dp, end = 4.dp).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    stringResource(R.string.quotes_title),
+                    title,
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                TextButton(onClick = { adding = true }) { Text(stringResource(R.string.quotes_add)) }
+                TextButton(onClick = { adding = true }) { Text(stringResource(if (row) R.string.add_fab else R.string.quotes_add)) }
             }
-        } else Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.quotes_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        } else Column(Modifier.padding(if (row) 8.dp else 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             quotes.forEach { q ->
                 Column {
                     Text("“${q.text}”", style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
@@ -82,6 +92,11 @@ fun QuotesCard(quotes: List<QuoteEntity>, copies: List<CopyEntity>, onAction: (Q
             editing = null
         }
     }
+}
+
+@Composable
+private fun QuotesFrame(row: Boolean, content: @Composable () -> Unit) {
+    if (row) Box(Modifier.fillMaxWidth()) { content() } else OutlinedCard(Modifier.fillMaxWidth()) { content() }
 }
 
 /** An alert dialog, not a sheet: three short fields (and a copy picker only with several copies) fit in it. */
