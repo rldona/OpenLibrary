@@ -237,6 +237,7 @@
     <string name="device_disconnectConfirm">Se borrará la copia de la biblioteca de este móvil. Podrás volver a conectarlo con tu contraseña.</string>
     <string name="device_disconnectPending_one">Hay {n} cambio hecho en este móvil que aún no ha llegado al servidor y se perderá. Sincroniza antes si puedes.</string>
     <string name="device_disconnectPending_other">Hay {n} cambios hechos en este móvil que aún no han llegado al servidor y se perderán. Sincroniza antes si puedes.</string>
+    <string name="device_disconnectThis">Desconectar este móvil</string>
     <string name="device_lastSync">Última sincronización</string>
     <string name="device_revoked">Este móvil ya no tiene acceso. Vuelve a conectarlo con tu contraseña.</string>
     <string name="device_thisDevice">Este móvil</string>
@@ -614,6 +615,8 @@
     <string name="server_notRecognised">Ese servidor no reconoce este móvil. Si es otra biblioteca, desconecta este móvil y vuelve a conectarlo.</string>
     <string name="server_unreachable">En esa dirección no responde ningún servidor de OpenLibrary.</string>
     <string name="settings_about">Acerca de</string>
+    <string name="settings_advanced">Avanzado</string>
+    <string name="settings_advancedText">Servidor y versión de datos</string>
     <string name="settings_appearance">Apariencia</string>
     <string name="settings_appVersion">Versión de la app</string>
     <string name="settings_browser">Navegador</string>
@@ -621,6 +624,7 @@
     <string name="settings_created">creado {date}</string>
     <string name="settings_currentPassword">Actual</string>
     <string name="settings_device">Dispositivo {platform}</string>
+    <string name="settings_encryptedShort">datos cifrados</string>
     <string name="settings_epoch">Epoch de datos</string>
     <string name="settings_language">Idioma</string>
     <string name="settings_languageHint">La aplicación y los mensajes del servidor usan este idioma. Se recuerda en este navegador.</string>
@@ -645,8 +649,10 @@
     <string name="settings_storageEncrypted">Siempre cifrados</string>
     <string name="settings_subtitle">Idioma, servidor, sesiones y seguridad.</string>
     <string name="settings_sync">Sincronización</string>
+    <string name="settings_thisPhone">Este móvil</string>
     <string name="settings_thisSession">esta sesión</string>
     <string name="settings_version">Versión</string>
+    <string name="settings_versionN">versión {v}</string>
     <string name="setup_connect">Conectar</string>
     <string name="setup_connecting">Conectando…</string>
     <string name="setup_deviceName">Nombre de este móvil</string>
@@ -728,6 +734,7 @@
     <string name="sync_savedLocally">Guardado en este móvil. Llegará al servidor en la próxima sincronización.</string>
     <string name="sync_synced">Sincronizado · {ago}</string>
     <string name="sync_syncing">Sincronizando…</string>
+    <string name="sync_upToDate">Al día · {ago}</string>
     <string name="theme_dark">Oscuro</string>
     <string name="theme_light">Claro</string>
     <string name="theme_system">Sistema</string>

@@ -1,6 +1,5 @@
 package io.github.rldona.openlibrary.ui.components
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -10,27 +9,19 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButtonMenu
-import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleFloatingActionButton
-import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -39,7 +30,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.traversalIndex
 import io.github.rldona.openlibrary.R
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -167,7 +157,7 @@ class FabVisibility {
 @Composable
 fun rememberFabVisibility(): FabVisibility = remember { FabVisibility() }
 
-/** The extended "Add" button; it hides while the list scrolls down, like [AddFabMenu]. */
+/** The extended "Add" button; it hides while the list scrolls down. */
 @Composable
 fun AddFab(visible: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     androidx.compose.animation.AnimatedVisibility(
@@ -187,51 +177,3 @@ fun AddFab(visible: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit)
     }
 }
 
-/** One entry of [AddFabMenu]. */
-class FabItem(val label: String, val icon: ImageVector, val testTag: String? = null, val onClick: () -> Unit)
-
-/**
- * The "+" button that opens into the ways of adding something (Expressive FAB menu). It hides while the
- * content scrolls down ([visible]); back closes it.
- */
-@Composable
-fun AddFabMenu(items: List<FabItem>, visible: Boolean, modifier: Modifier = Modifier) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    BackHandler(expanded) { expanded = false }
-    val toggleLabel = stringResource(if (expanded) R.string.fab_close else R.string.fab_open)
-    FloatingActionButtonMenu(
-        expanded = expanded,
-        modifier = modifier,
-        button = {
-            ToggleFloatingActionButton(
-                checked = expanded,
-                onCheckedChange = { expanded = it },
-                modifier = Modifier
-                    .semantics {
-                        // Read before the items it opens.
-                        traversalIndex = -1f
-                        contentDescription = toggleLabel
-                    }
-                    .animateFloatingActionButton(visible = visible || expanded, alignment = Alignment.BottomEnd),
-            ) {
-                Icon(
-                    if (checkedProgress > 0.5f) Icons.Default.Close else Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.animateIcon({ checkedProgress }),
-                )
-            }
-        },
-    ) {
-        items.forEach { item ->
-            FloatingActionButtonMenuItem(
-                onClick = {
-                    expanded = false
-                    item.onClick()
-                },
-                text = { Text(item.label) },
-                icon = { Icon(item.icon, contentDescription = null) },
-                modifier = item.testTag?.let { Modifier.testTag(it) } ?: Modifier,
-            )
-        }
-    }
-}

@@ -237,6 +237,7 @@
     <string name="device_disconnectConfirm">The copy of the library on this phone will be deleted. You can connect again with your password.</string>
     <string name="device_disconnectPending_one">{n} change made on this phone has not reached the server yet and will be lost. Sync first if you can.</string>
     <string name="device_disconnectPending_other">{n} changes made on this phone have not reached the server yet and will be lost. Sync first if you can.</string>
+    <string name="device_disconnectThis">Disconnect this phone</string>
     <string name="device_lastSync">Last sync</string>
     <string name="device_revoked">This phone no longer has access. Connect again with your password.</string>
     <string name="device_thisDevice">This phone</string>
@@ -614,6 +615,8 @@
     <string name="server_notRecognised">That server does not recognise this phone. If it is another library, disconnect this phone and connect again.</string>
     <string name="server_unreachable">No OpenLibrary server answers at that address.</string>
     <string name="settings_about">About</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_advancedText">Server and data version</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_appVersion">App version</string>
     <string name="settings_browser">Browser</string>
@@ -621,6 +624,7 @@
     <string name="settings_created">created {date}</string>
     <string name="settings_currentPassword">Current</string>
     <string name="settings_device">{platform} device</string>
+    <string name="settings_encryptedShort">encrypted data</string>
     <string name="settings_epoch">Data epoch</string>
     <string name="settings_language">Language</string>
     <string name="settings_languageHint">The app and the server messages use this language. It is remembered on this browser.</string>
@@ -645,8 +649,10 @@
     <string name="settings_storageEncrypted">Always encrypted</string>
     <string name="settings_subtitle">Language, server, sessions and security.</string>
     <string name="settings_sync">Synchronisation</string>
+    <string name="settings_thisPhone">This phone</string>
     <string name="settings_thisSession">this session</string>
     <string name="settings_version">Version</string>
+    <string name="settings_versionN">version {v}</string>
     <string name="setup_connect">Connect</string>
     <string name="setup_connecting">Connecting…</string>
     <string name="setup_deviceName">Name of this phone</string>
@@ -728,6 +734,7 @@
     <string name="sync_savedLocally">Saved on this phone. It reaches the server on the next sync.</string>
     <string name="sync_synced">Synced · {ago}</string>
     <string name="sync_syncing">Syncing…</string>
+    <string name="sync_upToDate">Up to date · {ago}</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_system">System</string>

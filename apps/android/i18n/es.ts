@@ -348,4 +348,13 @@ export const es: Record<keyof typeof en, string> = {
   'wish.typeTitle': 'Escribir el título',
   'wish.scanText': 'En la librería: se busca y se rellena solo',
   'wish.typeText': 'Título, autor o ISBN a mano',
+
+  // Redesign: settings.
+  'sync.upToDate': 'Al día · {ago}',
+  'settings.thisPhone': 'Este móvil',
+  'settings.encryptedShort': 'datos cifrados',
+  'settings.versionN': 'versión {v}',
+  'settings.advanced': 'Avanzado',
+  'settings.advancedText': 'Servidor y versión de datos',
+  'device.disconnectThis': 'Desconectar este móvil',
 };

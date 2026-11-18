@@ -350,4 +350,13 @@ export const en = {
   'wish.typeTitle': 'Type the title',
   'wish.scanText': 'In a bookshop: it is looked up and filled in',
   'wish.typeText': 'Title, author or ISBN by hand',
+
+  // Redesign: settings.
+  'sync.upToDate': 'Up to date · {ago}',
+  'settings.thisPhone': 'This phone',
+  'settings.encryptedShort': 'encrypted data',
+  'settings.versionN': 'version {v}',
+  'settings.advanced': 'Advanced',
+  'settings.advancedText': 'Server and data version',
+  'device.disconnectThis': 'Disconnect this phone',
 } as const;
