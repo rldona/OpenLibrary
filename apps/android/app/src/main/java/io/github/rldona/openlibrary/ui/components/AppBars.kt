@@ -24,11 +24,9 @@ import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -43,6 +41,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import io.github.rldona.openlibrary.R
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /*
  * Every destination with a top app bar uses these. MainActivity's `screen(topBar = true)` already pads the
@@ -113,6 +113,8 @@ fun BackScaffold(
     /** Close (✕) for a form you leave without saving; back arrow otherwise. */
     close: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
+    /** Fixed at the bottom (a form's main button). */
+    bottomBar: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
@@ -128,6 +130,7 @@ fun BackScaffold(
                 scrollBehavior = scroll,
             )
         },
+        bottomBar = bottomBar,
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
         content = content,
@@ -163,6 +166,26 @@ class FabVisibility {
 
 @Composable
 fun rememberFabVisibility(): FabVisibility = remember { FabVisibility() }
+
+/** The extended "Add" button; it hides while the list scrolls down, like [AddFabMenu]. */
+@Composable
+fun AddFab(visible: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible,
+        enter = androidx.compose.animation.scaleIn() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.scaleOut() + androidx.compose.animation.fadeOut(),
+        modifier = modifier,
+    ) {
+        androidx.compose.material3.ExtendedFloatingActionButton(
+            onClick = onClick,
+            icon = { Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = null) },
+            text = { Text(stringResource(R.string.add_fab)) },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.testTag("add"),
+        )
+    }
+}
 
 /** One entry of [AddFabMenu]. */
 class FabItem(val label: String, val icon: ImageVector, val testTag: String? = null, val onClick: () -> Unit)

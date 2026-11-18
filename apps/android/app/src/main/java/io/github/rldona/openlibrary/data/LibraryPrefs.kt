@@ -23,11 +23,19 @@ enum class LibrarySort(val key: String) {
 class LibraryPrefs(private val context: Context) {
     private val recentKey = stringPreferencesKey("library_recent_searches")
     private val sortKey = stringPreferencesKey("library_sort")
+    private val lastLocationKey = stringPreferencesKey("last_location")
 
     val recentSearches: Flow<List<String>> =
         context.prefs.data.map { p -> p[recentKey]?.split('\n')?.filter { it.isNotBlank() }.orEmpty() }
 
     val sort: Flow<LibrarySort> = context.prefs.data.map { LibrarySort.of(it[sortKey]) }
+
+    /** Where the last book was put: proposed for the next one ([setLastLocation]). It may have been deleted since. */
+    val lastLocation: Flow<String?> = context.prefs.data.map { it[lastLocationKey] }
+
+    suspend fun setLastLocation(id: String?) {
+        context.prefs.edit { p -> if (id == null) p.remove(lastLocationKey) else p[lastLocationKey] = id }
+    }
 
     suspend fun addRecentSearch(query: String) {
         context.prefs.edit { p ->

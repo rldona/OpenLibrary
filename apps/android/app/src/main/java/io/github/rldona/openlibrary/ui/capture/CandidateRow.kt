@@ -13,15 +13,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,48 +30,9 @@ import coil3.compose.AsyncImage
 import io.github.rldona.openlibrary.R
 import io.github.rldona.openlibrary.network.MetadataCandidate
 
-/**
- * Goodreads-style list of books found from the text read on a cover. A row fills the form; "Keep
- * scanning" returns to the camera without searching again for the same title.
- */
+/** One book found from the text read on a cover: tapping it picks it. */
 @Composable
-internal fun CandidateDialog(
-    candidates: List<MetadataCandidate>,
-    failed: Boolean,
-    onPick: (MetadataCandidate) -> Unit,
-    onRetry: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val title =
-        when {
-            candidates.isNotEmpty() -> R.string.identify_title
-            failed -> R.string.identify_failedTitle
-            else -> R.string.identify_noneTitle
-        }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(title)) },
-        text = {
-            if (candidates.isEmpty()) {
-                Text(stringResource(if (failed) R.string.identify_failed else R.string.identify_none))
-            } else {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    candidates.forEach { candidate -> CandidateRow(candidate, onPick) }
-                }
-            }
-        },
-        confirmButton = {
-            // An empty result can be retried: the next frame may read the title differently.
-            if (candidates.isEmpty()) TextButton(onClick = onRetry) { Text(stringResource(R.string.identify_retry)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.identify_keepScanning)) }
-        },
-    )
-}
-
-@Composable
-private fun CandidateRow(candidate: MetadataCandidate, onPick: (MetadataCandidate) -> Unit) {
+internal fun CandidateRow(candidate: MetadataCandidate, onPick: (MetadataCandidate) -> Unit) {
     // One element for TalkBack: the title is read once, the cover adds nothing.
     ListItem(
         onClick = { onPick(candidate) },

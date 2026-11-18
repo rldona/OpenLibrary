@@ -65,7 +65,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -104,24 +103,20 @@ import io.github.rldona.openlibrary.core.frameInImage
 import io.github.rldona.openlibrary.core.initialEditState
 import io.github.rldona.openlibrary.core.normalizeIsbn
 import io.github.rldona.openlibrary.core.str
-import io.github.rldona.openlibrary.network.MetadataCandidate
 import io.github.rldona.openlibrary.network.MetadataSearchResult
 import io.github.rldona.openlibrary.sync.CoverStore
 import io.github.rldona.openlibrary.ui.components.LocalSnackbar
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import androidx.compose.runtime.setValue
 
 private const val TAG = "OpenLibraryScanner"
 
-enum class CaptureMode { Isbn, Cover, Identify }
+enum class CaptureMode { Isbn, Cover }
 
 /** What the capture screen hands back to the book form; any part may be missing. */
-data class CaptureResult(
-    val isbn: String?,
-    val photoId: String?,
-    val candidate: MetadataCandidate? = null,
-)
+data class CaptureResult(val isbn: String?, val photoId: String?)
 
 /** Title/author text read on a cover, looked up by the server. */
 typealias IdentifySearch = suspend (title: String, author: String?) -> MetadataSearchResult
@@ -154,17 +149,16 @@ private val EditSessionSaver = listSaver<EditSession?, Any>(
 )
 
 /**
- * Full-screen camera for adding a book, with up to three modes as tabs: ISBN (scan the barcode), Cover
- * (a photo or a picture from the gallery, then cropped in [CoverEditor]) and Identify (read the title on
- * the cover and search for it). Confirming an ISBN moves on to the cover, so a book can be captured in one
- * go; the top-left button closes and returns whatever was captured.
+ * Full-screen camera for one capture, optionally with two modes as tabs: ISBN (scan the barcode) and Cover
+ * (a photo or a picture from the gallery, then cropped in [CoverEditor]). With tabs, confirming an ISBN
+ * moves on to the cover; the top-left button closes and returns whatever was captured. Adding books
+ * (scanning many, identifying a cover) is [ScanScreen].
  */
 @Composable
 fun CaptureScreen(
     covers: CoverStore,
     start: CaptureMode,
     showTabs: Boolean,
-    identify: IdentifySearch? = null,
     /** Open the gallery picker on entry (the form's "Choose from the gallery"); cancelling it leaves the camera. */
     startWithGallery: Boolean = false,
     onDone: (CaptureResult) -> Unit,
@@ -255,8 +249,6 @@ fun CaptureScreen(
         when {
             granted && mode == CaptureMode.Isbn ->
                 IsbnCamera(torch, onIsbn = { isbn = it; if (showTabs) mode = CaptureMode.Cover else finish(null) })
-            granted && mode == CaptureMode.Identify && identify != null ->
-                IdentifyCamera(torch, search = identify, onCandidate = { onDone(CaptureResult(null, null, it)) })
             granted -> CoverCamera(torch, onPhoto = openEditor, onGallery = {
                 pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             })
@@ -285,7 +277,6 @@ fun CaptureScreen(
             val modes = listOfNotNull(
                 CaptureMode.Isbn to R.string.capture_isbn,
                 CaptureMode.Cover to R.string.capture_cover,
-                (CaptureMode.Identify to R.string.capture_identify).takeIf { identify != null },
             )
             val modeLabel = stringResource(R.string.capture_mode)
             // The modes as an Expressive floating toolbar over the picture; one of them is always on.
@@ -332,7 +323,7 @@ internal fun CameraDenied(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun CameraPreview(controller: LifecycleCameraController, torch: Boolean) {
+internal fun CameraPreview(controller: LifecycleCameraController, torch: Boolean, onView: (PreviewView) -> Unit = {}) {
     val owner = LocalLifecycleOwner.current
     // COMPATIBLE renders into a TextureView, which Compose clips: the default SurfaceView ignores the
     // clip, and with FILL_CENTER it spills past a preview box that does not fill the screen (bulk scan).
@@ -344,7 +335,7 @@ internal fun CameraPreview(controller: LifecycleCameraController, torch: Boolean
                 scaleType = PreviewView.ScaleType.FILL_CENTER
                 this.controller = controller
                 controller.bindToLifecycle(owner)
-            }
+            }.also(onView)
         },
         modifier = Modifier.fillMaxSize().clipToBounds(),
     )
@@ -393,7 +384,7 @@ internal fun Viewfinder(hint: String, highlight: Boolean, onFrame: (PixelRect) -
                     Modifier.padding(start = f.left.toDp(), top = f.top.toDp()).size(f.width.toDp(), f.height.toDp()),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(hint, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+                    Text(hint, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(16.dp))
                 }
             }
         }
