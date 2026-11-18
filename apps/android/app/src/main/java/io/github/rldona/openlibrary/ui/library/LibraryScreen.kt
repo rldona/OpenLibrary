@@ -1,6 +1,5 @@
 package io.github.rldona.openlibrary.ui.library
 
-import kotlinx.coroutines.flow.flowOf
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -31,7 +30,6 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
@@ -128,6 +126,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.filled.Tune
 
 data class LibraryItem(val row: LibraryRow, val place: List<String>)
 
@@ -147,6 +149,10 @@ data class LibraryState(
     val reading: String? = null,
     val sort: LibrarySort = LibrarySort.Title,
     val favoritesOnly: Boolean = false,
+    /** Books not read yet among those searched/filtered (the reading filter aside), for the "Unread" chip. */
+    val unread: Int = 0,
+    /** Books with a copy not placed anywhere, in the whole library. */
+    val unplaced: Int = 0,
 ) {
     val filtered get() = location != null || onlyProvisional || reading != null || favoritesOnly
     /** Only the favorites chip is on: an empty list then means there are no favorites, not a search without matches. */
@@ -189,14 +195,16 @@ class LibraryViewModel(
                 combine(
                     c.db.catalog().library(ftsQuery(f.q), f.loc == null, ids),
                     c.db.catalog().placements(),
-                    // Reading statuses are only worked out while filtering by one.
-                    if (f.reading != null) c.db.catalog().readingStatuses() else flowOf(emptyList()),
+                    // Reading statuses: for the reading filter and the "Unread" chip's count.
+                    c.db.catalog().readingStatuses(),
                     prefs.sort,
                     favoritesOnly,
                 ) { rows, places, statuses, sort, favorites ->
                     val firstPlace = places.groupBy({ it.editionId }, { it.locationId })
-                    val shown = shapeLibrary(rows, statuses.associate { it.workId to it.status }, f.reading, f.prov, sort, favorites)
+                    val byWork = statuses.associate { it.workId to it.status }
+                    val shown = shapeLibrary(rows, byWork, f.reading, f.prov, sort, favorites)
                     LibraryState(
+                        unread = shapeLibrary(rows, byWork, "pending", f.prov, sort, favorites).size,
                         provisional = rows.count { it.metadataStatus == "provisional" },
                         onlyProvisional = f.prov,
                         reading = f.reading,
@@ -212,6 +220,7 @@ class LibraryViewModel(
                     )
                 }
             }
+            .combine(c.db.catalog().unplacedCopies()) { st, copies -> st.copy(unplaced = copies.distinctBy { it.editionId }.size) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryState())
 
     val status = c.sync.status
@@ -301,6 +310,8 @@ fun LibraryScreen(
     onOpen: (workId: String, editionId: String) -> Unit,
     onAdd: (AddWay) -> Unit,
     onReview: () -> Unit,
+    /** "Place" on the not-placed notice: the books without a place, to give them one. */
+    onPlace: () -> Unit = {},
 ) {
     var adding by rememberSaveable { mutableStateOf(false) }
     if (adding) {
@@ -354,7 +365,7 @@ fun LibraryScreen(
                 vm.rememberSearch(q)
                 collapse()
             },
-            placeholder = { Text(stringResource(R.string.search_placeholder), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            placeholder = { Text(stringResource(R.string.library_searchShort), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = {
                 if (expanded) {
                     IconButton(onClick = collapse) {
@@ -382,15 +393,7 @@ fun LibraryScreen(
                 AppBarWithSearch(
                     state = searchState,
                     inputField = inputField,
-                    actions = {
-                        IconButton(onClick = { grid = !grid }) {
-                            Icon(
-                                if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                contentDescription = stringResource(if (grid) R.string.library_viewTable else R.string.library_viewCovers),
-                            )
-                        }
-                        SortMenu(state.sort, vm::setSort)
-                    },
+                    actions = { ViewSortMenu(grid, { grid = it }, state.sort, vm::setSort) },
                     colors = SearchBarDefaults.appBarWithSearchColors(
                         appBarContainerColor = MaterialTheme.colorScheme.background,
                         scrolledAppBarContainerColor = MaterialTheme.colorScheme.background,
@@ -443,6 +446,10 @@ fun LibraryScreen(
                     animatedVisibilityScope,
                     onOpen = openBook,
                     onFavorite = vm::toggleFavorite,
+                    sort = state.sort,
+                    // The notice is for the whole library: not while searching or filtering.
+                    unplaced = if (text.text.isEmpty() && !state.filtered) state.unplaced else 0,
+                    onPlace = onPlace,
                 )
             }
         }
@@ -469,31 +476,52 @@ fun LibraryScreen(
     }
 }
 
-/** Sort order, remembered on this phone. */
+/** The sort labels, shared with the web ("Title A→Z"…). */
+private val SORT_LABELS = listOf(
+    LibrarySort.Title to R.string.library_sort_title,
+    LibrarySort.Author to R.string.library_sort_author,
+    LibrarySort.Added to R.string.library_sort_added,
+)
+
+/** One button for how the books look (covers or list) and their order; the order is remembered on this phone. */
 @Composable
-private fun SortMenu(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
+private fun ViewSortMenu(grid: Boolean, onGrid: (Boolean) -> Unit, sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.library_sort))
+            Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.library_viewSort))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            listOf(
-                LibrarySort.Title to R.string.library_sort_title,
-                LibrarySort.Author to R.string.library_sort_author,
-                LibrarySort.Added to R.string.library_sort_added,
-            ).forEach { (value, label) ->
+            MenuHeading(stringResource(R.string.library_view))
+            listOf(true to R.string.library_viewCovers, false to R.string.library_viewList).forEach { (value, label) ->
                 DropdownMenuItem(
                     text = { Text(stringResource(label)) },
-                    onClick = {
-                        onSort(value)
-                        open = false
-                    },
-                    leadingIcon = { if (value == sort) Icon(Icons.Default.Check, contentDescription = null) },
+                    onClick = { onGrid(value); open = false },
+                    leadingIcon = { Icon(if (value) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList, contentDescription = null) },
+                    trailingIcon = { if (value == grid) Icon(Icons.Default.Check, contentDescription = null) },
+                )
+            }
+            HorizontalDivider()
+            MenuHeading(stringResource(R.string.library_order))
+            SORT_LABELS.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    onClick = { onSort(value); open = false },
+                    trailingIcon = { if (value == sort) Icon(Icons.Default.Check, contentDescription = null) },
                 )
             }
         }
     }
+}
+
+@Composable
+private fun MenuHeading(text: String) {
+    Text(
+        text,
+        Modifier.padding(horizontal = 16.dp, vertical = 8.dp).semantics { heading() },
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Location, reading status, favorites and "to complete", as chips under the search bar. */
@@ -509,7 +537,11 @@ private fun Filters(state: LibraryState, vm: LibraryViewModel) {
             FilterChip(
                 selected = selected,
                 onClick = { vm.setReading(if (selected) null else status) },
-                label = { Text(stringResource(readingStatusLabel(status))) },
+                label = {
+                    // "Unread 11": how many are still to read, at a glance.
+                    val name = stringResource(readingStatusLabel(status))
+                    Text(if (status == "pending" && state.unread > 0) "$name ${state.unread}" else name)
+                },
                 leadingIcon = if (selected) ({ Icon(Icons.Default.Check, contentDescription = null) }) else null,
             )
         }
@@ -680,15 +712,28 @@ private fun Books(
     animatedVisibilityScope: AnimatedVisibilityScope,
     onOpen: (workId: String, editionId: String) -> Unit,
     onFavorite: (LibraryRow) -> Unit,
+    sort: LibrarySort,
+    unplaced: Int,
+    onPlace: () -> Unit,
 ) {
     // The grid already pads its content by 16 dp; the list does not.
     val header: @Composable (inset: Dp) -> Unit = { inset ->
-        Text(
-            plural(R.string.library_editionsFound_one, R.string.library_editionsFound_other, items.size),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = inset, end = inset, top = 4.dp, bottom = 4.dp),
-        )
+        Column(Modifier.padding(start = inset, end = inset, top = 4.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (unplaced > 0) UnplacedNotice(unplaced, onPlace)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    plural(R.string.library_books_one, R.string.library_books_other, items.size),
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(SORT_LABELS.first { it.first == sort }.second),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
     if (grid) {
         LazyVerticalGrid(
@@ -797,6 +842,25 @@ private fun Books(
                     HorizontalDivider(Modifier.padding(start = 82.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
+        }
+    }
+}
+
+/** "11 books not placed · Give them a shelf in one go · Place". */
+@Composable
+private fun UnplacedNotice(count: Int, onPlace: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                Text(
+                    plural(R.string.library_unplaced_one, R.string.library_unplaced_other, count),
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(stringResource(R.string.library_unplacedText), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+            Button(onClick = onPlace, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.library_place)) }
         }
     }
 }

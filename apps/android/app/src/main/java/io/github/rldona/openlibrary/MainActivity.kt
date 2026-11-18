@@ -98,6 +98,8 @@ import io.github.rldona.openlibrary.ui.book.BookFormViewModel
 import io.github.rldona.openlibrary.ui.capture.CaptureMode
 import io.github.rldona.openlibrary.ui.capture.CaptureScreen
 import io.github.rldona.openlibrary.ui.capture.ScanMode
+import io.github.rldona.openlibrary.ui.library.UnplacedScreen
+import io.github.rldona.openlibrary.ui.library.UnplacedViewModel
 import io.github.rldona.openlibrary.ui.capture.ScanScreen
 import io.github.rldona.openlibrary.ui.capture.ScanViewModel
 import io.github.rldona.openlibrary.ui.book.AddBookScreen
@@ -144,6 +146,8 @@ import androidx.compose.runtime.getValue
 @Serializable data class CaptureRoute(val mode: String, val tabs: Boolean, val gallery: Boolean = false)
 @Serializable data class CoverRoute(val assetId: String, val title: String)
 @Serializable object ReviewRoute
+/** The books without a place, to place them in one go. */
+@Serializable object UnplacedRoute
 /** The camera to add books: "code" (barcodes, one or many) or "cover" (identify a cover). */
 @Serializable data class ScanRoute(val mode: String = "code")
 
@@ -328,7 +332,12 @@ private fun App(c: AppContainer, connected: Boolean) {
                                     }
                                 },
                                 onReview = { nav.navigate(ReviewRoute) },
+                                onPlace = { nav.navigate(UnplacedRoute) },
                             )
+                        }
+                        screen<UnplacedRoute>(topBar = true) {
+                            val vm = viewModel<UnplacedViewModel>(factory = viewModelFactory { initializer { UnplacedViewModel(c) } })
+                            UnplacedScreen(vm, onBack = { nav.popBackStack() })
                         }
                         // The shared cover carries the transition while the detail itself slides in.
                         screen<DetailRoute>(topBar = true) { e ->
