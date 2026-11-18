@@ -44,7 +44,14 @@ fun SyncBar(
         LinearProgressIndicator(modifier.fillMaxWidth())
         return
     }
-    val text =
+    val text = syncText(status, lastSyncAt, now)
+    val warn = status is SyncStatus.Offline || status is SyncStatus.Revoked || status is SyncStatus.Failed || problems > 0
+    SyncBox(modifier, text, warn, pending, problems, onReview)
+}
+
+/** What the sync is doing, in words: "Synced · 2 min ago", "Server unavailable…". [upToDate] reads "Up to date · …". */
+@Composable
+fun syncText(status: SyncStatus, lastSyncAt: Long?, now: Long, upToDate: Boolean = false): String =
         when (status) {
             SyncStatus.Offline ->
                 str(
@@ -53,9 +60,12 @@ fun SyncBar(
                 )
             SyncStatus.Revoked -> str(R.string.device_revoked)
             is SyncStatus.Failed -> str(R.string.sync_failed, "error" to status.message)
-            else -> if (lastSyncAt == null) str(R.string.sync_never) else str(R.string.sync_synced, "ago" to ago(lastSyncAt, now))
+            is SyncStatus.Running -> str(R.string.sync_syncing)
+            else -> if (lastSyncAt == null) str(R.string.sync_never) else str(if (upToDate) R.string.sync_upToDate else R.string.sync_synced, "ago" to ago(lastSyncAt, now))
         }
-    val warn = status is SyncStatus.Offline || status is SyncStatus.Revoked || status is SyncStatus.Failed || problems > 0
+
+@Composable
+private fun SyncBox(modifier: Modifier, text: String, warn: Boolean, pending: Int, problems: Int, onReview: () -> Unit) {
     Surface(color = if (warn) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant) {
         Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
             Text(text, style = MaterialTheme.typography.labelMedium)

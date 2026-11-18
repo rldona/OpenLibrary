@@ -5,13 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.LibraryBooks
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Icon
@@ -73,6 +69,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
+import io.github.rldona.openlibrary.core.str
+import io.github.rldona.openlibrary.ui.components.syncText
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 
 class SettingsViewModel(private val c: AppContainer, private val onDisconnected: () -> Unit) : ViewModel() {
     val session = c.sessions.session
@@ -141,35 +145,25 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
     var confirm by remember { mutableStateOf(false) }
     var changeServer by remember { mutableStateOf(false) }
 
+    var advanced by remember { mutableStateOf(false) }
     TabScaffold(stringResource(R.string.nav_settings)) { inner ->
         Column(
             Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).readableWidth().padding(Spacing.page),
             verticalArrangement = Arrangement.spacedBy(Spacing.item),
         ) {
-            SectionHeader(stringResource(R.string.settings_server))
-            SegmentedListItem(
-                onClick = { vm.clearMoveResult(); changeServer = true },
-                shapes = ListItemDefaults.segmentedShapes(0, 1),
-                leadingContent = { Icon(Icons.Default.Dns, contentDescription = null) },
-                trailingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
-                supportingContent = { Text(session?.serverUrl.orEmpty().ifEmpty { "—" }) },
-                modifier = Modifier.testTag("changeServer"),
-            ) { Text(stringResource(R.string.server_change)) }
-            Group(
-                listOf(
-                    Triple(Icons.Default.PhoneAndroid, stringResource(R.string.device_thisDevice), session?.deviceName.orEmpty()),
-                    Triple(Icons.AutoMirrored.Filled.LibraryBooks, stringResource(R.string.device_books), editions.toString()),
-                ),
-            )
             SectionHeader(stringResource(R.string.settings_sync))
-            SyncBar(status, state?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview)
+            // Only what needs attention (offline, changes waiting, problems); all is well says so in the row.
+            SyncBar(status, state?.lastSyncAt, now, pending = pending, problems = problems, onReview = onReview, onlyProblems = true)
             val idle = status !is SyncStatus.Running
+            val fine = status == SyncStatus.Idle && pending == 0 && problems == 0 && state?.lastSyncAt != null
             Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                 SegmentedListItem(
                     onClick = { vm.syncNow() },
                     shapes = ListItemDefaults.segmentedShapes(0, 2),
                     enabled = idle,
                     leadingContent = { Icon(Icons.Default.Sync, contentDescription = null) },
+                    supportingContent = { Text(syncText(status, state?.lastSyncAt, now, upToDate = fine)) },
+                    trailingContent = { if (fine) Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 ) { Text(stringResource(R.string.sync_now)) }
                 SegmentedListItem(
                     onClick = { vm.resync() },
@@ -192,22 +186,46 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             }
             SectionHeader(stringResource(R.string.security_title))
             LockSetting(vm)
-            SectionHeader(stringResource(R.string.settings_about))
-            Group(
-                listOf(
-                    Triple(Icons.Default.Info, stringResource(R.string.settings_appVersion), appVersion(context)),
-                    Triple(Icons.Default.Lock, stringResource(R.string.settings_storage), stringResource(R.string.settings_storageEncrypted)),
-                    // Diagnostics: the first characters identify the server's data set, as the web shows it.
-                    Triple(Icons.Default.Tag, stringResource(R.string.settings_epoch), state?.epoch.orEmpty().take(8)),
-                ),
-            )
+            SectionHeader(stringResource(R.string.settings_thisPhone))
+            Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                // Name, books, encryption and version in one card.
+                SegmentedListItem(
+                    onClick = {},
+                    enabled = false,
+                    shapes = ListItemDefaults.segmentedShapes(0, 2),
+                    supportingContent = {
+                        Text(
+                            listOf(
+                                plural(R.string.library_books_one, R.string.library_books_other, editions),
+                                stringResource(R.string.settings_encryptedShort),
+                                str(R.string.settings_versionN, "v" to appVersion(context)),
+                            ).joinToString(" · "),
+                        )
+                    },
+                    colors = ListItemDefaults.segmentedColors(disabledContentColor = MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                ) { Text(session?.deviceName.orEmpty().ifEmpty { "—" }) }
+                SegmentedListItem(
+                    onClick = { advanced = true },
+                    shapes = ListItemDefaults.segmentedShapes(1, 2),
+                    supportingContent = { Text(stringResource(R.string.settings_advancedText)) },
+                    trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                    modifier = Modifier.testTag("advanced"),
+                ) { Text(stringResource(R.string.settings_advanced)) }
+            }
             Spacer(Modifier.height(Spacing.item))
-            SegmentedListItem(
-                onClick = { confirm = true },
-                shapes = ListItemDefaults.segmentedShapes(0, 1),
-                leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            ) { Text(stringResource(R.string.device_disconnect), color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = { confirm = true }, modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.device_disconnectThis), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize))
+            }
         }
+    }
+    if (advanced) {
+        AdvancedSheet(
+            server = session?.serverUrl.orEmpty(),
+            epoch = state?.epoch.orEmpty().take(8),
+            onChangeServer = { advanced = false; vm.clearMoveResult(); changeServer = true },
+            onDismiss = { advanced = false },
+        )
     }
     if (changeServer) {
         ChangeServerDialog(
@@ -226,6 +244,31 @@ fun SettingsScreen(vm: SettingsViewModel, now: Long, context: android.content.Co
             onConfirm = { confirm = false; vm.disconnect(context) },
             onDismiss = { confirm = false },
         )
+    }
+}
+
+/** "Advanced": the server's address (to change it) and the data version, kept out of the way. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdvancedSheet(server: String, epoch: String, onChangeServer: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = Spacing.page)) {
+            Text(
+                stringResource(R.string.settings_advanced),
+                Modifier.padding(horizontal = Spacing.page).padding(bottom = 8.dp).semantics { heading() },
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            ListItem(
+                onClick = onChangeServer,
+                leadingContent = { Icon(Icons.Default.Dns, contentDescription = null) },
+                trailingContent = { Icon(Icons.Default.Edit, contentDescription = null) },
+                supportingContent = { Text(server.ifEmpty { "—" }) },
+                colors = pageListItemColors(),
+                modifier = Modifier.testTag("changeServer"),
+            ) { Text(stringResource(R.string.server_change)) }
+            // Diagnostics: the first characters identify the server's data set, as the web shows it.
+            Group(listOf(Triple(Icons.Default.Tag, stringResource(R.string.settings_epoch), epoch)))
+        }
     }
 }
 
